@@ -1,0 +1,28 @@
+# LBRO Backend Dependencies
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+pydantic-settings==2.6.1
+
+# Async DB
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+alembic==1.14.0
+
+# AWS
+boto3==1.35.86
+botocore==1.35.86
+
+# Observability
+structlog==24.4.0
+aws-xray-sdk==2.14.0
+
+# Testing
+pytest==8.3.4
+pytest-asyncio==0.24.0
+pytest-cov==6.0.0
+httpx==0.28.1
+testcontainers[postgres]==4.8.2
+moto[sqs,s3,secretsmanager]==5.0.22
+factory-boy==3.3.1
+slowapi==0.1.9

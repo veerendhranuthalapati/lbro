@@ -1,0 +1,37 @@
+# ── Build stage ───────────────────────────────────────────────────────────────
+FROM python:3.12-slim AS builder
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc libpq-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
+
+
+# ── Runtime stage ─────────────────────────────────────────────────────────────
+FROM python:3.12-slim AS runtime
+
+RUN groupadd --gid 1000 lbro && useradd --uid 1000 --gid lbro --no-create-home lbro
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY --from=builder /install /usr/local
+COPY --chown=lbro:lbro app/ ./app/
+
+USER lbro
+
+# Worker has no HTTP port — it polls SQS
+# Worker health check: verify the PID file written by the worker exists and is recent
+# The worker writes /tmp/worker.heartbeat every 30s while running
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+    CMD test -f /tmp/worker.heartbeat && \
+        test $(( $(date +%s) - $(date -r /tmp/worker.heartbeat +%s) )) -lt 90 || exit 1
+
+CMD ["python", "-m", "app.worker.main"]

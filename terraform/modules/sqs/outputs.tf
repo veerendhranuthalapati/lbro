@@ -1,0 +1,9 @@
+output "incident_queue_url"      { value = aws_sqs_queue.incidents.url }
+output "incident_queue_arn"      { value = aws_sqs_queue.incidents.arn }
+output "incident_queue_name"     { value = aws_sqs_queue.incidents.name }
+output "notification_queue_url"  { value = aws_sqs_queue.notifications.url }
+output "notification_queue_arn"  { value = aws_sqs_queue.notifications.arn }
+output "notification_queue_name" { value = aws_sqs_queue.notifications.name }
+output "dlq_url"                 { value = aws_sqs_queue.dlq.url }
+output "dlq_arn"                 { value = aws_sqs_queue.dlq.arn }
+output "dlq_name"                { value = aws_sqs_queue.dlq.name }

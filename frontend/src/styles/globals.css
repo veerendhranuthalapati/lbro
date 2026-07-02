@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 36 30% 92%;
+    --foreground: 0 0% 7%;
+    --card: 36 25% 90%;
+    --card-foreground: 0 0% 7%;
+    --popover: 36 25% 90%;
+    --popover-foreground: 0 0% 7%;
+    --primary: 15 77% 50%;
+    --primary-foreground: 36 30% 92%;
+    --secondary: 36 15% 85%;
+    --secondary-foreground: 0 0% 7%;
+    --muted: 36 15% 85%;
+    --muted-foreground: 20 5% 42%;
+    --accent: 15 77% 50%;
+    --accent-foreground: 36 30% 92%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 36 30% 92%;
+    --border: 30 12% 77%;
+    --input: 30 12% 77%;
+    --ring: 15 77% 50%;
+    --radius: 0.25rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-lbro-border;
+    box-sizing: border-box;
+  }
+  body {
+    background-color: #f0ebe2;
+    color: #111111;
+    font-family: 'Space Grotesk', system-ui, sans-serif;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+  h1, h2, h3, h4 {
+    font-weight: 500;
+  }
+}
+
+@layer components {
+  /* Editorial card — replaces glass */
+  .editorial-card {
+    background: #f9f5ef;
+    border: 1px solid #c8c2b8;
+    border-radius: 4px;
+  }
+
+  /* Severity colors */
+  .severity-critical {
+    color: #e54e1b;
+    background: rgba(229,78,27,0.08);
+    border-color: rgba(229,78,27,0.3);
+  }
+  .severity-high {
+    color: #d97706;
+    background: rgba(217,119,6,0.08);
+    border-color: rgba(217,119,6,0.3);
+  }
+  .severity-medium {
+    color: #6b6560;
+    background: rgba(107,101,96,0.08);
+    border-color: rgba(107,101,96,0.3);
+  }
+  .severity-low {
+    color: #3a7a50;
+    background: rgba(58,122,80,0.08);
+    border-color: rgba(58,122,80,0.3);
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: #e8e2d9; }
+  ::-webkit-scrollbar-thumb { background: #c8c2b8; border-radius: 2px; }
+  ::-webkit-scrollbar-thumb:hover { background: #e54e1b66; }
+
+  /* Status bar stripe */
+  .status-stripe {
+    background: #e54e1b;
+    color: white;
+    font-size: 10px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  /* Display font utility */
+  .font-display {
+    font-family: 'Bebas Neue', sans-serif;
+    letter-spacing: 0.03em;
+  }
+
+  /* Table row hover */
+  .table-row-hover:hover td {
+    background: #e8e2d9;
+  }
+}
+
+@keyframes ping-slow {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.3; transform: scale(1.5); }
+}
+.dot-live { animation: ping-slow 2s ease-in-out infinite; }

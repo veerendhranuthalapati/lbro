@@ -1,0 +1,177 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# LBRO — Law-aware Breach Response Orchestrator
+# Local development stack: API + Worker + Frontend + PostgreSQL + LocalStack
+# Usage: docker compose up --build
+# ─────────────────────────────────────────────────────────────────────────────
+
+x-common-env: &common-env
+  DATABASE_URL: postgresql+asyncpg://lbro:lbro@postgres:5432/lbro
+  AWS_ENDPOINT_URL: http://localstack:4566
+  AWS_ACCESS_KEY_ID: test
+  AWS_SECRET_ACCESS_KEY: test
+  AWS_REGION: us-east-1
+  S3_BUCKET_EVIDENCE: lbro-evidence
+  S3_BUCKET_REPORTS: lbro-reports
+  SQS_INCIDENT_QUEUE_URL: http://localstack:4566/000000000000/lbro-incidents
+  SQS_NOTIFICATION_QUEUE_URL: http://localstack:4566/000000000000/lbro-notifications
+  SQS_DLQ_URL: http://localstack:4566/000000000000/lbro-dlq
+  SECRET_KEY: dev-secret-key-change-in-production-minimum-32-chars
+  ENVIRONMENT: development
+  DEBUG: "true"
+  LOG_LEVEL: INFO
+  CORS_ORIGINS: "http://localhost:5173,http://localhost:3000,http://localhost:80,http://frontend:80"
+
+services:
+
+  # ── PostgreSQL ────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: lbro-postgres
+    environment:
+      POSTGRES_USER: lbro
+      POSTGRES_PASSWORD: lbro
+      POSTGRES_DB: lbro
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lbro -d lbro"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  # ── LocalStack (AWS simulation) ────────────────────────────────────────────
+  localstack:
+    image: localstack/localstack:3.4
+    container_name: lbro-localstack
+    environment:
+      SERVICES: s3,sqs,secretsmanager
+      DEFAULT_REGION: us-east-1
+      PERSIST_ALL: "1"
+      LOCALSTACK_AUTH_TOKEN: ""
+    ports:
+      - "4566:4566"
+    volumes:
+      - localstack_data:/var/lib/localstack
+      - ./scripts/localstack-init.sh:/etc/localstack/init/ready.d/init.sh:ro
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4566/_localstack/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+    restart: unless-stopped
+
+  # ── DB Migrations ─────────────────────────────────────────────────────────
+  migrate:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: lbro-migrate
+    command: alembic upgrade head
+    environment:
+      <<: *common-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: on-failure
+
+  # ── API ───────────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: lbro-api
+    ports:
+      - "8000:8000"
+    environment:
+      <<: *common-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    volumes:
+      - ./backend:/app:ro
+      - ml_models:/app/ml/models
+
+  # ── Worker ────────────────────────────────────────────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    container_name: lbro-worker
+    environment:
+      <<: *common-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      localstack:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    volumes:
+      - ./backend:/app:ro
+      - ml_models:/app/ml/models
+
+  # ── Frontend ──────────────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ""       # Empty = nginx proxy (same origin)
+        VITE_APP_VERSION: "2.0.0-local"
+        VITE_APP_NAME: "LBRO"
+    container_name: lbro-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Seed (creates default admin user) ─────────────────────────────────────
+  # scripts/ from the repo root is mounted at /scripts; PYTHONPATH=/app (from
+  # Dockerfile ENV) lets the script import from the backend package directly.
+  seed:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    container_name: lbro-seed
+    command: python /scripts/seed.py
+    environment:
+      <<: *common-env
+    volumes:
+      - ./scripts:/scripts:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: on-failure
+
+volumes:
+  postgres_data:
+  localstack_data:
+  ml_models:
+
+networks:
+  default:
+    name: lbro-network

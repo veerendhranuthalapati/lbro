@@ -1,20 +1,20 @@
 #!/usr/bin/env python3
-"""Seed the first SUPER_ADMIN user.
+"""Seed the first ADMIN user.
 
 Usage:
     SEED_ADMIN_EMAIL=admin@example.com \
     SEED_ADMIN_PASSWORD=ChangeMe123! \
-    SEED_ADMIN_USERNAME=superadmin \
-    python scripts/seed_super_admin.py
+    SEED_ADMIN_USERNAME=admin \
+    python scripts/seed_admin.py
 
 The script is idempotent:
-  - If a user with the given email exists, their role is promoted to super_admin.
-  - If a super_admin already exists, the script exits without changes.
+  - If a user with the given email exists, their role is promoted to admin.
+  - If a admin already exists, the script exits without changes.
 
 Environment variables:
     SEED_ADMIN_EMAIL       (required) Email address for the super admin
     SEED_ADMIN_PASSWORD    (required) Plaintext password (will be bcrypt-hashed)
-    SEED_ADMIN_USERNAME    (optional, default: superadmin) Username
+    SEED_ADMIN_USERNAME    (optional, default: admin) Username
     SEED_ADMIN_FULL_NAME   (optional, default: Super Admin) Display name
     DATABASE_URL           (optional) Overrides app config DATABASE_URL
 """
@@ -32,7 +32,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 async def main() -> None:
     email     = os.environ.get("SEED_ADMIN_EMAIL")
     password  = os.environ.get("SEED_ADMIN_PASSWORD")
-    username  = os.environ.get("SEED_ADMIN_USERNAME", "superadmin")
+    username  = os.environ.get("SEED_ADMIN_USERNAME", "admin")
     full_name = os.environ.get("SEED_ADMIN_FULL_NAME", "Super Admin")
 
     if not email or not password:
@@ -46,9 +46,9 @@ async def main() -> None:
     from app.models.user import User
 
     async with AsyncSession(engine) as session:
-        # Check if a super_admin already exists
+        # Check if a admin already exists
         result = await session.execute(
-            select(User).where(User.role == "super_admin")
+            select(User).where(User.role == "admin")
         )
         existing = result.scalar_one_or_none()
         if existing:
@@ -62,8 +62,8 @@ async def main() -> None:
         user = result.scalar_one_or_none()
 
         if user:
-            print(f"User {email} exists (role={user.role}), promoting to super_admin.")
-            user.role = "super_admin"
+            print(f"User {email} exists (role={user.role}), promoting to admin.")
+            user.role = "admin"
         else:
             user = User(
                 id=uuid.uuid4(),
@@ -71,14 +71,14 @@ async def main() -> None:
                 username=username,
                 full_name=full_name,
                 hashed_password=hash_password(password),
-                role="super_admin",
+                role="admin",
                 is_active=True,
                 is_verified=True,
                 mfa_enabled=False,
                 failed_login_attempts=0,
             )
             session.add(user)
-            print(f"Creating super_admin: {email}")
+            print(f"Creating admin: {email}")
 
         await session.commit()
         print("Done.")

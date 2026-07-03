@@ -126,7 +126,7 @@ class Incident(Base):
     )
     evidence: Mapped[list] = relationship("Evidence", back_populates="incident", cascade="all, delete-orphan")
     notifications: Mapped[list] = relationship("Notification", back_populates="incident")
-    actions: Mapped[list] = relationship("IncidentAction", back_populates="incident", cascade="all, delete-orphan")
+    actions: Mapped[list["IncidentAction"]] = relationship("IncidentAction", back_populates="incident", cascade="all, delete-orphan", lazy="selectin")
     compliance_records: Mapped[list] = relationship("ComplianceRecord", back_populates="incident")
 
     def __repr__(self) -> str:

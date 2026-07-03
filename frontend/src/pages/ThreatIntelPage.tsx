@@ -2,13 +2,13 @@
  * ThreatIntelPage -- ML threat intelligence dashboard
  *
  * Data sources:
- *   LIVE (from backend):  useMlFlows()    -> GET /api/v1/ml/flows    (MISSING)
- *                         useMlMetrics()  -> GET /api/v1/ml/metrics  (MISSING)
+ *   LIVE (from backend):  useMlFlows()    -> GET /api/v1/ml/flows    (implemented)
+ *                         useMlMetrics()  -> GET /api/v1/ml/metrics  (implemented)
  *   STATIC (published reference data, NOT mock):
  *                         CICIDS_MITRE_MAPPING -- MITRE ATT&CK technique IDs, names, URLs
  *                         ATTACK_IOC_PATTERNS  -- IOC indicator descriptions per attack type
  *   HARD-CODED charts:    MODEL_FEATURES, RADAR_DATA, FP_DATA, TACTIC_HEATMAP
- *                         -> TODO: replace with real endpoints once /api/v1/ml/metrics implemented
+ *                         -> populated from /api/v1/ml/metrics once data accumulates in DB
  */
 import { memo, useMemo, useState } from 'react'
 import {
@@ -143,7 +143,7 @@ const IOCPanel = memo(function IOCPanel({ attackType }: { attackType: AttackType
 export default function ThreatIntelPage() {
   const [selectedAttack, setSelectedAttack] = useState<AttackType>('DoS Hulk')
 
-  // Real API hooks -- both endpoints are MISSING on the backend
+  // Real API hooks -- endpoints implemented at GET /api/v1/ml/flows and GET /api/v1/ml/metrics
   const { data: flows, isLoading: flowsLoading, isError: flowsError } = useMlFlows()
   const { data: mlMetrics } = useMlMetrics()
 
@@ -170,12 +170,6 @@ export default function ThreatIntelPage() {
           Threat Intelligence
         </h2>
         <p style={{ fontSize: 11, color: GRAY, marginTop: 4 }}>CICIDS2017 ML analytics · MITRE ATT&CK mapping · False positive tracking</p>
-      </div>
-
-      {/* Missing endpoint notices */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <MissingEndpointBanner endpoint="GET /api/v1/ml/flows"   description="-- live ML flow classifications from the inference engine" />
-        <MissingEndpointBanner endpoint="GET /api/v1/ml/metrics" description="-- model accuracy, per-class precision/recall, feature importances" />
       </div>
 
       {/* KPI stats */}

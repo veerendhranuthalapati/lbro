@@ -1,4 +1,4 @@
-import { Lock, Database, CheckCircle, Download, Eye, AlertTriangle } from 'lucide-react'
+import { Lock, Database, CheckCircle, Download, Eye } from 'lucide-react'
 import { StatCard } from '@/components/ui/StatCard'
 import { useAllEvidence } from '@/hooks/useApi'
 import { formatDate, formatBytes, shortHash } from '@/utils'
@@ -10,31 +10,7 @@ const GRAY   = '#6b6560'
 const CREAM  = '#f9f5ef'
 const PARCH  = '#e8e2d9'
 
-function MissingEndpointNotice() {
-  return (
-    <div style={{ background: 'rgba(217,119,6,0.06)', border: `1px solid rgba(217,119,6,0.3)`, borderLeft: `3px solid #d97706`, borderRadius: 4, padding: '12px 16px', display: 'flex', alignItems: 'flex-start', gap: 10, marginBottom: 16 }}>
-      <AlertTriangle style={{ width: 15, height: 15, color: '#d97706', flexShrink: 0, marginTop: 1 }} aria-hidden="true" />
-      <div>
-        <div style={{ fontSize: 12, fontWeight: 500, color: BLACK, marginBottom: 4 }}>Missing backend endpoint</div>
-        <div style={{ fontSize: 11, color: GRAY, lineHeight: 1.6 }}>
-          A global evidence listing endpoint is required:{' '}
-          <code style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: ORANGE, background: 'rgba(229,78,27,0.06)', padding: '1px 5px', borderRadius: 2 }}>
-            GET /api/v1/evidence
-          </code>
-          {' '}-- must return a paginated list of all evidence packages across all incidents.
-          Per-incident evidence is available at{' '}
-          <code style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: GRAY }}>
-            GET /api/v1/incidents/{'{id}'}/evidence
-          </code>{' '}
-          (implemented). Once <code style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10 }}>GET /api/v1/evidence</code> is deployed, this page will display live data automatically.
-        </div>
-      </div>
-    </div>
-  )
-}
-
 export default function EvidencePage() {
-  // Requires missing endpoint: GET /api/v1/evidence
   const { data, isLoading, isError } = useAllEvidence({ page_size: 50 })
 
   const evidenceList = data?.items ?? []
@@ -48,8 +24,6 @@ export default function EvidencePage() {
         <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, color: BLACK, letterSpacing: '0.04em', lineHeight: 1 }}>Evidence Vault</h2>
         <p style={{ fontSize: 11, color: GRAY, marginTop: 4 }}>Forensic evidence with S3 Object Lock (WORM) · SHA-256 integrity</p>
       </div>
-
-      <MissingEndpointNotice />
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
         <StatCard label="Evidence packages" value={isLoading ? '…' : totalCount}        icon={Database}     accent="orange" />
@@ -70,8 +44,7 @@ export default function EvidencePage() {
       {/* Error state */}
       {isError && (
         <div style={{ background: 'rgba(229,78,27,0.06)', border: `1px solid rgba(229,78,27,0.3)`, borderRadius: 4, padding: '16px', textAlign: 'center', color: GRAY, fontSize: 12 }}>
-          <code style={{ fontFamily: 'JetBrains Mono, monospace', color: ORANGE }}>GET /api/v1/evidence</code> is not yet implemented on the backend. Evidence is available per-incident at{' '}
-          <code style={{ fontFamily: 'JetBrains Mono, monospace' }}>GET /api/v1/incidents/{'{id}'}/evidence</code>.
+          Failed to load evidence. Check backend connectivity and try again.
         </div>
       )}
 

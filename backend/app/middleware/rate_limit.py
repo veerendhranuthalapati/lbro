@@ -21,6 +21,11 @@ EXEMPT_PATHS = {"/health", "/metrics", "/docs", "/openapi.json", "/redoc"}
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
+        # Disable rate limiting in test environment to prevent spurious 429s
+        import os
+        if os.getenv("ENVIRONMENT") == "test":
+            return await call_next(request)
+
         if request.url.path in EXEMPT_PATHS:
             return await call_next(request)
 

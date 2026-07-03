@@ -2,29 +2,33 @@ import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, ShieldAlert, FileText, Lock,
   Cloud, Settings, LogOut, Brain, Bell, Users,
+  Target, ClipboardList,
 } from 'lucide-react'
 import type { LucideProps } from 'lucide-react'
 import { cn } from '@/utils'
 import { useAuthStore } from '@/store/authStore'
 import { logger, auditAction } from '@/lib/logger'
-import { usePermissions, Permission } from '@/hooks/usePermissions'
 
 interface NavItem {
   to: string
   icon: React.FC<LucideProps>
   label: string
-  permission?: string
 }
 
+// All authenticated users see all nav items.
+// Backend enforces access; sidebar never hides pages based on JWT permissions
+// because missing/empty permissions would cause the entire sidebar to collapse.
 const NAV: NavItem[] = [
-  { to: '/dashboard',      icon: LayoutDashboard, label: 'Dashboard',      permission: Permission.VIEW_DASHBOARD },
-  { to: '/incidents',      icon: ShieldAlert,     label: 'Incidents',       permission: Permission.READ_INCIDENT },
-  { to: '/notifications',  icon: Bell,            label: 'Notifications',   permission: Permission.READ_NOTIFICATION },
-  { to: '/compliance',     icon: FileText,        label: 'Compliance',      permission: Permission.VIEW_COMPLIANCE },
-  { to: '/ml-insights',   icon: Brain,           label: 'ML Insights',     permission: Permission.VIEW_ML },
-  { to: '/evidence',       icon: Lock,            label: 'Evidence',        permission: Permission.DOWNLOAD_EVIDENCE },
-  { to: '/infrastructure', icon: Cloud,           label: 'Infrastructure',  permission: Permission.VIEW_INFRASTRUCTURE },
-  { to: '/users',          icon: Users,           label: 'Users',           permission: Permission.MANAGE_USERS },
+  { to: '/dashboard',      icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/incidents',      icon: ShieldAlert,     label: 'Incidents' },
+  { to: '/notifications',  icon: Bell,            label: 'Notifications' },
+  { to: '/compliance',     icon: FileText,        label: 'Compliance' },
+  { to: '/ml-insights',    icon: Brain,           label: 'ML Insights' },
+  { to: '/threat-intel',   icon: Target,          label: 'Threat Intel' },
+  { to: '/evidence',       icon: Lock,            label: 'Evidence' },
+  { to: '/infrastructure', icon: Cloud,           label: 'Infrastructure' },
+  { to: '/audit-logs',     icon: ClipboardList,   label: 'Audit Logs' },
+  { to: '/users',          icon: Users,           label: 'Users' },
   { to: '/settings',       icon: Settings,        label: 'Settings' },
 ]
 
@@ -32,7 +36,6 @@ export function Sidebar() {
   const logout = useAuthStore(s => s.logout)
   const navigate = useNavigate()
   const location = useLocation()
-  const { can } = usePermissions()
 
   const handleLogout = () => {
     auditAction('auth:logout', 'session', 'current')
@@ -40,10 +43,6 @@ export function Sidebar() {
     logout()
     navigate('/login', { replace: true })
   }
-
-  const visibleNav = NAV.filter(item =>
-    !item.permission || can(item.permission as Parameters<typeof can>[0])
-  )
 
   return (
     <aside
@@ -69,7 +68,7 @@ export function Sidebar() {
         className="flex-1 flex flex-col items-center py-3 gap-1 overflow-y-auto"
         aria-label="Application pages"
       >
-        {visibleNav.map(({ to, icon: Icon, label }) => {
+        {NAV.map(({ to, icon: Icon, label }) => {
           const isActive =
             location.pathname === to ||
             (to !== '/dashboard' && location.pathname.startsWith(to))

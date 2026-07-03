@@ -1,7 +1,8 @@
 import { Bell, Search, RefreshCw } from 'lucide-react'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { cn } from '@/utils'
+import { useAuthStore } from '@/store/authStore'
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard':      'Dashboard',
@@ -9,18 +10,41 @@ const PAGE_TITLES: Record<string, string> = {
   '/notifications':  'Notifications',
   '/compliance':     'Compliance',
   '/ml-insights':    'ML Insights',
+  '/threat-intel':   'Threat Intel',
   '/evidence':       'Evidence',
   '/infrastructure': 'Infrastructure',
+  '/audit-logs':     'Audit Logs',
   '/users':          'Users',
   '/settings':       'Settings',
+  '/incidents/new':  'New Incident',
+}
+
+function getPageTitle(pathname: string): string {
+  if (PAGE_TITLES[pathname]) return PAGE_TITLES[pathname]
+  if (pathname.startsWith('/incidents/')) return 'Incident Detail'
+  return 'LBRO'
+}
+
+function getUserInitials(name: string | undefined, email: string | undefined): string {
+  if (name && name.trim()) {
+    const parts = name.trim().split(' ')
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    return parts[0].slice(0, 2).toUpperCase()
+  }
+  if (email) return email.slice(0, 2).toUpperCase()
+  return 'U'
 }
 
 interface Props { alertCount?: number }
 
 export function Navbar({ alertCount = 0 }: Props) {
   const { pathname } = useLocation()
-  const title = PAGE_TITLES[pathname] ?? 'LBRO'
+  const navigate = useNavigate()
+  const user = useAuthStore(s => s.user)
+  const title = getPageTitle(pathname)
   const [refreshing, setRefreshing] = useState(false)
+
+  const initials = getUserInitials(user?.name, user?.email)
 
   const handleRefresh = () => {
     setRefreshing(true)
@@ -73,6 +97,12 @@ export function Navbar({ alertCount = 0 }: Props) {
           }}
           onFocus={e => (e.target.style.borderColor = '#e54e1b')}
           onBlur={e => (e.target.style.borderColor = '#c8c2b8')}
+          onKeyDown={e => {
+            if (e.key === 'Enter') {
+              const q = (e.target as HTMLInputElement).value.trim()
+              if (q) navigate(`/incidents?search=${encodeURIComponent(q)}`)
+            }
+          }}
         />
       </div>
 
@@ -81,16 +111,17 @@ export function Navbar({ alertCount = 0 }: Props) {
         onClick={handleRefresh}
         className="p-1.5 rounded transition-colors"
         style={{ color: '#6b6560' }}
-        aria-label="Refresh"
+        aria-label="Refresh page"
       >
         <RefreshCw className={cn('w-4 h-4', refreshing && 'animate-spin')} />
       </button>
 
       {/* Alerts bell */}
       <button
+        onClick={() => navigate('/notifications')}
         className="relative p-1.5 rounded transition-colors"
         style={{ color: '#6b6560' }}
-        aria-label={`${alertCount} alert${alertCount !== 1 ? 's' : ''}`}
+        aria-label={`${alertCount} active alert${alertCount !== 1 ? 's' : ''}`}
       >
         <Bell className="w-4 h-4" aria-hidden="true" />
         {alertCount > 0 && (
@@ -103,14 +134,16 @@ export function Navbar({ alertCount = 0 }: Props) {
         )}
       </button>
 
-      {/* Avatar */}
-      <div
+      {/* Avatar — shows user's real initials */}
+      <button
+        onClick={() => navigate('/settings')}
         className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white"
         style={{ background: '#e54e1b' }}
-        aria-label="Admin user"
+        title={user?.name ?? user?.email ?? 'Settings'}
+        aria-label="Go to settings"
       >
-        A
-      </div>
+        {initials}
+      </button>
     </header>
   )
 }

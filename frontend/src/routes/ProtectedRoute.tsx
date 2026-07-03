@@ -41,7 +41,8 @@ function Forbidden() {
 
 export function ProtectedRoute({ requiredPermission, children }: ProtectedRouteProps = {}) {
   const isAuthenticated = useAuthStore(s => s.isAuthenticated)
-  const { can } = usePermissions()
+  const user = useAuthStore(s => s.user)
+  const { can, permissions } = usePermissions()
 
   // Not authenticated -> login
   if (!isAuthenticated) {
@@ -50,6 +51,12 @@ export function ProtectedRoute({ requiredPermission, children }: ProtectedRouteP
 
   // Authenticated but missing required permission -> 403 page
   if (requiredPermission && !can(requiredPermission)) {
+    console.warn('[LBRO 403]', {
+      required: requiredPermission,
+      role: user?.role,
+      permCount: permissions.size,
+      hasIt: permissions.has(requiredPermission),
+    })
     return <Forbidden />
   }
 

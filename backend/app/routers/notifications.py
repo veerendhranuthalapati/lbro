@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.rbac import Permission
 from app.database import get_db
-from app.dependencies import get_current_active_user, require_permission
+from app.dependencies import require_permission
 from app.models.user import User
 from app.schemas.notification import NotificationListResponse, NotificationResponse
 from app.services.notification_service import NotificationService

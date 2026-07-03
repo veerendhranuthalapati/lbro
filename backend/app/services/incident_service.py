@@ -9,7 +9,6 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.config import settings
 from app.core.exceptions import NotFoundError, ConflictError
 from app.models.incident import Incident, IncidentAction, IncidentStatus, IncidentSeverity
 from app.models.user import User

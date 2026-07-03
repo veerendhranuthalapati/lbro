@@ -4,12 +4,12 @@ from __future__ import annotations
 import uuid
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.rbac import Permission
 from app.database import get_db
-from app.dependencies import get_current_active_user, require_permission
+from app.dependencies import require_permission
 from app.models.user import User
 from app.schemas.incident import (
     IncidentCreate,
@@ -42,6 +42,9 @@ async def create_incident(
         notif_svc = NotificationService(db)
         await notif_svc.generate_for_incident(incident)
 
+    # Reload with relationships eagerly loaded — async SQLAlchemy cannot lazy-load
+    # during Pydantic serialization (raises MissingGreenlet), so we must use selectinload.
+    incident = await svc.get(incident.id)
     return incident
 
 

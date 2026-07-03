@@ -11,6 +11,8 @@ import { logger, auditAction } from '@/lib/logger'
 import { LOGIN_MAX_ATTEMPTS, ROLES } from '@/constants'
 import type { AuthUser } from '@/types'
 import type { UserRole } from '@/constants'
+import { ROLE_PERMISSIONS } from '@/types/rbac'
+import type { Role, PermissionValue } from '@/types/rbac'
 
 const ORANGE = '#e54e1b'
 const BLACK  = '#111111'
@@ -63,20 +65,32 @@ export default function LoginPage() {
       const tokenResponse = await authApi.login(email.trim(), password)
       const { access_token } = tokenResponse
 
-      // 2. Fetch the authenticated user's profile.
-      //    Pass the token explicitly -- it is not yet in the store's memory mirror
-      //    so the Axios interceptor cannot inject it automatically yet.
+      // 2. Decode JWT payload (no signature check -- server already validated).
+      //    The backend embeds: { sub, role, email, permissions, exp }
+      let jwtPayload: Record<string, unknown> = {}
+      try {
+        const base64Url = access_token.split('.')[1]
+        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
+        jwtPayload = JSON.parse(atob(base64))
+      } catch {
+        // Fall back to /me if JWT decode fails
+      }
+
+      // 3. Fetch profile for full_name (JWT doesn't carry it)
       const userRecord = await authApi.me(access_token)
 
-      // 3. Map backend User -> AuthUser (store shape)
+      // 4. Build AuthUser -- prefer JWT claims over /me for role + permissions
+      const role = ((jwtPayload.role as UserRole) ?? (userRecord.role as UserRole) ?? ROLES.VIEWER) as Role
+      const jwtPerms = Array.isArray(jwtPayload.permissions) ? jwtPayload.permissions as PermissionValue[] : null
       const authUser: AuthUser = {
         id:          userRecord.id,
         name:        userRecord.full_name,
         email:       userRecord.email,
-        role:        (userRecord.role as UserRole) ?? ROLES.VIEWER,
-        permissions: [],    // derived from role at runtime by rbac.ts helpers
+        role,
+        permissions: jwtPerms ?? (ROLE_PERMISSIONS[role] ?? []) as PermissionValue[],
         last_login:  userRecord.last_login,
       }
+      console.debug('[LBRO] login authUser', { role: authUser.role, permCount: authUser.permissions.length })
 
       // 4. Commit to store -- this also writes to sessionStorage
       resetLoginAttempts()

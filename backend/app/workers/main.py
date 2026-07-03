@@ -5,7 +5,6 @@ import asyncio
 import json
 import logging
 import signal
-import sys
 
 from app.config import settings
 from app.workers.incident_worker import process_incident_message

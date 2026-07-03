@@ -1,11 +1,29 @@
 """Incident schemas."""
 from __future__ import annotations
 
+import ipaddress
 import uuid
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Optional
+from typing import List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+# Allowed protocol values (case-insensitive input, stored lowercase)
+_ALLOWED_PROTOCOLS = {"tcp", "udp", "icmp", "http", "https", "dns", "ftp", "ssh", "smtp", "other"}
+
+
+def _validate_ip(value: str | None) -> str | None:
+    """Return the IP unchanged if valid IPv4/IPv6, else raise ValueError."""
+    if value is None:
+        return value
+    value = value.strip()
+    if not value:
+        return None
+    try:
+        ipaddress.ip_address(value)
+    except ValueError:
+        raise ValueError(f"'{value}' is not a valid IPv4 or IPv6 address")
+    return value
 
 
 class NetworkFeaturesInput(BaseModel):
@@ -91,7 +109,7 @@ class NetworkFeaturesInput(BaseModel):
 
 class IncidentCreate(BaseModel):
     title: str = Field(min_length=3, max_length=500)
-    description: Optional[str] = None
+    description: Optional[str] = Field(None, max_length=5000)
     severity: Optional[Literal["critical", "high", "medium", "low", "info"]] = "medium"
     source_ip: Optional[str] = None
     destination_ip: Optional[str] = None
@@ -99,23 +117,87 @@ class IncidentCreate(BaseModel):
     destination_port: Optional[int] = Field(None, ge=0, le=65535)
     protocol: Optional[str] = None
     network_features: Optional[NetworkFeaturesInput] = None
-    affected_jurisdictions: Optional[List[str]] = None
+    affected_jurisdictions: Optional[List[str]] = Field(None, max_length=20)
     personal_data_involved: bool = False
     health_data_involved: bool = False
 
+    @field_validator("title")
+    @classmethod
+    def strip_title(cls, v: str) -> str:
+        v = v.strip()
+        if len(v) < 3:
+            raise ValueError("Title must be at least 3 non-whitespace characters")
+        return v
+
+    @field_validator("description")
+    @classmethod
+    def strip_description(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        v = v.strip()
+        return v if v else None
+
+    @field_validator("source_ip")
+    @classmethod
+    def validate_source_ip(cls, v: str | None) -> str | None:
+        return _validate_ip(v)
+
+    @field_validator("destination_ip")
+    @classmethod
+    def validate_destination_ip(cls, v: str | None) -> str | None:
+        return _validate_ip(v)
+
+    @field_validator("protocol")
+    @classmethod
+    def validate_protocol(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        v = v.strip().lower()
+        if v not in _ALLOWED_PROTOCOLS:
+            raise ValueError(
+                f"Protocol must be one of: {', '.join(sorted(_ALLOWED_PROTOCOLS))}"
+            )
+        return v
+
+    @field_validator("affected_jurisdictions")
+    @classmethod
+    def validate_jurisdictions(cls, v: List[str] | None) -> List[str] | None:
+        if v is None:
+            return v
+        cleaned = [j.strip().upper() for j in v if j.strip()]
+        # Deduplicate while preserving order
+        seen: set[str] = set()
+        result = [j for j in cleaned if not (j in seen or seen.add(j))]  # type: ignore[func-returns-value]
+        return result or None
 
 class IncidentUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=3, max_length=500)
-    description: Optional[str] = None
-    # Status changes should go through the dedicated status-change endpoint,
-    # but we allow it here for convenience with full validation.
+    description: Optional[str] = Field(None, max_length=5000)
     status: Optional[Literal["new", "triaging", "contained", "eradicating", "recovering", "closed", "reopened"]] = None
     severity: Optional[Literal["critical", "high", "medium", "low", "info"]] = None
     assigned_to: Optional[uuid.UUID] = None
     affected_jurisdictions: Optional[List[str]] = None
     personal_data_involved: Optional[bool] = None
     health_data_involved: Optional[bool] = None
-    containment_actions: Optional[List[str]] = None
+    containment_actions: Optional[List[str]] = Field(None, max_length=50)
+
+    @field_validator("title")
+    @classmethod
+    def strip_title(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        v = v.strip()
+        if len(v) < 3:
+            raise ValueError("Title must be at least 3 non-whitespace characters")
+        return v
+
+    @field_validator("description")
+    @classmethod
+    def strip_description(cls, v: str | None) -> str | None:
+        if v is None:
+            return v
+        v = v.strip()
+        return v if v else None
 
 
 class IncidentActionResponse(BaseModel):

@@ -3,15 +3,12 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime, timedelta, timezone
-from typing import List
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
 from app.models.compliance import ComplianceRecord
 from app.models.incident import Incident
-from app.models.notification import Notification
 
 
 REGULATION_RULES = {

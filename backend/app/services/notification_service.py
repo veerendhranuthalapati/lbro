@@ -16,10 +16,9 @@ from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.core.exceptions import NotFoundError, ConflictError
-from app.models.notification import Notification, NotificationRecipient
+from app.models.notification import Notification
 from app.models.incident import Incident
 from app.models.user import User
-from app.schemas.notification import NotificationCreate, NotificationUpdate
 from app.services.sqs_service import sqs_service
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid
 from typing import Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -104,6 +104,22 @@ class EvidenceService:
         )
         return result.scalars().all()
 
+
+    async def list_all(self, page: int = 1, page_size: int = 50) -> tuple[list[Evidence], int]:
+        """Global evidence listing across all incidents — paginated."""
+        from sqlalchemy import func
+        offset = (page - 1) * page_size
+        count_result = await self.db.execute(select(func.count(Evidence.id)))
+        total: int = count_result.scalar_one() or 0
+        result = await self.db.execute(
+            select(Evidence)
+            .options(selectinload(Evidence.custody_chain))
+            .order_by(Evidence.created_at.desc())
+            .offset(offset)
+            .limit(page_size)
+        )
+        items = list(result.scalars().all())
+        return items, total
     def get_download_url(self, evidence: Evidence) -> str:
         return s3_service.generate_presigned_url(
             bucket=evidence.s3_bucket,

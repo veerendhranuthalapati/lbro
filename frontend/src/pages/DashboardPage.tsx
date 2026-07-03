@@ -5,7 +5,7 @@ import {
 } from 'recharts'
 import { SeverityBadge } from '@/components/ui/SeverityBadge'
 import { StatusBadge } from '@/components/ui/StatusBadge'
-import { useIncidents, useNotifications } from '@/hooks/useApi'
+import { useIncidents, useDashboardSummary } from '@/hooks/useApi'
 import { timeAgo, truncate } from '@/utils'
 import type { IncidentSeverity, IncidentStatus } from '@/types'
 
@@ -45,9 +45,9 @@ function MissingEndpointBanner({ endpoint }: { endpoint: string }) {
 export default function DashboardPage() {
   const navigate = useNavigate()
 
-  // Real API data
-  const { data: incidentsData, isLoading: incLoading, isError: incError } = useIncidents({ page_size: 100 })
-  const { data: notifResponse } = useNotifications()
+  // Real API data — summary for KPIs, incidents for the recent table
+  const { data: summary, isLoading: sumLoading } = useDashboardSummary()
+  const { data: incidentsData, isLoading: incLoading, isError: incError } = useIncidents({ page_size: 10 })
   // flow/timeline/attack chart data: endpoints not yet implemented on backend
   const flowData = null
   const timelineData = null
@@ -55,21 +55,18 @@ export default function DashboardPage() {
   const timelineErr = true
 
   const incidents = incidentsData?.items ?? []
-  const active    = incidents.filter(i => i.status !== 'closed')
-  const critical  = incidents.filter(i => i.severity === 'critical')
-  const closed    = incidents.filter(i => i.status === 'closed')
-  const withPII   = incidents.filter(i => i.personal_data_involved || i.health_data_involved)
-  const pendingNotifs = (notifResponse?.items ?? []).filter(n => n.status === 'pending').length
+  const pendingNotifs = summary?.pending_notifications ?? 0
+  const critical      = summary?.critical_incidents ?? 0
 
   const kpis = [
-    { label: 'Open incidents',        value: incLoading ? '...' : active.length,    note: 'across all severities',   orange: true  },
-    { label: 'Critical',              value: incLoading ? '...' : critical.length,  note: 'immediate response',       orange: true  },
-    { label: 'Resolved today',        value: incLoading ? '...' : closed.length,    note: 'closed incidents',         orange: false },
-    { label: 'PII / PHI exposed',     value: incLoading ? '...' : withPII.length,   note: 'compliance active',        orange: false },
-    { label: 'Pending notifications', value: pendingNotifs,                        note: 'GDPR �� HIPAA �� DPDPA',    orange: pendingNotifs > 0 },
-    { label: 'Compliance score',      value: '--',                                  note: 'endpoint: /api/v1/analytics/dashboard', orange: false },
-    { label: 'Avg response',          value: '--',                                  note: 'endpoint: /api/v1/analytics/dashboard', orange: false },
-    { label: 'Evidence packages',     value: '--',                                  note: 'endpoint: /api/v1/evidence',            orange: false },
+    { label: 'Open incidents',        value: sumLoading ? '...' : (summary?.open_incidents ?? '--'),       note: 'across all severities',   orange: true  },
+    { label: 'Critical',              value: sumLoading ? '...' : (summary?.critical_incidents ?? '--'),   note: 'immediate response',      orange: true  },
+    { label: 'New (24h)',             value: sumLoading ? '...' : (summary?.new_last_24h ?? '--'),         note: 'detected last 24 hours',  orange: false },
+    { label: 'Needs review',          value: sumLoading ? '...' : (summary?.needs_analyst_review ?? '--'), note: 'analyst review flagged',  orange: false },
+    { label: 'Pending notifications', value: sumLoading ? '...' : pendingNotifs,                          note: 'GDPR / HIPAA / DPDPA',    orange: pendingNotifs > 0 },
+    { label: 'Overdue compliance',    value: sumLoading ? '...' : (summary?.overdue_compliance ?? '--'),   note: 'past deadline, unmet',    orange: (summary?.overdue_compliance ?? 0) > 0 },
+    { label: 'Total incidents',       value: sumLoading ? '...' : (summary?.total_incidents ?? '--'),      note: 'all time',                orange: false },
+    { label: 'Evidence packages',     value: sumLoading ? '...' : (summary?.total_evidence ?? '--'),       note: 'stored in evidence vault', orange: false },
   ]
 
   return (
@@ -115,8 +112,8 @@ export default function DashboardPage() {
 
           <div style={{ display: 'flex', gap: 28, marginTop: 24, paddingTop: 20, borderTop: '1px solid #222' }}>
             {[
-              { label: 'Open',         value: incLoading ? '...' : active.length,   orange: true  },
-              { label: 'Critical',     value: incLoading ? '...' : critical.length, orange: true  },
+              { label: 'Open',         value: sumLoading ? '...' : (summary?.open_incidents ?? '--'),   orange: true  },
+              { label: 'Critical',     value: sumLoading ? '...' : critical, orange: true  },
               { label: 'Notifications',value: pendingNotifs,                       orange: false },
               { label: 'ML accuracy',  value: '--',                                orange: false },
             ].map(s => (
@@ -132,14 +129,14 @@ export default function DashboardPage() {
       </div>
 
       {/* ---- Status bar ---- */}
-      {critical.some(i => ['new', 'triaging'].includes(i.status)) && (
+      {critical > 0 && (
         <div
           style={{ background: ORANGE, padding: '7px 16px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer' }}
           onClick={() => navigate('/incidents')}
           role="alert"
         >
           <span style={{ fontSize: 10, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.14em', fontWeight: 500 }}>
-            / {critical.filter(i => ['new','triaging'].includes(i.status)).length} critical incident(s) need immediate attention
+            / {critical} critical incident(s) need immediate attention
           </span>
           <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', marginLeft: 'auto' }}>View all</span>
         </div>

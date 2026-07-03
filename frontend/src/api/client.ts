@@ -190,10 +190,24 @@ export const authApi = {
 }
 
 // ---- Dashboard --------------------------------------------------------------
+export interface DashboardSummary {
+  total_incidents:       number
+  new_last_24h:          number
+  open_incidents:        number
+  critical_incidents:    number
+  pending_notifications: number
+  overdue_compliance:    number
+  total_evidence:        number
+  needs_analyst_review:  number
+  severity_breakdown:    Record<string, number>
+  status_breakdown:      Record<string, number>
+  recent_incidents:      Array<{ id: string; title: string; severity: string; status: string; created_at: string }>
+}
+
 export const dashboardApi = {
   /** GET /api/v1/dashboard/summary -- exists */
-  summary: (): Promise<Record<string, unknown>> =>
-    apiClient.get('/api/v1/dashboard/summary').then(r => r.data),
+  summary: (): Promise<DashboardSummary> =>
+    apiClient.get<DashboardSummary>('/api/v1/dashboard/summary').then(r => r.data),
 }
 
 // ---- Incidents --------------------------------------------------------------

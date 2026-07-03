@@ -242,7 +242,7 @@ export interface AuthUser {
   readonly id: UUID
   readonly name: string
   readonly email: string
-  /** Backend role string (e.g. 'soc_analyst'). Check permissions, not this. */
+  /** Backend role string (e.g. 'analyst'). Check permissions, not this. */
   readonly role: Role
   /** JWT-embedded permission values for this session. */
   readonly permissions: readonly PermissionValue[]

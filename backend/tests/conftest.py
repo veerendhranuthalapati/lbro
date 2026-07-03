@@ -28,7 +28,7 @@ os.environ.setdefault("ENVIRONMENT", "test")
 
 # Import app AFTER env vars are set
 from app.database import Base, get_db  # noqa: E402
-from app.main import app  # noqa: E402
+from app.main import app as fastapi_app  # noqa: E402
 import app.models  # noqa: F401 — ensures all models register with Base.metadata  # noqa: E402
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
@@ -75,10 +75,25 @@ def create_tables():
 
 @pytest_asyncio.fixture
 async def db(create_tables) -> AsyncGenerator[AsyncSession, None]:  # noqa: ARG001
-    """Fresh DB session per test; rolls back after the test to isolate state."""
-    async with TestSessionLocal() as session:
-        yield session
-        await session.rollback()
+    """Fresh DB session per test; rolls back after the test to isolate state.
+
+    Uses a connection-level transaction so even endpoint commits() are absorbed
+    and rolled back at the end of each test, keeping tests fully isolated.
+    """
+    async with test_engine.connect() as conn:
+        # Start an outer transaction that we will NEVER commit
+        await conn.begin()
+        # Bind the session to this connection so all flushes/commits stay in it
+        session = AsyncSession(bind=conn, expire_on_commit=False, autoflush=False)  # type: ignore[call-arg]
+        # Patch commit so endpoint-level commits become no-ops (flush only)
+        async def _noop_commit():
+            await session.flush()
+        session.commit = _noop_commit  # type: ignore[method-assign]
+        try:
+            yield session
+        finally:
+            await session.close()
+            await conn.rollback()
 
 
 # ── HTTP client with DB override ──────────────────────────────────────────────
@@ -88,12 +103,12 @@ async def client(db: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
     async def _override_get_db():
         yield db
 
-    app.dependency_overrides[get_db] = _override_get_db
+    fastapi_app.dependency_overrides[get_db] = _override_get_db
     try:
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as c:
+        async with AsyncClient(transport=ASGITransport(app=fastapi_app), base_url="http://test") as c:
             yield c
     finally:
-        app.dependency_overrides.clear()
+        fastapi_app.dependency_overrides.clear()
 
 
 # ── User fixtures ─────────────────────────────────────────────────────────────
@@ -106,7 +121,7 @@ async def admin_user(db: AsyncSession):
 
     user = User(
         id=uuid.uuid4(),
-        email="admin@lbro.test",
+        email="admin@lbro-test.com",
         username="admin",
         full_name="Admin User",
         hashed_password=hash_password("TestPass123!"),
@@ -127,7 +142,7 @@ async def analyst_user(db: AsyncSession):
 
     user = User(
         id=uuid.uuid4(),
-        email="analyst@lbro.test",
+        email="analyst@lbro-test.com",
         username="analyst",
         full_name="SOC Analyst",
         hashed_password=hash_password("Analyst123!"),
@@ -148,7 +163,7 @@ async def viewer_user(db: AsyncSession):
 
     user = User(
         id=uuid.uuid4(),
-        email="viewer@lbro.test",
+        email="viewer@lbro-test.com",
         username="viewer",
         full_name="Read Only Viewer",
         hashed_password=hash_password("Viewer123!"),
@@ -166,7 +181,7 @@ async def viewer_user(db: AsyncSession):
 @pytest_asyncio.fixture
 async def admin_token(client: AsyncClient, admin_user) -> str:  # noqa: ARG001
     resp = await client.post("/api/v1/auth/login", json={
-        "email": "admin@lbro.test",
+        "email": "admin@lbro-test.com",
         "password": "TestPass123!",
     })
     assert resp.status_code == 200, f"Login failed: {resp.text}"
@@ -176,7 +191,7 @@ async def admin_token(client: AsyncClient, admin_user) -> str:  # noqa: ARG001
 @pytest_asyncio.fixture
 async def analyst_token(client: AsyncClient, analyst_user) -> str:  # noqa: ARG001
     resp = await client.post("/api/v1/auth/login", json={
-        "email": "analyst@lbro.test",
+        "email": "analyst@lbro-test.com",
         "password": "Analyst123!",
     })
     assert resp.status_code == 200, f"Analyst login failed: {resp.text}"
@@ -186,6 +201,21 @@ async def analyst_token(client: AsyncClient, analyst_user) -> str:  # noqa: ARG0
 @pytest.fixture
 def auth_headers(admin_token: str) -> dict:
     return {"Authorization": f"Bearer {admin_token}"}
+
+
+@pytest_asyncio.fixture
+async def viewer_token(client: AsyncClient, viewer_user) -> str:  # noqa: ARG001
+    resp = await client.post("/api/v1/auth/login", json={
+        "email": "viewer@lbro-test.com",
+        "password": "Viewer123!",
+    })
+    assert resp.status_code == 200, f"Viewer login failed: {resp.text}"
+    return resp.json()["access_token"]
+
+
+@pytest.fixture
+def viewer_headers(viewer_token: str) -> dict:
+    return {"Authorization": f"Bearer {viewer_token}"}
 
 
 @pytest.fixture

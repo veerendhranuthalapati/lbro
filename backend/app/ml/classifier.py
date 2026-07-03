@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 import os
 import pickle
-from typing import Optional
+
 
 import numpy as np
 
@@ -89,7 +89,6 @@ class AttackClassifier:
         """Simple rule-based fallback when model is unavailable."""
         dst_port = features.get("destination_port", 0) or 0
         syn_flags = features.get("syn_flag_count", 0) or 0
-        flow_duration = features.get("flow_duration", 0) or 0
         pkt_rate = features.get("flow_packets_per_sec", 0) or 0
 
         if pkt_rate > 10000:

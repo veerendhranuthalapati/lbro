@@ -2,8 +2,6 @@
 from __future__ import annotations
 
 import hashlib
-import io
-from typing import BinaryIO
 
 import boto3
 from botocore.exceptions import ClientError

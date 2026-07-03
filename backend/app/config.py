@@ -5,7 +5,7 @@ import secrets
 from functools import lru_cache
 from typing import List, Optional
 
-from pydantic import AnyHttpUrl, PostgresDsn, field_validator
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 

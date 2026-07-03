@@ -17,7 +17,7 @@ from app.core.exceptions import (
 )
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
-from app.routers import auth, incidents, evidence, notifications, compliance, users, ml, dashboard, audit
+from app.routers import auth, incidents, evidence, notifications, compliance, users, ml, dashboard, audit, infrastructure
 
 logging.basicConfig(
     level=getattr(logging, settings.LOG_LEVEL, logging.INFO),
@@ -105,6 +105,7 @@ app.include_router(users.router, prefix=API_PREFIX)
 app.include_router(ml.router, prefix=API_PREFIX)
 app.include_router(dashboard.router, prefix=API_PREFIX)
 app.include_router(audit.router, prefix=API_PREFIX)
+app.include_router(infrastructure.router, prefix=API_PREFIX)
 
 
 # ── Health endpoints ──────────────────────────────────────────────────────────

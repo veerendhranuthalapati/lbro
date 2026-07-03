@@ -17,6 +17,7 @@ import {
   dashboardApi, complianceApi, usersApi, mlApi, auditLogsApi,
   infrastructureApi, authApi,
 } from '@/api/client'
+import type { DashboardSummary } from '@/api/client'
 import { debounce } from '@/lib/rateLimiter'
 import { logger, auditAction } from '@/lib/logger'
 import {
@@ -217,7 +218,7 @@ export function useDispatchNotification() {
 
 // ---- Dashboard summary (GET /api/v1/dashboard/summary -- EXISTS) -----------
 export function useDashboardSummary() {
-  return useQuery({
+  return useQuery<DashboardSummary>({
     queryKey: qk.dashboard,
     queryFn:  () => dashboardApi.summary(),
     refetchInterval: POLL_INCIDENTS_MS,

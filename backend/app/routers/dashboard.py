@@ -27,8 +27,6 @@ async def dashboard_summary(
 ):
     now = datetime.now(timezone.utc)
     last_24h = now - timedelta(hours=24)
-    last_7d = now - timedelta(days=7)
-
     total_incidents = (await db.execute(select(func.count(Incident.id)))).scalar_one()
     new_24h = (
         await db.execute(

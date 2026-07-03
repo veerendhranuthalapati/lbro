@@ -1,15 +1,12 @@
-"""Role-Based Access Control -- centralized permission map.
+"""Role-Based Access Control -- 3-role model (admin / analyst / viewer).
+
+Role hierarchy:
+  admin > analyst > viewer
 
 Rules:
-  - Permission checks are the single source of truth; never use role-string comparisons.
-  - `ROLE_PERMISSIONS` is the only place where role->permission mapping is defined.
-  - `has_permission()` and the FastAPI dependency factories in dependencies.py consume this.
-  - To add a role: extend Role enum + add entry in ROLE_PERMISSIONS.
-  - To add a permission: extend Permission enum + assign to relevant roles.
-
-Role hierarchy (highest to lowest):
-  SUPER_ADMIN > SECURITY_ADMIN > INCIDENT_MANAGER > SOC_ANALYST
-               > COMPLIANCE_OFFICER > AUDITOR > VIEWER
+  - Permission checks are the single source of truth; never compare role strings.
+  - `ROLE_PERMISSIONS` is the only place where role->permission mapping lives.
+  - `has_permission()` / `has_any_permission()` are consumed by dependencies.py.
 """
 from __future__ import annotations
 
@@ -18,13 +15,9 @@ from typing import Set
 
 
 class Role(str, Enum):
-    SUPER_ADMIN        = "super_admin"
-    SECURITY_ADMIN     = "security_admin"
-    INCIDENT_MANAGER   = "incident_manager"
-    SOC_ANALYST        = "soc_analyst"
-    COMPLIANCE_OFFICER = "compliance_officer"
-    AUDITOR            = "auditor"
-    VIEWER             = "viewer"
+    ADMIN   = "admin"
+    ANALYST = "analyst"
+    VIEWER  = "viewer"
 
 
 class Permission(str, Enum):
@@ -90,54 +83,25 @@ _VIEWER_PERMISSIONS: Set[Permission] = {
     Permission.VIEW_ML,
 }
 
-_AUDITOR_PERMISSIONS: Set[Permission] = _VIEWER_PERMISSIONS | {
-    Permission.VIEW_AUDIT,
-    Permission.EXPORT_AUDIT,
-}
-
-_COMPLIANCE_OFFICER_PERMISSIONS: Set[Permission] = _AUDITOR_PERMISSIONS | {
-    Permission.MANAGE_COMPLIANCE,
-    Permission.APPROVE_NOTIFICATION,
-    Permission.GENERATE_REPORT,
-    Permission.APPROVE_REPORT,
-}
-
-_SOC_ANALYST_PERMISSIONS: Set[Permission] = _VIEWER_PERMISSIONS | {
+_ANALYST_PERMISSIONS: Set[Permission] = _VIEWER_PERMISSIONS | {
     Permission.CREATE_INCIDENT,
     Permission.UPDATE_INCIDENT,
+    Permission.ASSIGN_INCIDENT,
     Permission.UPLOAD_EVIDENCE,
     Permission.GENERATE_REPORT,
+    Permission.APPROVE_REPORT,
     Permission.VIEW_AUDIT,
-    Permission.MANAGE_COMPLIANCE,
-}
-
-_INCIDENT_MANAGER_PERMISSIONS: Set[Permission] = _SOC_ANALYST_PERMISSIONS | {
-    Permission.ASSIGN_INCIDENT,
+    Permission.EXPORT_AUDIT,
     Permission.APPROVE_NOTIFICATION,
     Permission.DISPATCH_NOTIFICATION,
+    Permission.MANAGE_COMPLIANCE,
     Permission.VIEW_INFRASTRUCTURE,
-    Permission.EXPORT_AUDIT,
-    Permission.APPROVE_REPORT,
-}
-
-_SECURITY_ADMIN_PERMISSIONS: Set[Permission] = _INCIDENT_MANAGER_PERMISSIONS | {
-    Permission.DELETE_INCIDENT,
-    Permission.DELETE_EVIDENCE,
-    Permission.MANAGE_USERS,
-    Permission.ROTATE_API_KEYS,
-    Permission.MANAGE_ML,
-    Permission.MANAGE_ROLES,
-    Permission.SYSTEM_SETTINGS,
 }
 
 ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
-    Role.VIEWER:             _VIEWER_PERMISSIONS,
-    Role.AUDITOR:            _AUDITOR_PERMISSIONS,
-    Role.COMPLIANCE_OFFICER: _COMPLIANCE_OFFICER_PERMISSIONS,
-    Role.SOC_ANALYST:        _SOC_ANALYST_PERMISSIONS,
-    Role.INCIDENT_MANAGER:   _INCIDENT_MANAGER_PERMISSIONS,
-    Role.SECURITY_ADMIN:     _SECURITY_ADMIN_PERMISSIONS,
-    Role.SUPER_ADMIN:        set(Permission),  # all permissions -- never removed
+    Role.VIEWER:  _VIEWER_PERMISSIONS,
+    Role.ANALYST: _ANALYST_PERMISSIONS,
+    Role.ADMIN:   set(Permission),  # every permission
 }
 
 

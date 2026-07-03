@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.rbac import Permission
 from app.database import get_db
-from app.dependencies import get_current_active_user, require_permission
+from app.dependencies import require_permission
 from app.models.user import User
 from app.schemas.evidence import EvidenceListResponse, EvidenceResponse, EvidenceUploadResponse
 from app.services.evidence_service import EvidenceService
@@ -120,21 +120,52 @@ async def list_evidence(
     return EvidenceListResponse(items=result, total=len(result))
 
 
-@router.get("/{evidence_id}", response_model=EvidenceResponse)
-async def get_evidence(
-    evidence_id: uuid.UUID,
-    request: Request,
+
+@router.get("/evidence", tags=["evidence"])
+async def list_all_evidence(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_permission(Permission.DOWNLOAD_EVIDENCE))],
+    page: int = 1,
+    page_size: int = 50,
 ):
-    ip = request.client.host if request.client else None
+    """Global paginated evidence listing across all incidents. Required by EvidencePage."""
     svc = EvidenceService(db)
-    ev = await svc.get(evidence_id, current_user, ip)
-    try:
-        download_url = svc.get_download_url(ev)
-    except Exception:
-        download_url = None
-    return {**ev.__dict__, "download_url": download_url}
+    items, total = await svc.list_all(page, page_size)
+    result = []
+    for ev in items:
+        try:
+            download_url = svc.get_download_url(ev)
+        except Exception:
+            download_url = None
+        coc = [
+            {
+                "id": str(c.id),
+                "action": c.action,
+                "performed_by_name": getattr(c, "performed_by_name", "system"),
+                "ip_address": getattr(c, "ip_address", None),
+                "notes": getattr(c, "notes", None),
+                "hash_at_time": getattr(c, "hash_at_time", None),
+                "created_at": c.created_at.isoformat(),
+            }
+            for c in (ev.custody_chain or [])
+        ]
+        result.append({
+            "id": str(ev.id),
+            "incident_id": str(ev.incident_id),
+            "filename": ev.filename,
+            "original_filename": ev.original_filename,
+            "content_type": ev.content_type,
+            "file_size": ev.file_size,
+            "sha256_hash": ev.sha256_hash,
+            "description": ev.description,
+            "tags": ev.tags,
+            "is_immutable": ev.is_immutable,
+            "uploaded_by": str(ev.uploaded_by) if ev.uploaded_by else None,
+            "created_at": ev.created_at.isoformat(),
+            "custody_chain": coc,
+            "download_url": download_url,
+        })
+    return {"items": result, "total": total, "page": page, "page_size": page_size}
 
 
 @router.get("/evidence/{evidence_id}/download-url")

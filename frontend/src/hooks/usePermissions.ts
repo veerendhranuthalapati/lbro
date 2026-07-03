@@ -25,6 +25,10 @@ function _effectivePermissions(
   jwtPermissions: readonly string[] | undefined,
   role: string | undefined,
 ): Set<PermissionValue> {
+  // Super-admin always gets every permission — no JWT needed.
+  if (role === 'admin') {
+    return new Set(Object.values(Permission) as PermissionValue[])
+  }
   // If the JWT carries permissions, use them as the ground truth.
   if (jwtPermissions && jwtPermissions.length > 0) {
     return new Set(jwtPermissions as PermissionValue[])
@@ -40,7 +44,7 @@ function _effectivePermissions(
 // ── Main hook ─────────────────────────────────────────────────────────────────
 
 export interface UsePermissionsResult {
-  /** The current user's role string (e.g. 'soc_analyst'). Null if not logged in. */
+  /** The current user's role string (e.g. 'analyst'). Null if not logged in. */
   role: Role | null
   /** The full resolved permission set for this session. */
   permissions: Set<PermissionValue>

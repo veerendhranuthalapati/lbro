@@ -18,7 +18,7 @@ from app.core.security import (
 from app.config import settings
 from app.models.user import User
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
-from app.core.exceptions import NotFoundError, ConflictError, LBROException
+from app.core.exceptions import ConflictError, LBROException
 
 
 def _permissions_for(role: str) -> list:

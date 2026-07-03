@@ -1,11 +1,9 @@
 /**
- * LBRO App Router - lazy-loaded, error-bounded, RBAC-guarded.
+ * LBRO App Router - lazy-loaded, error-bounded.
  *
  * Auth guard: ProtectedRoute wraps all authenticated routes.
- * Permission guards: sensitive routes nest inside a ProtectedRoute with
- *   requiredPermission. The backend enforces the same permissions;
- *   the frontend gate is supplemental UX only (shows 403 page instead of
- *   waiting for a backend 403 response).
+ * All authenticated pages are accessible to any logged-in user.
+ * Permission enforcement happens on the backend.
  */
 import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
@@ -13,7 +11,6 @@ import { AppLayout } from '@/layouts/AppLayout'
 import { ProtectedRoute } from '@/routes/ProtectedRoute'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { Skeleton } from '@/components/ui/Skeleton'
-import { Permission } from '@/types/rbac'
 
 // Eager-load auth pages (always needed immediately)
 import LoginPage from '@/pages/LoginPage'
@@ -34,6 +31,7 @@ const SettingsPage        = lazy(() => import('@/pages/SettingsPage'))
 const NotificationsPage   = lazy(() => import('@/pages/NotificationsPage'))
 const UsersPage           = lazy(() => import('@/pages/UsersPage'))
 const MLInsightsPage      = lazy(() => import('@/pages/MLInsightsPage'))
+const AuditLogsPage       = lazy(() => import('@/pages/AuditLogsPage'))
 
 function PageLoader() {
   return (
@@ -71,123 +69,24 @@ export function AppRouter() {
       <Route path="/register"        element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
-      {/* Authenticated */}
+      {/* Authenticated - any logged-in user can access all pages */}
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route index element={<Navigate to="/dashboard" replace />} />
-
-          {/* Dashboard - VIEW_DASHBOARD permission */}
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute requiredPermission={Permission.VIEW_DASHBOARD}>
-                <SuspenseRoute><DashboardPage /></SuspenseRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Incidents - READ_INCIDENT permission */}
-          <Route
-            path="/incidents"
-            element={
-              <ProtectedRoute requiredPermission={Permission.READ_INCIDENT}>
-                <SuspenseRoute><IncidentsPage /></SuspenseRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/dashboard"      element={<SuspenseRoute><DashboardPage /></SuspenseRoute>} />
+          <Route path="/incidents"      element={<SuspenseRoute><IncidentsPage /></SuspenseRoute>} />
           {/* /incidents/new MUST come before /incidents/:id */}
-          <Route
-            path="/incidents/new"
-            element={
-              <ProtectedRoute requiredPermission={Permission.CREATE_INCIDENT}>
-                <SuspenseRoute><CreateIncidentPage /></SuspenseRoute>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/incidents/:id"
-            element={
-              <ProtectedRoute requiredPermission={Permission.READ_INCIDENT}>
-                <SuspenseRoute><IncidentDetailPage /></SuspenseRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Compliance - VIEW_COMPLIANCE */}
-          <Route
-            path="/compliance"
-            element={
-              <ProtectedRoute requiredPermission={Permission.VIEW_COMPLIANCE}>
-                <SuspenseRoute><CompliancePage /></SuspenseRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Evidence - DOWNLOAD_EVIDENCE */}
-          <Route
-            path="/evidence"
-            element={
-              <ProtectedRoute requiredPermission={Permission.DOWNLOAD_EVIDENCE}>
-                <SuspenseRoute><EvidencePage /></SuspenseRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Infrastructure - VIEW_INFRASTRUCTURE */}
-          <Route
-            path="/infrastructure"
-            element={
-              <ProtectedRoute requiredPermission={Permission.VIEW_INFRASTRUCTURE}>
-                <SuspenseRoute><InfrastructurePage /></SuspenseRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Threat intel - READ_INCIDENT */}
-          <Route
-            path="/threat-intel"
-            element={
-              <ProtectedRoute requiredPermission={Permission.READ_INCIDENT}>
-                <SuspenseRoute><ThreatIntelPage /></SuspenseRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Settings - always visible once authenticated */}
-          <Route
-            path="/settings"
-            element={<SuspenseRoute><SettingsPage /></SuspenseRoute>}
-          />
-
-          {/* Notifications - READ_NOTIFICATION */}
-          <Route
-            path="/notifications"
-            element={
-              <ProtectedRoute requiredPermission={Permission.READ_NOTIFICATION}>
-                <SuspenseRoute><NotificationsPage /></SuspenseRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* Users - MANAGE_USERS */}
-          <Route
-            path="/users"
-            element={
-              <ProtectedRoute requiredPermission={Permission.MANAGE_USERS}>
-                <SuspenseRoute><UsersPage /></SuspenseRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          {/* ML Insights - VIEW_ML */}
-          <Route
-            path="/ml-insights"
-            element={
-              <ProtectedRoute requiredPermission={Permission.VIEW_ML}>
-                <SuspenseRoute><MLInsightsPage /></SuspenseRoute>
-              </ProtectedRoute>
-            }
-          />
+          <Route path="/incidents/new"  element={<SuspenseRoute><CreateIncidentPage /></SuspenseRoute>} />
+          <Route path="/incidents/:id"  element={<SuspenseRoute><IncidentDetailPage /></SuspenseRoute>} />
+          <Route path="/compliance"     element={<SuspenseRoute><CompliancePage /></SuspenseRoute>} />
+          <Route path="/evidence"       element={<SuspenseRoute><EvidencePage /></SuspenseRoute>} />
+          <Route path="/infrastructure" element={<SuspenseRoute><InfrastructurePage /></SuspenseRoute>} />
+          <Route path="/threat-intel"   element={<SuspenseRoute><ThreatIntelPage /></SuspenseRoute>} />
+          <Route path="/settings"       element={<SuspenseRoute><SettingsPage /></SuspenseRoute>} />
+          <Route path="/notifications"  element={<SuspenseRoute><NotificationsPage /></SuspenseRoute>} />
+          <Route path="/users"          element={<SuspenseRoute><UsersPage /></SuspenseRoute>} />
+          <Route path="/ml-insights"    element={<SuspenseRoute><MLInsightsPage /></SuspenseRoute>} />
+          <Route path="/audit-logs"     element={<SuspenseRoute><AuditLogsPage /></SuspenseRoute>} />
         </Route>
       </Route>
 

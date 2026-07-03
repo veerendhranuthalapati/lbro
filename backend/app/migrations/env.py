@@ -17,7 +17,7 @@ if config.config_file_name is not None:
 
 # Import all models so Alembic can detect them
 from app.database import Base
-import app.models  # noqa: F401
+__import__("app.models")  # load models so Alembic detects them
 
 target_metadata = Base.metadata
 

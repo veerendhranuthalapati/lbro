@@ -18,19 +18,12 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str = Field(min_length=8)
-    # Restrict role to the known set so admins cannot inject arbitrary role strings
-    role: Literal[
-        "super_admin", "security_admin", "incident_manager",
-        "soc_analyst", "compliance_officer", "auditor", "viewer"
-    ] = "viewer"
+    role: Literal["admin", "analyst", "viewer"] = "viewer"
 
 
 class UserUpdate(BaseModel):
     full_name: Optional[str] = Field(None, max_length=255)
-    role: Optional[Literal[
-        "super_admin", "security_admin", "incident_manager",
-        "soc_analyst", "compliance_officer", "auditor", "viewer"
-    ]] = None
+    role: Optional[Literal["admin", "analyst", "viewer"]] = None
     is_active: Optional[bool] = None
 
 

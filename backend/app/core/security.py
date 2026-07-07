@@ -1,6 +1,7 @@
 """JWT creation, verification, and password hashing."""
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -24,7 +25,14 @@ def create_access_token(subject: Any, extra: dict | None = None) -> str:
     expire = datetime.now(timezone.utc) + timedelta(
         minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
     )
-    payload = {"sub": str(subject), "exp": expire, "type": "access"}
+    # jti (JWT ID) is a unique claim used for token revocation on logout.
+    # It lets us blacklist individual tokens without invalidating all user sessions.
+    payload = {
+        "sub": str(subject),
+        "exp": expire,
+        "type": "access",
+        "jti": str(uuid.uuid4()),
+    }
     if extra:
         payload.update(extra)
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)

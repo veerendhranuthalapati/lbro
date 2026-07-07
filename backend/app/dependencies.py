@@ -14,7 +14,6 @@ IP, user agent, and reason.  401s are not audit-logged (user is unknown).
 """
 from __future__ import annotations
 
-import hmac
 import uuid
 from typing import Annotated
 
@@ -27,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.security import decode_token
 from app.core.rbac import Permission, Role, has_permission, has_any_permission
 from app.database import get_db
+from app.models.revoked_token import RevokedToken
 from app.models.user import User
 
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -52,6 +52,20 @@ async def get_current_user(
                 detail={"error": "invalid_token", "message": "Invalid or expired token"},
                 headers={"WWW-Authenticate": "Bearer"},
             )
+
+        # Check token revocation — rejects tokens whose jti was blacklisted on logout
+        jti = payload.get("jti")
+        if jti:
+            revoked = (await db.execute(
+                select(RevokedToken).where(RevokedToken.jti == jti)
+            )).scalar_one_or_none()
+            if revoked:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail={"error": "token_revoked", "message": "Token has been revoked"},
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+
         result = await db.execute(select(User).where(User.id == user_id))
         user = result.scalar_one_or_none()
         if not user:
@@ -62,14 +76,16 @@ async def get_current_user(
         return user
 
     elif api_key:
+        # Indexed O(log n) lookup — api_key has a unique index on the users table.
+        # Direct equality in the WHERE clause uses the index and returns at most one row,
+        # eliminating the previous O(n) full-table scan.
         result = await db.execute(
-            select(User).where(User.api_key.isnot(None)).where(User.is_active == True)  # noqa: E712
+            select(User).where(
+                User.api_key == api_key,
+                User.is_active == True,  # noqa: E712
+            )
         )
-        matched_user: User | None = None
-        for candidate in result.scalars().all():
-            if candidate.api_key and hmac.compare_digest(candidate.api_key, api_key):
-                matched_user = candidate
-                break
+        matched_user = result.scalar_one_or_none()
         if not matched_user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

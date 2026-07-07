@@ -1,12 +1,24 @@
 """Application configuration via pydantic-settings."""
 from __future__ import annotations
 
-import secrets
 from functools import lru_cache
 from typing import List, Optional
 
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+# Sentinel value used as the default SECRET_KEY.
+# In production: startup fails if this value is detected.
+# In dev/test: replaced with a fixed (but still insecure) fallback so that
+# app restarts don't invalidate existing tokens — unlike secrets.token_urlsafe(32)
+# which generates a NEW key every process start.
+_SECRET_KEY_PLACEHOLDER = "__LBRO_SECRET_KEY_NOT_SET__"
+
+# Fixed dev fallback — never used in production (validator rejects the placeholder there).
+# Stable across restarts so dev JWTs survive server reboots.
+_DEV_SECRET_FALLBACK = (
+    "dev-only-lbro-secret-key-not-for-production-use-abcdef1234567890abcdef"
+)
 
 
 class Settings(BaseSettings):
@@ -24,7 +36,9 @@ class Settings(BaseSettings):
     ENVIRONMENT: str = "production"
 
     # ── Security ─────────────────────────────────────────────────────────────
-    SECRET_KEY: str = secrets.token_urlsafe(32)  # MUST be overridden via env in production
+    # Set SECRET_KEY in your environment / .env file before deploying.
+    # Generate a strong key with: python -c "import secrets; print(secrets.token_urlsafe(64))"
+    SECRET_KEY: str = _SECRET_KEY_PLACEHOLDER
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
@@ -32,12 +46,22 @@ class Settings(BaseSettings):
     @field_validator("SECRET_KEY")
     @classmethod
     def validate_secret_key(cls, v: str) -> str:
+        import os
+        env = os.getenv("ENVIRONMENT", "production")
+
+        if v == _SECRET_KEY_PLACEHOLDER:
+            if env == "production":
+                raise ValueError(
+                    "SECRET_KEY must be set via environment variable before deploying. "
+                    "Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(64))\""
+                )
+            # Dev/test fallback — fixed value so restarts don't invalidate tokens.
+            # The previous default of secrets.token_urlsafe(32) generated a NEW key
+            # every process start, invalidating all existing JWTs on restart.
+            return _DEV_SECRET_FALLBACK
+
         if len(v) < 32:
             raise ValueError("SECRET_KEY must be at least 32 characters")
-        if v in ("change-me-generate-with-secrets-token-urlsafe-32", "dev-secret-key-change-in-production-minimum-32-chars"):
-            import os
-            if os.getenv("ENVIRONMENT", "development") == "production":
-                raise ValueError("SECRET_KEY must be changed from the default value in production")
         return v
 
     # ── Database ─────────────────────────────────────────────────────────────
@@ -88,7 +112,17 @@ class Settings(BaseSettings):
     @classmethod
     def parse_cors(cls, v):
         if isinstance(v, str):
-            return [origin.strip() for origin in v.split(",")]
+            v = v.strip()
+            # Handle JSON array format: ["http://a","http://b"]
+            if v.startswith("["):
+                import json
+                try:
+                    parsed = json.loads(v)
+                    return [o.strip() for o in parsed if o.strip()]
+                except json.JSONDecodeError:
+                    pass
+            # Plain comma-separated format
+            return [origin.strip() for origin in v.split(",") if origin.strip()]
         return v
 
     # ── Email / Notifications ─────────────────────────────────────────────────

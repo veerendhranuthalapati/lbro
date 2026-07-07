@@ -89,7 +89,7 @@ export default function CreateIncidentPage() {
           </h1>
         </div>
         <p style={{ fontSize: 11, color: GRAY, marginTop: 4 }}>
-          Create a new security incident record — POST /api/v1/incidents
+          Report a security issue. LBRO will classify it automatically and track any compliance deadlines.
         </p>
       </div>
 

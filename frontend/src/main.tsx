@@ -15,6 +15,16 @@ import { isSessionValid } from '@/store/authStore'
 import { MAX_RETRIES } from '@/constants'
 import '@/styles/globals.css'
 
+// ── MSW dev-mode mock layer ───────────────────────────────────────────────────
+// Set VITE_MOCK=true in .env.local to activate without a running backend.
+// All API calls are intercepted; login with any seed email + "password123".
+async function prepareMocks() {
+  if (import.meta.env.VITE_MOCK === 'true') {
+    const { startMockServiceWorker } = await import(/* @vite-ignore */ '@/mocks/browser')
+    await startMockServiceWorker()
+  }
+}
+
 // ---- Global unhandled error capture ----------------------------------------------------------------------------------------
 window.addEventListener('unhandledrejection', (event) => {
   logger.error('Unhandled promise rejection', event.reason, { source: 'window.unhandledrejection' })
@@ -51,21 +61,24 @@ const queryClient = new QueryClient({
       refetchOnReconnect: true,
     },
     mutations: {
-      retry: false, // Don't retry mutations -- they may not be idempotent
+      retry: false, // Don't retry mutations
+
     },
   },
 })
 
-// ---- Render ----------------------------------------------------------------------------------------------------------------------------------------
+// ---- Render (after optional MSW boot) ──────────────────────────────────────
 const root = document.getElementById('root')
 if (!root) throw new Error('Root element #root not found in DOM')
 
-ReactDOM.createRoot(root).render(
-  <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter>
-        <AppRouter />
-      </BrowserRouter>
-    </QueryClientProvider>
-  </React.StrictMode>
-)
+prepareMocks().then(() => {
+  ReactDOM.createRoot(root).render(
+    <React.StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <BrowserRouter>
+          <AppRouter />
+        </BrowserRouter>
+      </QueryClientProvider>
+    </React.StrictMode>
+  )
+})

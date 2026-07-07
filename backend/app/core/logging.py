@@ -1,6 +1,7 @@
 """
-LBRO — Structured JSON logging via structlog
-Every log line is machine-parseable for CloudWatch Insights queries.
+DEPRECATED — Logging is now configured in app/main.py (structlog, unified).
+This file is not imported by the live application.
+TODO: Delete this file once app/worker/ and app/api/ directories are cleaned up.
 """
 import logging
 import sys

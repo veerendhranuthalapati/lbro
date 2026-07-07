@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 
 
 class NotificationCreate(BaseModel):
@@ -54,6 +54,17 @@ class NotificationResponse(BaseModel):
     recipients: List[NotificationRecipientResponse] = []
 
     model_config = {"from_attributes": True}
+
+    @field_validator("recipients", mode="before")
+    @classmethod
+    def coerce_recipients_to_list(cls, v):
+        """Guard against SQLAlchemy returning a scalar instead of a collection."""
+        if v is None:
+            return []
+        if isinstance(v, list):
+            return v
+        # Single ORM object — wrap it
+        return [v]
 
 
 class NotificationListResponse(BaseModel):

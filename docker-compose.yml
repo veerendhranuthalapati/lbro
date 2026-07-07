@@ -5,20 +5,20 @@
 # ─────────────────────────────────────────────────────────────────────────────
 
 x-common-env: &common-env
-  DATABASE_URL: postgresql+asyncpg://lbro:lbro@postgres:5432/lbro
+  DATABASE_URL: postgresql+asyncpg://lbro:${POSTGRES_PASSWORD:-lbro}@postgres:5432/lbro
   AWS_ENDPOINT_URL: http://localstack:4566
-  AWS_ACCESS_KEY_ID: test
-  AWS_SECRET_ACCESS_KEY: test
-  AWS_REGION: us-east-1
-  S3_BUCKET_EVIDENCE: lbro-evidence
-  S3_BUCKET_REPORTS: lbro-reports
+  AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
+  AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
+  AWS_REGION: ${AWS_REGION:-us-east-1}
+  S3_BUCKET_EVIDENCE: ${S3_BUCKET_EVIDENCE:-lbro-evidence}
+  S3_BUCKET_REPORTS: ${S3_BUCKET_REPORTS:-lbro-reports}
   SQS_INCIDENT_QUEUE_URL: http://localstack:4566/000000000000/lbro-incidents
   SQS_NOTIFICATION_QUEUE_URL: http://localstack:4566/000000000000/lbro-notifications
   SQS_DLQ_URL: http://localstack:4566/000000000000/lbro-dlq
-  SECRET_KEY: dev-secret-key-change-in-production-minimum-32-chars
-  ENVIRONMENT: development
-  DEBUG: "true"
-  LOG_LEVEL: INFO
+  SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set — run: python -c "import secrets; print(secrets.token_urlsafe(32))"}
+  ENVIRONMENT: ${ENVIRONMENT:-development}
+  DEBUG: ${DEBUG:-false}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
   CORS_ORIGINS: "http://localhost:5173,http://localhost:3000,http://localhost:80,http://frontend:80"
 
 services:
@@ -28,9 +28,9 @@ services:
     image: postgres:16-alpine
     container_name: lbro-postgres
     environment:
-      POSTGRES_USER: lbro
-      POSTGRES_PASSWORD: lbro
-      POSTGRES_DB: lbro
+      POSTGRES_USER: ${POSTGRES_USER:-lbro}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lbro}
+      POSTGRES_DB: ${POSTGRES_DB:-lbro}
     ports:
       - "5432:5432"
     volumes:
@@ -165,7 +165,7 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-    restart: on-failure
+    restart: "no"
 
 volumes:
   postgres_data:

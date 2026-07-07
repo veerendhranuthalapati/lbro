@@ -1,14 +1,14 @@
 """Evidence vault and chain-of-custody ORM models."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List
 
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, LargeBinary, String, Text
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, deferred, mapped_column, relationship
 
 from app.database import Base
 
@@ -29,9 +29,14 @@ class Evidence(Base):
     original_filename: Mapped[str] = mapped_column(String(500), nullable=False)
     content_type: Mapped[str] = mapped_column(String(200), nullable=False)
     file_size: Mapped[int] = mapped_column(Integer, nullable=False)
-    s3_key: Mapped[str] = mapped_column(Text, nullable=False)
-    s3_bucket: Mapped[str] = mapped_column(String(255), nullable=False)
+    # S3 fields: nullable — new uploads use PostgreSQL storage (file_data).
+    # Kept for backward compatibility with any legacy S3-stored evidence.
+    s3_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    s3_bucket: Mapped[str | None] = mapped_column(String(255), nullable=True)
     sha256_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    # Primary storage: file binary stored directly in PostgreSQL (avoids S3 dependency).
+    # Deferred so it is not loaded on list queries — only fetched on explicit download.
+    file_data: Mapped[bytes | None] = deferred(mapped_column(LargeBinary, nullable=True))
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     tags: Mapped[str | None] = mapped_column(Text, nullable=True)  # JSON array as text
     is_immutable: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -43,9 +48,9 @@ class Evidence(Base):
     )
 
     incident: Mapped["Incident"] = relationship("Incident", back_populates="evidence")
-    custody_chain: Mapped[list] = relationship(
+    custody_chain: Mapped[List["ChainOfCustody"]] = relationship(
         "ChainOfCustody", back_populates="evidence", cascade="all, delete-orphan",
-        order_by="ChainOfCustody.created_at"
+        order_by="ChainOfCustody.created_at", uselist=True,
     )
 
     def __repr__(self) -> str:

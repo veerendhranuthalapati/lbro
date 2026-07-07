@@ -1,5 +1,7 @@
 // ---- API ----------------------------------------------------------------------------------------------------------------------------------------------
-export const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+// Empty string → relative URLs → requests go through Vite dev-proxy and MSW can intercept.
+// Set VITE_API_URL to the absolute API origin only in production deployments.
+export const API_BASE_URL = import.meta.env.VITE_API_URL ?? ''
 export const API_TIMEOUT_MS = 15_000
 export const API_VERSION = 'v1'
 
@@ -52,7 +54,7 @@ export const COMPLIANCE_DEADLINE_HOURS: Record<string, number> = {
 }
 
 // ---- Evidence ----------------------------------------------------------------------------------------------------------------------------------
-export const MAX_UPLOAD_SIZE_BYTES = 5 * 1024 * 1024 * 1024 // 5 GB
+export const MAX_UPLOAD_SIZE_BYTES = 100 * 1024 * 1024 // 100 MB — matches backend limit
 export const ALLOWED_EVIDENCE_MIME_TYPES = [
   'application/octet-stream',
   'application/gzip',

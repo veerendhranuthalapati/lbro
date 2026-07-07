@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class ChainOfCustodyResponse(BaseModel):
@@ -37,6 +37,16 @@ class EvidenceResponse(BaseModel):
     download_url: Optional[str] = None
 
     model_config = {"from_attributes": True}
+
+    @field_validator("custody_chain", mode="before")
+    @classmethod
+    def coerce_custody_chain_to_list(cls, v):
+        """Guard against SQLAlchemy returning a scalar instead of a collection."""
+        if v is None:
+            return []
+        if isinstance(v, list):
+            return v
+        return [v]
 
 
 class EvidenceListResponse(BaseModel):

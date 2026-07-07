@@ -139,3 +139,37 @@ async def delete_incident(
 ):
     svc = IncidentService(db)
     await svc.delete(incident_id)
+
+
+@router.get("/{incident_id}/explain")
+async def explain_incident(
+    incident_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_permission(Permission.READ_INCIDENT))],
+):
+    """Return a plain-English explanation for this incident's attack type."""
+    from sqlalchemy import select
+    from app.models.incident import Incident
+    from app.services.incident_explainer import explain_incident as _explain
+
+    result = await db.execute(select(Incident).where(Incident.id == incident_id))
+    incident = result.scalar_one_or_none()
+    if incident is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Incident not found")
+
+    explanation = _explain(
+        attack_category=incident.attack_category or "Unknown",
+        incident_title=incident.title,
+        incident_severity=incident.severity,
+        source_ip=getattr(incident, "source_ip", None),
+        destination_port=getattr(incident, "destination_port", None),
+        flow_duration_ms=getattr(incident, "flow_duration_ms", None),
+    )
+    return {
+        "incident_id": str(incident.id),
+        "incident_title": incident.title,
+        "incident_severity": incident.severity,
+        "attack_category": incident.attack_category,
+        **explanation,
+    }

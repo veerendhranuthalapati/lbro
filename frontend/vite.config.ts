@@ -23,6 +23,9 @@ export default defineConfig({
     outDir: 'dist',
     sourcemap: false,
     rollupOptions: {
+      // msw is dev-only; never executed in production (VITE_MOCK is unset).
+      // Externalizing prevents Rollup from failing on msw's missing .mjs files.
+      external: (id: string) => id === 'msw' || id === 'msw/browser',
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom', 'react-router-dom'],

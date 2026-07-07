@@ -84,11 +84,11 @@ export default function AuditLogsPage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
             <ClipboardList style={{ width: 18, height: 18, color: ORANGE }} />
             <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 28, color: BLACK, letterSpacing: '0.04em' }}>
-              AUDIT LOGS
+              SECURITY HISTORY
             </h2>
           </div>
           <p style={{ fontSize: 12, color: GRAY }}>
-            Complete tamper-evident record of all system actions
+            A complete record of who did what, when, and from where
           </p>
         </div>
         <div style={{ fontSize: 11, color: GRAY, fontFamily: 'JetBrains Mono, monospace', marginTop: 8 }}>
@@ -138,7 +138,7 @@ export default function AuditLogsPage() {
         {isError && (
           <div style={{ padding: 24, textAlign: 'center' }}>
             <AlertCircle style={{ width: 18, height: 18, color: '#d97706', margin: '0 auto 8px' }} />
-            <div style={{ fontSize: 12, color: GRAY }}>Could not load audit logs. You may need admin or analyst privileges.</div>
+            <div style={{ fontSize: 12, color: GRAY }}>Could not load activity logs. Make sure you're signed in as an admin.</div>
           </div>
         )}
 

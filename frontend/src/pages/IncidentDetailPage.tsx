@@ -1,4 +1,5 @@
 import type { IncidentSeverity, IncidentStatus, NotificationStatus, Jurisdiction } from '@/types'
+import { IncidentExplainer } from '@/components/incidents/IncidentExplainer'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, Shield, Clock, Database, FileText,
@@ -7,6 +8,8 @@ import {
 import { SeverityBadge } from '@/components/ui/SeverityBadge'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { useIncident, useEvidence, useNotifications } from '@/hooks/useApi'
+import { getAccessToken } from '@/store/authStore'
+import { logger } from '@/lib/logger'
 import {
   formatDate, timeAgo, formatBytes, shortHash,
   NOTIF_STATUS_CONFIG, JURISDICTION_CONFIG,
@@ -51,8 +54,6 @@ export default function IncidentDetailPage() {
   const { id }   = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  // Guard: 'new' is not a UUID — hooks must be called unconditionally (Rules of Hooks),
-  // so we pass enabled:false instead of skipping the call.
   const isNew = id === 'new' || !id
   const { data: incident,      isLoading: incLoading,  isError: incError  } = useIncident(isNew ? '' : id!)
   const { data: evidenceList,  isLoading: evLoading,   isError: evError   } = useEvidence(isNew ? '' : id!)
@@ -61,13 +62,39 @@ export default function IncidentDetailPage() {
   const evidence      = evidenceList ?? []
   const notifications = notifResponse?.items ?? []
 
-  // Redirect 'new' to the dedicated create page
+  const handleEvidenceDownload = async (downloadUrl: string | null, filename: string, contentType: string) => {
+    if (!downloadUrl) return
+    try {
+      const token = getAccessToken()
+      const headers: Record<string, string> = {}
+      if (token) headers['Authorization'] = `Bearer ${token}`
+      const res = await fetch(downloadUrl, { headers })
+      if (!res.ok) {
+        if (res.status === 404) throw new Error('FILE_NOT_FOUND')
+        throw new Error(`HTTP ${res.status}`)
+      }
+      const blob = await res.blob()
+      const url  = URL.createObjectURL(new Blob([blob], { type: contentType }))
+      const a    = document.createElement('a')
+      a.href = url; a.download = filename
+      document.body.appendChild(a); a.click(); a.remove()
+      setTimeout(() => URL.revokeObjectURL(url), 10_000)
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      logger.error('Evidence download failed', { error: msg })
+      alert(
+        msg === 'FILE_NOT_FOUND'
+          ? 'No file data stored for this record. Re-run the seed script to populate file data.'
+          : 'Download failed — check backend connectivity.'
+      )
+    }
+  }
+
   if (isNew) {
     navigate('/incidents/new', { replace: true })
     return null
   }
 
-  // Loading state
   if (incLoading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 1100 }}>
@@ -79,13 +106,12 @@ export default function IncidentDetailPage() {
     )
   }
 
-  // Error / not found state
   if (incError || !incident) {
     return (
       <div style={{ textAlign: 'center', padding: '80px 0', color: GRAY }}>
         <Shield style={{ width: 40, height: 40, opacity: 0.2, margin: '0 auto 12px' }} aria-hidden="true" />
         <p style={{ fontSize: 12 }}>
-          {incError ? `Failed to load incident from GET /api/v1/incidents/${id}` : 'Incident not found'}
+          {incError ? 'Could not load this incident.' : 'Incident not found.'}
         </p>
         <button onClick={() => navigate('/incidents')} style={{ marginTop: 12, color: ORANGE, background: 'none', border: 'none', cursor: 'pointer', fontSize: 12 }}>
           Back to incidents
@@ -94,7 +120,6 @@ export default function IncidentDetailPage() {
     )
   }
 
-  // Build timeline from real incident data (actions + timeline events from IncidentDetail)
   const timelineBase = [
     {
       type: 'DETECTION',
@@ -104,16 +129,15 @@ export default function IncidentDetailPage() {
       color: ORANGE,
     },
     {
-      type: 'TRIAGE',
+      type: 'CLASSIFIED',
       actor: 'lbro-api',
-      desc: `Severity: ${incident.severity}. Jurisdictions: ${incident.affected_jurisdictions?.join(', ') || 'none'}.`,
+      desc: `Severity set to ${incident.severity}. Regulations checked: ${incident.affected_jurisdictions?.join(', ') || 'none'}.`,
       time: new Date(new Date(incident.detected_at).getTime() + 30000).toISOString(),
       color: '#d97706',
     },
-    ...(incident.closed_at ? [{ type: 'CLOSED', actor: 'analyst', desc: 'Incident reviewed and closed.', time: incident.closed_at, color: '#3a7a50' }] : []),
+    ...(incident.closed_at ? [{ type: 'CLOSED', actor: 'user', desc: 'Incident reviewed and closed.', time: incident.closed_at, color: '#3a7a50' }] : []),
   ]
 
-  // Append real timeline events from IncidentDetail if available
   const detailTimeline = (incident as any).timeline as Array<{ event_type: string; actor: string; description: string; occurred_at: string }> | undefined
   const timeline = detailTimeline?.length
     ? detailTimeline.map(t => ({ type: t.event_type, actor: t.actor, desc: t.description, time: t.occurred_at, color: GRAY }))
@@ -121,7 +145,6 @@ export default function IncidentDetailPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 1100 }}>
-      {/* Back + Header */}
       <div>
         <button
           onClick={() => navigate('/incidents')}
@@ -147,7 +170,6 @@ export default function IncidentDetailPage() {
         </div>
       </div>
 
-      {/* Meta row */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
         {[
           { label: 'Attack category', value: incident.attack_category ?? '--',                           icon: Shield,   mono: false },
@@ -167,12 +189,11 @@ export default function IncidentDetailPage() {
         ))}
       </div>
 
-      {/* Main grid */}
+      <IncidentExplainer incidentId={id!} />
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 16 }}>
-        {/* Left column */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
 
-          {/* Timeline */}
           <Card>
             <CardHead icon={<Clock style={{ width: 14, height: 14, color: ORANGE }} />} title="Attack Timeline" />
             <div>
@@ -195,21 +216,20 @@ export default function IncidentDetailPage() {
             </div>
           </Card>
 
-          {/* Evidence */}
           <Card>
             <CardHead
               icon={<Lock style={{ width: 14, height: 14, color: ORANGE }} />}
-              title="Forensic Evidence"
-              extra={<span style={{ fontSize: 10, color: GRAY }}>S3 Object Lock (WORM)</span>}
+              title="Attached Evidence"
+              extra={<span style={{ fontSize: 10, color: GRAY }}>stored in your database</span>}
             />
             {evLoading ? (
               <SkeletonRow />
             ) : evError ? (
               <p style={{ fontSize: 11, color: GRAY }}>
-                Failed to load from <code style={{ fontFamily: 'JetBrains Mono, monospace' }}>GET /api/v1/incidents/{id}/evidence</code>
+                Could not load evidence for this incident.
               </p>
             ) : evidence.length === 0 ? (
-              <p style={{ fontSize: 11, color: GRAY }}>No evidence packages collected.</p>
+              <p style={{ fontSize: 11, color: GRAY }}>No evidence files attached yet.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {evidence.map(ev => (
@@ -226,7 +246,10 @@ export default function IncidentDetailPage() {
                           <span style={{ fontFamily: 'JetBrains Mono, monospace', color: '#3a7a50' }}>{shortHash(ev.sha256_hash)}</span>
                         </div>
                       </div>
-                      <button style={{ fontSize: 10, color: ORANGE, border: `1px solid rgba(229,78,27,0.3)`, padding: '4px 10px', borderRadius: 2, background: 'rgba(229,78,27,0.06)', cursor: 'pointer', flexShrink: 0, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      <button
+                        onClick={() => handleEvidenceDownload(ev.download_url, ev.original_filename, ev.content_type)}
+                        disabled={!ev.download_url}
+                        style={{ fontSize: 10, color: ORANGE, border: '1px solid rgba(229,78,27,0.3)', padding: '4px 10px', borderRadius: 2, background: 'rgba(229,78,27,0.06)', cursor: ev.download_url ? 'pointer' : 'not-allowed', opacity: ev.download_url ? 1 : 0.5, flexShrink: 0, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                         Download
                       </button>
                     </div>
@@ -248,11 +271,9 @@ export default function IncidentDetailPage() {
           </Card>
         </div>
 
-        {/* Right column */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          {/* Regulatory notifications */}
           <Card>
-            <CardHead icon={<FileText style={{ width: 14, height: 14, color: ORANGE }} />} title="Regulatory Notifications" />
+            <CardHead icon={<FileText style={{ width: 14, height: 14, color: ORANGE }} />} title="Compliance Alerts" />
             {notifLoading ? (
               <SkeletonRow />
             ) : notifications.length === 0 ? (
@@ -260,7 +281,6 @@ export default function IncidentDetailPage() {
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {notifications.map(n => {
-                  // Use real API field names: n.regulation, n.authority, n.deadline
                   const regKey = (n.regulation ?? n.jurisdiction) as Jurisdiction
                   const jcfg   = JURISDICTION_CONFIG[regKey]
                   const deadlineMs = new Date(n.deadline).getTime()
@@ -306,16 +326,19 @@ export default function IncidentDetailPage() {
             )}
           </Card>
 
-          {/* Network details */}
-          {(incident.destination_ip || incident.protocol) && (
+          {/* Network details -- show whenever any network field is populated */}
+          {(incident.source_ip || incident.destination_ip || incident.source_port ||
+            incident.destination_port || incident.protocol || incident.flow_duration_ms) && (
             <Card>
               <CardHead icon={<AlertCircle style={{ width: 14, height: 14, color: '#d97706' }} />} title="Network Details" />
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {[
+                  ['Source IP',        incident.source_ip ?? '--'],
+                  ['Source Port',      incident.source_port?.toString() ?? '--'],
                   ['Destination IP',   incident.destination_ip ?? '--'],
                   ['Destination Port', incident.destination_port?.toString() ?? '--'],
                   ['Protocol',         incident.protocol ?? '--'],
-                  ['Source Port',      incident.source_port?.toString() ?? '--'],
+                  ['Flow Duration',    incident.flow_duration_ms != null ? `${incident.flow_duration_ms} ms` : '--'],
                 ].map(([k, v]) => (
                   <div key={k} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11 }}>
                     <span style={{ color: GRAY }}>{k}</span>
@@ -326,23 +349,22 @@ export default function IncidentDetailPage() {
             </Card>
           )}
 
-          {/* Data classification */}
           <Card>
             <CardHead icon={<Shield style={{ width: 14, height: 14, color: ORANGE }} />} title="Data Classification" />
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
               {[
-                { label: 'Personal data',   active: incident.personal_data_involved,                    color: '#7c3aed' },
-                { label: 'Health data',     active: incident.health_data_involved,                      color: ORANGE   },
-                { label: 'GDPR notifiable', active: incident.affected_jurisdictions?.includes('EU'),    color: '#3b82f6' },
-                { label: 'HIPAA notifiable',active: incident.affected_jurisdictions?.includes('US'),    color: '#a78bfa' },
-                { label: 'DPDPA notifiable',active: incident.affected_jurisdictions?.includes('IN'),    color: ORANGE   },
+                { label: 'Personal data',    active: incident.personal_data_involved,                 color: '#7c3aed' },
+                { label: 'Health data',      active: incident.health_data_involved,                   color: ORANGE   },
+                { label: 'GDPR notifiable',  active: incident.affected_jurisdictions?.includes('EU'), color: '#3b82f6' },
+                { label: 'HIPAA notifiable', active: incident.affected_jurisdictions?.includes('US'), color: '#a78bfa' },
+                { label: 'DPDPA notifiable', active: incident.affected_jurisdictions?.includes('IN'), color: ORANGE   },
               ].map(({ label, active, color }) => (
                 <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11 }}>
                   <span style={{ color: GRAY }}>{label}</span>
                   <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, fontWeight: 700, color: active ? color : BORDER }}>
                     {active ? 'YES' : 'NO'}
                   </span>
-                  </div>
+                </div>
               ))}
             </div>
           </Card>

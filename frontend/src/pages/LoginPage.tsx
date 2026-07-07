@@ -90,8 +90,6 @@ export default function LoginPage() {
         permissions: jwtPerms ?? (ROLE_PERMISSIONS[role] ?? []) as PermissionValue[],
         last_login:  userRecord.last_login,
       }
-      console.debug('[LBRO] login authUser', { role: authUser.role, permCount: authUser.permissions.length })
-
       // 4. Commit to store -- this also writes to sessionStorage
       resetLoginAttempts()
       login(access_token, tokenResponse.refresh_token ?? null, authUser)
@@ -157,8 +155,8 @@ export default function LoginPage() {
 
         {/* Card */}
         <div style={{ background: CREAM, border: `1px solid ${BORDER}`, borderRadius: 4, padding: 28 }}>
-          <h2 style={{ fontSize: 13, fontWeight: 500, color: BLACK, marginBottom: 4 }}>Authenticate</h2>
-          <p style={{ fontSize: 11, color: GRAY, marginBottom: 24 }}>Sign in with your credentials to access the SOC dashboard</p>
+          <h2 style={{ fontSize: 13, fontWeight: 500, color: BLACK, marginBottom: 4 }}>Sign in</h2>
+          <p style={{ fontSize: 11, color: GRAY, marginBottom: 24 }}>Sign in to access your LBRO security dashboard</p>
 
           {/* Lockout banner */}
           {locked && (
@@ -182,7 +180,7 @@ export default function LoginPage() {
                 type="email"
                 value={email}
                 onChange={e => setEmail(e.target.value)}
-                placeholder="analyst@your-org.com"
+                placeholder="you@your-org.com"
                 autoComplete="email"
                 autoCapitalize="none"
                 spellCheck={false}
@@ -303,7 +301,7 @@ export default function LoginPage() {
             </div>
           </div>
         </div>
-      </main>
+            </main>
     </div>
   )
 }

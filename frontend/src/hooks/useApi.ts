@@ -15,7 +15,7 @@ import {
 import {
   incidentsApi, evidenceApi, notificationsApi, healthApi,
   dashboardApi, complianceApi, usersApi, mlApi, auditLogsApi,
-  infrastructureApi, authApi,
+  infrastructureApi, authApi, securityScoreApi, reportsApi,
 } from '@/api/client'
 import type { DashboardSummary } from '@/api/client'
 import { debounce } from '@/lib/rateLimiter'
@@ -63,6 +63,7 @@ export const qk = {
     status:    ['infra', 'status'] as const,
     sqsHistory:['infra', 'sqs-history'] as const,
   },
+  securityScore: ['security-score'] as const,
 } as const
 
 // ---- Incident filters -------------------------------------------------------
@@ -366,4 +367,36 @@ export function useDebouncedSearch(initialValue = '') {
   }, [debouncedSet])
 
   return { search, debouncedSearch, handleSearch }
+}
+
+// ---- Security Score --------------------------------------------------------
+export function useSecurityScore() {
+  return useQuery({
+    queryKey: qk.securityScore,
+    queryFn:  () => securityScoreApi.get(),
+    refetchInterval: 60_000,   // re-score every minute
+    staleTime:       30_000,
+    retry: 1,
+  })
+}
+
+// ---- Incident Explanation ---------------------------------------------------
+export function useIncidentExplanation(incidentId: string) {
+  return useQuery({
+    queryKey: ['incidents', 'explain', incidentId],
+    queryFn:  () => incidentsApi.explain(incidentId),
+    enabled:  !!incidentId,
+    staleTime: 5 * 60_000,   // explanations don't change — cache for 5 min
+    retry: 1,
+  })
+}
+
+// ---- Weekly Report ---------------------------------------------------------
+export function useWeeklyReport() {
+  return useQuery({
+    queryKey: ['reports', 'weekly'],
+    queryFn:   () => reportsApi.weekly(),
+    staleTime: 5 * 60_000,
+    retry: 1,
+  })
 }

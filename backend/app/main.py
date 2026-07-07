@@ -3,8 +3,10 @@ from __future__ import annotations
 
 import logging
 import time
+import uuid
 from contextlib import asynccontextmanager
 
+import structlog
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
@@ -17,18 +19,53 @@ from app.core.exceptions import (
 )
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
-from app.routers import auth, incidents, evidence, notifications, compliance, users, ml, dashboard, audit, infrastructure
+from app.routers import auth, incidents, evidence, notifications, compliance, users, ml, dashboard, audit, infrastructure, security_score, reports
 
+# ── Unified structlog logging ─────────────────────────────────────────────────
+# Single logging system — structlog wraps stdlib logging so third-party libraries
+# that use `logging.getLogger(...)` are also captured in the same format.
+# Previously main.py used logging.basicConfig while core/logging.py used structlog
+# against the dead core/config — two conflicting systems.
+_log_level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
+
+# Configure stdlib root logger first (third-party libs use it)
 logging.basicConfig(
-    level=getattr(logging, settings.LOG_LEVEL, logging.INFO),
+    level=_log_level,
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
-logger = logging.getLogger(__name__)
+
+# Configure structlog to share the same output
+_shared_processors: list = [
+    structlog.contextvars.merge_contextvars,       # picks up request_id bound per-request
+    structlog.stdlib.add_log_level,
+    structlog.processors.TimeStamper(fmt="iso"),
+]
+
+if settings.ENVIRONMENT == "development" or settings.DEBUG:
+    structlog.configure(
+        processors=_shared_processors + [structlog.dev.ConsoleRenderer()],
+        wrapper_class=structlog.make_filtering_bound_logger(_log_level),
+        logger_factory=structlog.PrintLoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
+else:
+    # Production: machine-readable JSON lines (one JSON object per log entry)
+    structlog.configure(
+        processors=_shared_processors + [
+            structlog.processors.dict_tracebacks,
+            structlog.processors.JSONRenderer(),
+        ],
+        wrapper_class=structlog.make_filtering_bound_logger(_log_level),
+        logger_factory=structlog.PrintLoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
+
+logger = structlog.get_logger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("LBRO %s starting up (env=%s)", settings.APP_VERSION, settings.ENVIRONMENT)
+    logger.info("startup", version=settings.APP_VERSION, env=settings.ENVIRONMENT)
     # Ensure S3 buckets exist (skip in test environment — no real S3/LocalStack running)
     if settings.ENVIRONMENT != "test" and (settings.AWS_ENDPOINT_URL or settings.AWS_ACCESS_KEY_ID):
         try:
@@ -36,9 +73,9 @@ async def lifespan(app: FastAPI):
             s3_service.ensure_bucket(settings.S3_BUCKET_EVIDENCE)
             s3_service.ensure_bucket(settings.S3_BUCKET_REPORTS)
         except Exception as exc:
-            logger.warning("S3 bucket init failed: %s", exc)
+            logger.warning("s3_bucket_init_failed", error=str(exc))
     yield
-    logger.info("LBRO shutting down")
+    logger.info("shutdown")
 
 
 app = FastAPI(
@@ -84,45 +121,45 @@ app.add_middleware(
 app.add_exception_handler(LBROException, lbro_exception_handler)
 app.add_exception_handler(Exception, generic_exception_handler)
 
-# ── Request timing middleware ─────────────────────────────────────────────────
+# ── Request ID + timing middleware ────────────────────────────────────────────
 @app.middleware("http")
-async def add_process_time_header(request: Request, call_next):
+async def request_context_middleware(request: Request, call_next):
+    # Use X-Request-ID from client if provided (allows end-to-end correlation),
+    # otherwise generate one.  Bind it to structlog context so every log line
+    # emitted during this request includes request_id automatically.
+    request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    structlog.contextvars.clear_contextvars()
+    structlog.contextvars.bind_contextvars(request_id=request_id)
     start = time.perf_counter()
     response = await call_next(request)
-    elapsed = time.perf_counter() - start
-    response.headers["X-Process-Time"] = f"{elapsed:.4f}s"
+    duration_ms = round((time.perf_counter() - start) * 1000, 1)
+    response.headers["X-Request-ID"] = request_id
+    response.headers["X-Process-Time"] = f"{duration_ms}ms"
+    logger.info(
+        "http_request",
+        method=request.method,
+        path=request.url.path,
+        status=response.status_code,
+        duration_ms=duration_ms,
+    )
     return response
 
 
-# ── Routers ───────────────────────────────────────────────────────────────────
-API_PREFIX = "/api/v1"
-app.include_router(auth.router, prefix=API_PREFIX)
-app.include_router(incidents.router, prefix=API_PREFIX)
-app.include_router(evidence.router, prefix=API_PREFIX)  # No prefix — paths are already fully specified
-app.include_router(notifications.router, prefix=API_PREFIX)
-app.include_router(compliance.router, prefix=API_PREFIX)
-app.include_router(users.router, prefix=API_PREFIX)
-app.include_router(ml.router, prefix=API_PREFIX)
-app.include_router(dashboard.router, prefix=API_PREFIX)
-app.include_router(audit.router, prefix=API_PREFIX)
-app.include_router(infrastructure.router, prefix=API_PREFIX)
+# ── Routers ────────────────────────────────────────────────────────────────────
+app.include_router(auth.router,           prefix="/api/v1")
+app.include_router(incidents.router,      prefix="/api/v1")
+app.include_router(evidence.router,       prefix="/api/v1")
+app.include_router(notifications.router,  prefix="/api/v1")
+app.include_router(compliance.router,     prefix="/api/v1")
+app.include_router(users.router,          prefix="/api/v1")
+app.include_router(ml.router,             prefix="/api/v1")
+app.include_router(dashboard.router,      prefix="/api/v1")
+app.include_router(audit.router,          prefix="/api/v1")
+app.include_router(infrastructure.router, prefix="/api/v1")
+app.include_router(security_score.router, prefix="/api/v1")
+app.include_router(reports.router,        prefix="/api/v1")
 
 
-# ── Health endpoints ──────────────────────────────────────────────────────────
 @app.get("/health", tags=["health"])
-async def health():
-    return {"status": "ok", "version": settings.APP_VERSION}
-
-
-@app.get("/health/ready", tags=["health"])
-async def readiness():
-    """Check DB connectivity."""
-    from app.database import engine
-    try:
-        async with engine.connect() as conn:
-            await conn.execute(__import__("sqlalchemy").text("SELECT 1"))
-        db_ok = True
-    except Exception:
-        db_ok = False
-    status = "ok" if db_ok else "degraded"
-    return {"status": status, "db": db_ok}
+async def health_check():
+    return {"status": "ok", "version": settings.APP_VERSION, "env": settings.ENVIRONMENT}

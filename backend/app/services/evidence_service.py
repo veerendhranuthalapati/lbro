@@ -8,11 +8,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.config import settings
 from app.core.exceptions import NotFoundError
 from app.models.evidence import Evidence, ChainOfCustody
 from app.models.user import User
-from app.services.s3_service import s3_service, compute_sha256
+from app.services.s3_service import compute_sha256
 
 
 class EvidenceService:
@@ -30,31 +29,20 @@ class EvidenceService:
         ip_address: Optional[str] = None,
     ) -> Evidence:
         sha256 = compute_sha256(data)
-        s3_key = f"incidents/{incident_id}/evidence/{uuid.uuid4()}_{filename}"
 
-        s3_service.upload_file(
-            bucket=settings.S3_BUCKET_EVIDENCE,
-            key=s3_key,
-            data=data,
-            content_type=content_type,
-            metadata={
-                "incident_id": str(incident_id),
-                "uploaded_by": str(uploader.id),
-                "sha256": sha256,
-            },
-        )
-
+        # Store file binary directly in PostgreSQL — no S3 dependency.
         evidence = Evidence(
             incident_id=incident_id,
-            filename=s3_key.split("/")[-1],
+            filename=filename,
             original_filename=filename,
             content_type=content_type,
             file_size=len(data),
-            s3_key=s3_key,
-            s3_bucket=settings.S3_BUCKET_EVIDENCE,
+            s3_key=None,
+            s3_bucket=None,
             sha256_hash=sha256,
             description=description,
             uploaded_by=uploader.id,
+            file_data=data,
         )
         self.db.add(evidence)
         await self.db.flush()
@@ -121,10 +109,24 @@ class EvidenceService:
         items = list(result.scalars().all())
         return items, total
     def get_download_url(self, evidence: Evidence) -> str:
-        return s3_service.generate_presigned_url(
-            bucket=evidence.s3_bucket,
-            key=evidence.s3_key,
+        """Return a direct backend download URL (served from PostgreSQL file_data)."""
+        return f"/api/v1/evidence/{evidence.id}/download"
+
+    async def get_file_data(self, evidence_id: uuid.UUID) -> bytes | None:
+        """Load the deferred file_data column.
+
+        Uses populate_existing=True so SQLAlchemy overwrites any cached
+        Evidence instance (loaded earlier without file_data) in the identity map.
+        """
+        from sqlalchemy.orm import undefer
+        result = await self.db.execute(
+            select(Evidence)
+            .where(Evidence.id == evidence_id)
+            .options(undefer(Evidence.file_data)),
+            execution_options={"populate_existing": True},
         )
+        ev = result.scalar_one_or_none()
+        return ev.file_data if ev else None
 
     async def delete(self, evidence_id: uuid.UUID, actor: User) -> None:
         result = await self.db.execute(select(Evidence).where(Evidence.id == evidence_id))

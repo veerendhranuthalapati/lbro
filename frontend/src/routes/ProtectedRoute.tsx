@@ -51,12 +51,6 @@ export function ProtectedRoute({ requiredPermission, children }: ProtectedRouteP
 
   // Authenticated but missing required permission -> 403 page
   if (requiredPermission && !can(requiredPermission)) {
-    console.warn('[LBRO 403]', {
-      required: requiredPermission,
-      role: user?.role,
-      permCount: permissions.size,
-      hasIt: permissions.has(requiredPermission),
-    })
     return <Forbidden />
   }
 

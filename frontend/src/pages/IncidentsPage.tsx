@@ -62,7 +62,7 @@ export default function IncidentsPage() {
             All Incidents
           </h2>
           <p style={{ fontSize: 11, color: GRAY, marginTop: 4 }}>
-            {isLoading ? 'Loading…' : `${totalCount} incident${totalCount !== 1 ? 's' : ''} · ML-classified threats`}
+            {isLoading ? 'Loading…' : `${totalCount} incident${totalCount !== 1 ? 's' : ''} · automatically detected and classified`}
           </p>
         </div>
         <button
@@ -108,7 +108,7 @@ export default function IncidentsPage() {
       {/* ---- Error state ---- */}
       {isError && (
         <div style={{ background: 'rgba(229,78,27,0.06)', border: `1px solid rgba(229,78,27,0.3)`, borderLeft: `3px solid ${ORANGE}`, borderRadius: 4, padding: '12px 16px', fontSize: 12, color: BLACK }}>
-          Failed to load incidents from <code style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10 }}>GET /api/v1/incidents</code> -- check that the backend is running.
+          Unable to load incidents. Ensure the backend is running and you are signed in with the correct account.
         </div>
       )}
 

@@ -129,7 +129,7 @@ export default function RegisterPage() {
           ) : (
             <>
               <h2 style={{ fontSize: 13, fontWeight: 500, color: BLACK, marginBottom: 4 }}>Create account</h2>
-              <p style={{ fontSize: 11, color: GRAY, marginBottom: 24 }}>Register for access to the LBRO SOC dashboard</p>
+              <p style={{ fontSize: 11, color: GRAY, marginBottom: 24 }}>Create your LBRO account to start tracking security</p>
 
               {apiError && (
                 <div role="alert" style={{ display: 'flex', gap: 8, padding: '10px 12px', border: `1px solid rgba(229,78,27,0.35)`, background: 'rgba(229,78,27,0.08)', borderRadius: 4, marginBottom: 16, fontSize: 11, color: ORANGE }}>
@@ -139,7 +139,7 @@ export default function RegisterPage() {
 
               <form onSubmit={handleSubmit} noValidate style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
                 <Input id="fullName" label="Full name" f={fullName} onChange={v => setFullName({ value: v, error: '' })} placeholder="Jane Smith" autoComplete="name" />
-                <Input id="email" label="Email" type="email" f={email} onChange={v => setEmail({ value: v, error: '' })} placeholder="analyst@your-org.com" autoComplete="email" />
+                <Input id="email" label="Email" type="email" f={email} onChange={v => setEmail({ value: v, error: '' })} placeholder="you@your-org.com" autoComplete="email" />
                 <Input id="username" label="Username" f={username} onChange={v => setUsername({ value: v, error: '' })} placeholder="jsmith" autoComplete="username" mono />
 
                 {/* Password */}

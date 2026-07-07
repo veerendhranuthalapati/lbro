@@ -69,14 +69,29 @@ export const apiClient = axios.create({
 })
 
 // ---- Request interceptor ----------------------------------------------------
-apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
+apiClient.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
   if (!globalApiThrottle.consume()) {
     return Promise.reject(new Error('Rate limit exceeded. Please wait.')) as never
   }
 
   // Use getAccessToken() -- reads module-level memory, never Zustand state.
   // This is the fix for the persist-getter bug.
-  const token = getAccessToken()
+  let token = getAccessToken()
+
+  // Proactive silent refresh: after a page reload the access token is gone
+  // (it lives only in memory) but the refresh token survives in sessionStorage.
+  // Rather than letting the request go out without a token, get a new access
+  // token first. This prevents a 401 round-trip on every page reload and stops
+  // the ProtectedRoute flash-to-login that users see as "frequent logouts".
+  if (!token && getRefreshToken() && !config._isRefresh) {
+    try {
+      token = await refreshAccessToken()
+    } catch {
+      // Refresh failed — let the request proceed without a token.
+      // The response interceptor will handle the resulting 401 (logout).
+    }
+  }
+
   if (token) {
     config.headers[AUTH_HEADER] = `Bearer ${token}`
   }
@@ -232,12 +247,15 @@ export const incidentsApi = {
 
   stats: (): Promise<Record<string, unknown>> =>
     apiClient.get('/api/v1/incidents/stats').then(r => r.data),
+
+  explain: (id: string): Promise<IncidentExplanation> =>
+    apiClient.get<IncidentExplanation>(`/api/v1/incidents/${id}/explain`).then(r => r.data),
 }
 
 // ---- Evidence ---------------------------------------------------------------
 export const evidenceApi = {
   list: (incidentId: string): Promise<EvidencePackage[]> =>
-    apiClient.get<EvidencePackage[]>(`/api/v1/incidents/${incidentId}/evidence`).then(r => r.data),
+    apiClient.get<{ items: EvidencePackage[] }>(`/api/v1/incidents/${incidentId}/evidence`).then(r => r.data.items ?? []),
 
   upload: (incidentId: string, file: File, description?: string): Promise<EvidencePackage> => {
     const fd = new FormData()
@@ -317,12 +335,23 @@ export const complianceApi = {
 }
 
 // ---- Users ------------------------------------------------------------------
+export interface UserCreate {
+  email: string
+  username: string
+  full_name: string
+  password: string
+  role: string
+}
+
 export const usersApi = {
   list: (params?: { page?: number; page_size?: number }): Promise<PagedResponse<User>> =>
     apiClient.get<PagedResponse<User>>('/api/v1/users', { params }).then(r => r.data),
 
   get: (id: string): Promise<User> =>
     apiClient.get<User>(`/api/v1/users/${id}`).then(r => r.data),
+
+  create: (payload: UserCreate): Promise<User> =>
+    apiClient.post<User>('/api/v1/users', payload).then(r => r.data),
 
   update: (id: string, payload: Partial<Pick<User, 'full_name' | 'role'>>): Promise<User> =>
     apiClient.patch<User>(`/api/v1/users/${id}`, payload).then(r => r.data),
@@ -376,4 +405,92 @@ export const infrastructureApi = {
     apiClient.get<AWSStatus>('/api/v1/infrastructure').then(r => r.data),
   sqsHistory: (): Promise<SqsHistoryEntry[]> =>
     apiClient.get<SqsHistoryEntry[]>('/api/v1/infrastructure/sqs-history').then(r => r.data),
+}
+
+// ---- Security Score ---------------------------------------------------------
+export interface ScoreFactor {
+  label: string
+  detail: string
+  impact: 'positive' | 'negative'
+}
+
+export interface ScoreRecommendation {
+  priority: 'critical' | 'high' | 'medium' | 'low'
+  title: string
+  detail: string
+}
+
+export interface SecurityScore {
+  score: number
+  grade: string
+  color: string
+  status: string
+  summary: string
+  factors: ScoreFactor[]
+  recommendations: ScoreRecommendation[]
+  data_snapshot: Record<string, number | string>
+  calculated_at: string
+}
+
+export const securityScoreApi = {
+  get: (): Promise<SecurityScore> =>
+    apiClient.get<SecurityScore>('/api/v1/security-score').then(r => r.data),
+}
+
+
+// ---- Incident Explanation ---------------------------------------------------
+export interface IncidentExplanation {
+  incident_id: string
+  incident_title: string
+  incident_severity: string
+  attack_category: string | null
+  category: string
+  plain_english: string
+  context: string | null
+  business_impact: string
+  technical_impact: string
+  likelihood: 'Low' | 'Medium' | 'High' | 'Critical'
+  owasp: string | null
+  mitre_attack: string[]
+  recommended_fixes: string[]
+  severity_hint: string
+  learn_more_url: string | null
+}
+
+// ---- Weekly Report ---------------------------------------------------------
+export interface WeeklyReportSection {
+  open_critical: number
+  open_high: number
+  open_medium: number
+  open_low: number
+  new_this_week: number
+  closed_this_week: number
+  top_attack_types: { category: string; count: number }[]
+  most_targeted_ports: { port: number; count: number }[]
+  critical_incidents: Array<{ id: string; title: string; severity: string; status: string; created_at: string }>
+  resolved_incidents: Array<{ id: string; title: string; severity: string; resolved_at: string }>
+}
+
+export interface WeeklyReport {
+  generated_at: string
+  period_start: string
+  period_end: string
+  security_score: number
+  security_grade: string
+  security_color: string
+  security_status: string
+  executive_summary: string
+  total_incidents: number
+  incidents: WeeklyReportSection
+  evidence_count: number
+  compliance_met: number
+  compliance_total: number
+  top_recommendations: Array<{ priority: string; title: string; detail: string }>
+  trend: 'improving' | 'stable' | 'worsening'
+  trend_reason: string
+}
+
+export const reportsApi = {
+  weekly: (): Promise<WeeklyReport> =>
+    apiClient.get<WeeklyReport>('/api/v1/reports/weekly').then(r => r.data),
 }

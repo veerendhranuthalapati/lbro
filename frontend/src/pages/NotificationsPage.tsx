@@ -63,7 +63,7 @@ export default function NotificationsPage() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Bell style={{ width: 20, height: 20, color: ORANGE }} aria-hidden="true" />
           <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, color: BLACK, letterSpacing: '0.04em', lineHeight: 1 }}>
-            Regulatory Notifications
+            Compliance Alerts
           </h1>
         </div>
         {counts.overdue > 0 && (

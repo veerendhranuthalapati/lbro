@@ -1,285 +1,350 @@
+/**
+ * Application Security Dashboard
+ *
+ * Displays a personalised greeting, overall security health, key metrics,
+ * recent activity timeline, top threat, and recommended actions.
+ * All data sourced from real backend APIs — no mock data.
+ */
+import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  AreaChart, Area, BarChart, Bar,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-} from 'recharts'
+  ShieldCheck, AlertTriangle, ArrowRight,
+  Activity, Clock, Zap, Shield, ChevronRight,
+} from 'lucide-react'
+import { useIncidents, useDashboardSummary, useSecurityScore } from '@/hooks/useApi'
+import { useAuthStore } from '@/store/authStore'
 import { SeverityBadge } from '@/components/ui/SeverityBadge'
 import { StatusBadge } from '@/components/ui/StatusBadge'
-import { useIncidents, useDashboardSummary } from '@/hooks/useApi'
 import { timeAgo, truncate } from '@/utils'
 import type { IncidentSeverity, IncidentStatus } from '@/types'
 
 const ORANGE = '#e54e1b'
 const BLACK  = '#111111'
-const BORDER = '#c8c2b8'
+const BORDER = '#e4ddd5'
 const GRAY   = '#6b6560'
 const CREAM  = '#f9f5ef'
+const PARCH  = '#ede8e0'
+const GREEN  = '#16a34a'
+const AMBER  = '#d97706'
+const RED    = '#dc2626'
 
-const CustomTooltip = ({ active, payload, label }: any) => {
-  if (!active || !payload?.length) return null
+function getGreeting() {
+  const h = new Date().getHours()
+  if (h < 12) return 'Good morning'
+  if (h < 17) return 'Good afternoon'
+  return 'Good evening'
+}
+
+function getTopThreat(incidents: readonly any[]): string | null {
+  const counts: Record<string, number> = {}
+  for (const inc of incidents) {
+    const cat = inc.attack_category
+    if (cat && cat !== 'BENIGN' && cat !== 'Unknown') {
+      counts[cat] = (counts[cat] ?? 0) + 1
+    }
+  }
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]
+  return top?.[0] ?? null
+}
+
+function getMostTargetedPort(incidents: readonly any[]): string | null {
+  const counts: Record<string, number> = {}
+  for (const inc of incidents) {
+    if (inc.destination_port) {
+      const p = String(inc.destination_port)
+      counts[p] = (counts[p] ?? 0) + 1
+    }
+  }
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0]
+  if (!top) return null
+  const labels: Record<string, string> = {
+    '80': 'Port 80 (HTTP)', '443': 'Port 443 (HTTPS)', '22': 'Port 22 (SSH)',
+    '21': 'Port 21 (FTP)', '3306': 'Port 3306 (MySQL)', '5432': 'Port 5432 (PostgreSQL)',
+    '8080': 'Port 8080 (HTTP Alt)',
+  }
+  return labels[top[0]] ?? `Port ${top[0]}`
+}
+
+function StatCard({ label, value, sub, accent = false, onClick }: {
+  label: string; value: React.ReactNode; sub?: string; accent?: boolean; onClick?: () => void
+}) {
   return (
-    <div style={{ background: CREAM, border: `1px solid ${BORDER}`, borderRadius: 4, padding: '8px 12px', fontSize: 11 }}>
-      <div style={{ color: GRAY, marginBottom: 4 }}>{label}</div>
-      {payload.map((p: any) => (
-        <div key={p.name} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ width: 8, height: 8, borderRadius: '50%', background: p.color, display: 'inline-block' }} />
-          <span style={{ color: GRAY, textTransform: 'capitalize' }}>{p.name}:</span>
-          <span style={{ color: BLACK, fontWeight: 500 }}>{p.value?.toLocaleString()}</span>
+    <div
+      onClick={onClick}
+      style={{ background: CREAM, border: `1px solid ${BORDER}`, borderRadius: 6, padding: '18px 20px', cursor: onClick ? 'pointer' : 'default', transition: 'border-color 0.15s' }}
+      onMouseEnter={e => { if (onClick) e.currentTarget.style.borderColor = ORANGE }}
+      onMouseLeave={e => { e.currentTarget.style.borderColor = BORDER }}
+    >
+      <div style={{ fontSize: 11, color: GRAY, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>{label}</div>
+      <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 40, lineHeight: 1, color: accent ? ORANGE : BLACK }}>{value}</div>
+      {sub && <div style={{ fontSize: 11, color: GRAY, marginTop: 6 }}>{sub}</div>}
+    </div>
+  )
+}
+
+function InfoCard({ icon, label, value, sub, empty }: {
+  icon: React.ReactNode; label: string; value?: string | null; sub?: string; empty?: string
+}) {
+  return (
+    <div style={{ background: CREAM, border: `1px solid ${BORDER}`, borderRadius: 6, padding: '18px 20px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 14 }}>
+        {icon}
+        <span style={{ fontSize: 11, color: GRAY, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</span>
+      </div>
+      {value ? (
+        <>
+          <div style={{ fontSize: 14, fontWeight: 600, color: BLACK, marginBottom: 4 }}>{value}</div>
+          {sub && <div style={{ fontSize: 11, color: GRAY }}>{sub}</div>}
+        </>
+      ) : (
+        <div style={{ fontSize: 12, color: GRAY, fontStyle: 'italic' }}>{empty ?? 'No data'}</div>
+      )}
+    </div>
+  )
+}
+
+function EmptyTimeline() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '48px 24px', gap: 12 }}>
+      <Shield style={{ width: 32, height: 32, color: BORDER }} />
+      <div style={{ fontSize: 14, fontWeight: 500, color: BLACK }}>No recent security events</div>
+      <div style={{ fontSize: 12, color: GRAY, textAlign: 'center', maxWidth: 280, lineHeight: 1.6 }}>
+        No incidents have been detected in the last 24 hours. Your application looks clean.
+      </div>
+    </div>
+  )
+}
+
+function TimelineSkeleton() {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
+      {[1, 2, 3, 4].map(i => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 20px', borderBottom: `1px solid ${BORDER}` }}>
+          <div style={{ width: 8, height: 8, borderRadius: '50%', background: PARCH, flexShrink: 0 }} />
+          <div style={{ flex: 1 }}>
+            <div style={{ height: 12, background: PARCH, borderRadius: 3, width: '60%', marginBottom: 6 }} />
+            <div style={{ height: 10, background: PARCH, borderRadius: 3, width: '35%' }} />
+          </div>
+          <div style={{ width: 60, height: 10, background: PARCH, borderRadius: 3 }} />
         </div>
       ))}
     </div>
   )
 }
 
-function MissingEndpointBanner({ endpoint }: { endpoint: string }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: 100, flexDirection: 'column', gap: 8 }}>
-      <div style={{ fontSize: 10, color: GRAY, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Endpoint not yet implemented</div>
-      <code style={{ fontSize: 10, fontFamily: 'JetBrains Mono, monospace', color: ORANGE, background: 'rgba(229,78,27,0.06)', border: `1px solid rgba(229,78,27,0.2)`, padding: '3px 8px', borderRadius: 2 }}>
-        {endpoint}
-      </code>
-    </div>
-  )
+const SEVERITY_DOT: Record<string, string> = {
+  critical: RED, high: ORANGE, medium: AMBER, low: GREEN, info: '#94a3b8',
 }
 
 export default function DashboardPage() {
-  const navigate = useNavigate()
+  const navigate  = useNavigate()
+  const user      = useAuthStore(s => s.user)
+  const firstName = user?.name?.split(' ')[0] ?? 'there'
 
-  // Real API data — summary for KPIs, incidents for the recent table
   const { data: summary, isLoading: sumLoading } = useDashboardSummary()
-  const { data: incidentsData, isLoading: incLoading, isError: incError } = useIncidents({ page_size: 10 })
-  // flow/timeline/attack chart data: endpoints not yet implemented on backend
-  const flowData = null
-  const timelineData = null
-  const flowErr = true
-  const timelineErr = true
+  const { data: incidentsData, isLoading: incLoading } = useIncidents({ page_size: 12 })
+  const { data: scoreData } = useSecurityScore()
 
-  const incidents = incidentsData?.items ?? []
-  const pendingNotifs = summary?.pending_notifications ?? 0
-  const critical      = summary?.critical_incidents ?? 0
+  const incidents   = incidentsData?.items ?? []
+  const critical    = summary?.critical_incidents ?? 0
+  const openCount   = summary?.open_incidents ?? 0
+  const newToday    = summary?.new_last_24h ?? 0
+  const needsReview = summary?.needs_analyst_review ?? 0
 
-  const kpis = [
-    { label: 'Open incidents',        value: sumLoading ? '...' : (summary?.open_incidents ?? '--'),       note: 'across all severities',   orange: true  },
-    { label: 'Critical',              value: sumLoading ? '...' : (summary?.critical_incidents ?? '--'),   note: 'immediate response',      orange: true  },
-    { label: 'New (24h)',             value: sumLoading ? '...' : (summary?.new_last_24h ?? '--'),         note: 'detected last 24 hours',  orange: false },
-    { label: 'Needs review',          value: sumLoading ? '...' : (summary?.needs_analyst_review ?? '--'), note: 'analyst review flagged',  orange: false },
-    { label: 'Pending notifications', value: sumLoading ? '...' : pendingNotifs,                          note: 'GDPR / HIPAA / DPDPA',    orange: pendingNotifs > 0 },
-    { label: 'Overdue compliance',    value: sumLoading ? '...' : (summary?.overdue_compliance ?? '--'),   note: 'past deadline, unmet',    orange: (summary?.overdue_compliance ?? 0) > 0 },
-    { label: 'Total incidents',       value: sumLoading ? '...' : (summary?.total_incidents ?? '--'),      note: 'all time',                orange: false },
-    { label: 'Evidence packages',     value: sumLoading ? '...' : (summary?.total_evidence ?? '--'),       note: 'stored in evidence vault', orange: false },
-  ]
+  const topThreat        = useMemo(() => getTopThreat(incidents), [incidents])
+  const mostTargetedPort = useMemo(() => getMostTargetedPort(incidents), [incidents])
+  const latestIncident   = incidents[0] ?? null
+
+  const health = useMemo(() => {
+    if (scoreData) {
+      if (scoreData.score >= 75) return { dot: GREEN, label: 'No critical issues detected.' }
+      if (scoreData.score >= 50) return { dot: AMBER, label: 'Some items need your attention.' }
+      return { dot: RED, label: 'Immediate attention required.' }
+    }
+    if (!sumLoading) {
+      if (critical === 0) return { dot: GREEN, label: 'No critical issues detected.' }
+      return { dot: RED, label: 'Immediate attention required.' }
+    }
+    return null
+  }, [scoreData, critical, sumLoading])
+
+  const topRecommendations = scoreData?.recommendations?.slice(0, 3) ?? []
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-      {/* ---- Hero block ---- */}
-      <div style={{ background: BLACK, borderRadius: 4, overflow: 'hidden', position: 'relative' }}>
-        <svg
-          viewBox="0 0 700 200"
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.07 }}
-          preserveAspectRatio="xMidYMid slice"
-          aria-hidden="true"
-        >
-          <defs>
-            <pattern id="pgrid" width="40" height="40" patternUnits="userSpaceOnUse">
-              <path d="M40 0L0 0 0 40" fill="none" stroke="white" strokeWidth="0.5" />
-            </pattern>
-          </defs>
-          <rect width="700" height="200" fill="url(#pgrid)" />
-          {[0.5, 1, 2].map((o, i) => (
-            <g key={i}>
-              <line x1="350" y1="0" x2={-50 + i * 200} y2="200" stroke="white" strokeWidth={o * 0.4} opacity={o * 0.4} />
-              <line x1="350" y1="0" x2={750 - i * 200} y2="200" stroke="white" strokeWidth={o * 0.4} opacity={o * 0.4} />
-            </g>
-          ))}
-          <rect x="120" y="60"  width="70"  height="28" fill={ORANGE} opacity="0.25" />
-          <rect x="310" y="85"  width="100" height="18" fill={ORANGE} opacity="0.2"  />
-          <rect x="470" y="50"  width="45"  height="50" fill={ORANGE} opacity="0.12" />
-        </svg>
-
-        <div style={{ position: 'relative', padding: '28px 32px' }}>
-          <div style={{ fontSize: 10, color: ORANGE, textTransform: 'uppercase', letterSpacing: '0.15em', marginBottom: 8 }}>
-            / Breach Response Orchestrator /
+      {/* Greeting */}
+      <div style={{ background: CREAM, border: `1px solid ${BORDER}`, borderRadius: 6, padding: '24px 28px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 24 }}>
+        <div>
+          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 34, color: BLACK, letterSpacing: '0.03em', lineHeight: 1.1 }}>
+            {getGreeting()}, {firstName}
           </div>
-          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 72, lineHeight: 0.9, color: '#f0ebe2', letterSpacing: '0.02em' }}>
-            Law-Aware<br />
-            <span style={{ color: ORANGE }}>Breach</span><br />
-            Response
-          </div>
-          <div style={{ fontSize: 11, color: '#5a5450', marginTop: 12, maxWidth: 320, lineHeight: 1.7 }}>
-            Real-time ML classification, regulatory obligation tracking, and automated compliance workflows.
-          </div>
-
-          <div style={{ display: 'flex', gap: 28, marginTop: 24, paddingTop: 20, borderTop: '1px solid #222' }}>
-            {[
-              { label: 'Open',         value: sumLoading ? '...' : (summary?.open_incidents ?? '--'),   orange: true  },
-              { label: 'Critical',     value: sumLoading ? '...' : critical, orange: true  },
-              { label: 'Notifications',value: pendingNotifs,                       orange: false },
-              { label: 'ML accuracy',  value: '--',                                orange: false },
-            ].map(s => (
-              <div key={s.label}>
-                <div style={{ fontSize: 10, color: '#555', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 4 }}>{s.label}</div>
-                <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 34, color: s.orange ? ORANGE : '#f0ebe2', lineHeight: 1 }}>
-                  {s.value}
-                </div>
-              </div>
-            ))}
-          </div>
+          <div style={{ fontSize: 11, color: GRAY, marginTop: 5 }}>Your app's security at a glance</div>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: PARCH, border: `1px solid ${BORDER}`, borderRadius: 6, padding: '11px 16px', flexShrink: 0 }}>
+          {health ? (
+            <>
+              <span style={{ width: 9, height: 9, borderRadius: '50%', background: health.dot, flexShrink: 0, boxShadow: `0 0 0 3px ${health.dot}22` }} />
+              <span style={{ fontSize: 12, fontWeight: 500, color: BLACK }}>{health.label}</span>
+            </>
+          ) : (
+            <>
+              <span style={{ width: 9, height: 9, borderRadius: '50%', background: PARCH, border: `1px solid ${BORDER}` }} />
+              <span style={{ fontSize: 12, color: GRAY }}>Checking status…</span>
+            </>
+          )}
+          {scoreData && (
+            <button
+              onClick={() => navigate('/security-score')}
+              style={{ marginLeft: 8, fontSize: 11, color: ORANGE, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3, padding: 0 }}
+            >
+              Score: {scoreData.score}
+              <ChevronRight style={{ width: 12, height: 12 }} />
+            </button>
+          )}
         </div>
       </div>
 
-      {/* ---- Status bar ---- */}
-      {critical > 0 && (
+      {/* Critical banner */}
+      {!sumLoading && critical > 0 && (
         <div
-          style={{ background: ORANGE, padding: '7px 16px', borderRadius: 4, display: 'flex', alignItems: 'center', gap: 16, cursor: 'pointer' }}
-          onClick={() => navigate('/incidents')}
+          onClick={() => navigate('/incidents?severity=critical')}
           role="alert"
+          style={{ display: 'flex', alignItems: 'center', gap: 12, background: 'rgba(220,38,38,0.05)', border: `1px solid rgba(220,38,38,0.25)`, borderLeft: `3px solid ${RED}`, borderRadius: 6, padding: '12px 18px', cursor: 'pointer' }}
         >
-          <span style={{ fontSize: 10, color: '#fff', textTransform: 'uppercase', letterSpacing: '0.14em', fontWeight: 500 }}>
-            / {critical} critical incident(s) need immediate attention
+          <AlertTriangle style={{ width: 15, height: 15, color: RED, flexShrink: 0 }} />
+          <span style={{ fontSize: 13, fontWeight: 500, color: RED, flex: 1 }}>
+            {critical} critical incident{critical !== 1 ? 's' : ''} require immediate attention
           </span>
-          <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.55)', marginLeft: 'auto' }}>View all</span>
+          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: RED }}>
+            View now <ArrowRight style={{ width: 12, height: 12 }} />
+          </span>
         </div>
       )}
 
-      {/* ---- KPI grid ---- */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-        {kpis.map(k => (
-          <div key={k.label} style={{ background: CREAM, border: `1px solid ${BORDER}`, borderRadius: 4, padding: '14px 16px' }}>
-            <div style={{ fontSize: 10, color: GRAY, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>{k.label}</div>
-            <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 36, color: k.orange ? ORANGE : BLACK, lineHeight: 1 }}>
-              {k.value}
+      {/* Stat cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 10 }}>
+        <StatCard label="Today's Events"  value={sumLoading ? '—' : newToday}    sub="new in last 24 hours"      onClick={() => navigate('/incidents')} />
+        <StatCard label="Critical"        value={sumLoading ? '—' : critical}    sub="need immediate attention"  accent={critical > 0} onClick={() => navigate('/incidents?severity=critical')} />
+        <StatCard label="Open Issues"     value={sumLoading ? '—' : openCount}   sub="across all severity levels" onClick={() => navigate('/incidents')} />
+        <StatCard label="Needs Attention" value={sumLoading ? '—' : needsReview} sub="flagged for your review"    onClick={() => navigate('/incidents')} />
+      </div>
+
+      {/* Insight cards */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
+        <InfoCard icon={<AlertTriangle style={{ width: 13, height: 13, color: ORANGE }} />} label="Top Threat"      value={incLoading ? 'Loading…' : topThreat}        sub={topThreat ? 'most frequent attack type' : undefined}          empty="No threats detected yet" />
+        <InfoCard icon={<Activity      style={{ width: 13, height: 13, color: ORANGE }} />} label="Most Attacked"  value={incLoading ? 'Loading…' : mostTargetedPort}  sub={mostTargetedPort ? 'highest volume entry point' : undefined} empty="No attack data yet" />
+        <InfoCard icon={<Clock         style={{ width: 13, height: 13, color: ORANGE }} />} label="Latest Incident" value={latestIncident ? truncate(latestIncident.title, 36) : incLoading ? 'Loading…' : null} sub={latestIncident ? timeAgo(latestIncident.detected_at) : undefined} empty="No incidents recorded yet" />
+      </div>
+
+      {/* Timeline + Recommendations */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 10, alignItems: 'start' }}>
+
+        {/* Recent Activity */}
+        <div style={{ background: CREAM, border: `1px solid ${BORDER}`, borderRadius: 6, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '15px 20px', borderBottom: `1px solid ${BORDER}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <Activity style={{ width: 14, height: 14, color: ORANGE }} />
+              <span style={{ fontSize: 12, fontWeight: 600, color: BLACK }}>Recent Activity</span>
             </div>
-            <div style={{ fontSize: 11, color: GRAY, marginTop: 4 }}>{k.note}</div>
+            <button
+              onClick={() => navigate('/incidents')}
+              style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: ORANGE, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+            >
+              View all <ArrowRight style={{ width: 11, height: 11 }} />
+            </button>
           </div>
-        ))}
-      </div>
 
-      {/* ---- Charts row ---- */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-        {/* Flow volume */}
-        <div style={{ background: CREAM, border: `1px solid ${BORDER}`, borderRadius: 4, padding: 16 }}>
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 11, color: BLACK, fontWeight: 500 }}>Network flow volume</div>
-            <div style={{ fontSize: 10, color: GRAY, marginTop: 2 }}>Benign �� Malicious �� Blocked</div>
+          {incLoading
+            ? <TimelineSkeleton />
+            : incidents.length === 0
+              ? <EmptyTimeline />
+              : (
+                <div>
+                  {incidents.slice(0, 8).map((inc, idx, arr) => (
+                    <div
+                      key={inc.id}
+                      onClick={() => navigate(`/incidents/${inc.id}`)}
+                      style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 20px', borderBottom: idx < arr.length - 1 ? `1px solid ${BORDER}` : 'none', cursor: 'pointer', transition: 'background 0.1s' }}
+                      onMouseEnter={e => (e.currentTarget.style.background = PARCH)}
+                      onMouseLeave={e => (e.currentTarget.style.background = '')}
+                    >
+                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: SEVERITY_DOT[inc.severity] ?? GRAY, flexShrink: 0 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 500, color: BLACK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {truncate(inc.title, 52)}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 3 }}>
+                          <SeverityBadge severity={inc.severity as IncidentSeverity} size="sm" />
+                          <StatusBadge status={inc.status as IncidentStatus} size="sm" />
+                          {inc.attack_category && inc.attack_category !== 'BENIGN' && (
+                            <span style={{ fontSize: 10, color: GRAY, fontFamily: 'JetBrains Mono, monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 120 }}>
+                              {inc.attack_category}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: 11, color: GRAY, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                        {timeAgo(inc.detected_at)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+        </div>
+
+        {/* Recommended Actions */}
+        <div style={{ background: CREAM, border: `1px solid ${BORDER}`, borderRadius: 6, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '15px 20px', borderBottom: `1px solid ${BORDER}` }}>
+            <Zap style={{ width: 14, height: 14, color: ORANGE }} />
+            <span style={{ fontSize: 12, fontWeight: 600, color: BLACK }}>Recommended Actions</span>
           </div>
-          {flowErr || !flowData ? (
-            <MissingEndpointBanner endpoint="GET /api/v1/analytics/flow-volume" />
+
+          {topRecommendations.length === 0 ? (
+            <div style={{ padding: '36px 20px', textAlign: 'center' }}>
+              <ShieldCheck style={{ width: 28, height: 28, color: GREEN, margin: '0 auto 10px' }} />
+              <div style={{ fontSize: 13, fontWeight: 500, color: BLACK, marginBottom: 4 }}>You're in good shape</div>
+              <div style={{ fontSize: 12, color: GRAY, lineHeight: 1.6 }}>No urgent actions needed right now.</div>
+            </div>
           ) : (
-            <ResponsiveContainer width="100%" height={180}>
-              <AreaChart data={flowData as any[]} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                <defs>
-                  <linearGradient id="benignGrad" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%"  stopColor={ORANGE} stopOpacity={0.12} />
-                    <stop offset="95%" stopColor={ORANGE} stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke={BORDER} />
-                <XAxis dataKey="time" tick={{ fill: GRAY, fontSize: 9 }} interval={4} />
-                <YAxis tick={{ fill: GRAY, fontSize: 9 }} />
-                <Tooltip content={<CustomTooltip />} />
-                <Area type="monotone" dataKey="benign"    stroke={ORANGE}   fill="url(#benignGrad)" strokeWidth={1.5} dot={false} />
-                <Area type="monotone" dataKey="malicious" stroke="#d97706"  fill="none"              strokeWidth={1.5} dot={false} />
-                <Area type="monotone" dataKey="blocked"   stroke={GRAY}     fill="none"              strokeWidth={1}   dot={false} strokeDasharray="4 2" />
-              </AreaChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-
-        {/* Incident timeline bar */}
-        <div style={{ background: CREAM, border: `1px solid ${BORDER}`, borderRadius: 4, padding: 16 }}>
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 11, color: BLACK, fontWeight: 500 }}>Incident timeline (24h)</div>
-            <div style={{ fontSize: 10, color: GRAY, marginTop: 2 }}>By severity per hour</div>
-          </div>
-          {timelineErr || !timelineData ? (
-            <MissingEndpointBanner endpoint="GET /api/v1/analytics/incident-timeline" />
-          ) : (
-            <ResponsiveContainer width="100%" height={180}>
-              <BarChart data={(timelineData as any[]).slice(0, 12)} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke={BORDER} />
-                <XAxis dataKey="hour" tick={{ fill: GRAY, fontSize: 9 }} interval={2} />
-                <YAxis tick={{ fill: GRAY, fontSize: 9 }} />
-                <Tooltip content={<CustomTooltip />} />
-                <Bar dataKey="critical" stackId="a" fill={ORANGE}    />
-                <Bar dataKey="high"     stackId="a" fill="#d97706"   />
-                <Bar dataKey="medium"   stackId="a" fill={GRAY}      />
-                <Bar dataKey="low"      stackId="a" fill="#3a7a50" radius={[2,2,0,0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-        </div>
-      </div>
-
-      {/* ---- Recent incidents table ---- */}
-      <div style={{ background: CREAM, border: `1px solid ${BORDER}`, borderRadius: 4 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: `1px solid ${BORDER}` }}>
-          <div>
-            <span style={{ fontSize: 11, fontWeight: 500, color: BLACK }}>Recent incidents</span>
-            <span style={{ fontSize: 10, color: GRAY, marginLeft: 8 }}>Live from API</span>
-          </div>
-          <button
-            onClick={() => navigate('/incidents')}
-            style={{ fontSize: 11, color: ORANGE, background: 'none', border: 'none', cursor: 'pointer', textTransform: 'uppercase', letterSpacing: '0.06em' }}
-          >
-            View all
-          </button>
-        </div>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                {['ID', 'Title', 'Severity', 'Status', 'Source IP', 'Detected'].map(h => (
-                  <th key={h} style={{ padding: '10px 16px', textAlign: 'left', fontSize: 10, color: GRAY, textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500, borderBottom: `1px solid ${BORDER}`, whiteSpace: 'nowrap' }}>
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {incLoading ? (
-                Array.from({ length: 4 }).map((_, i) => (
-                  <tr key={i}>
-                    {Array.from({ length: 6 }).map((_, j) => (
-                      <td key={j} style={{ padding: '10px 16px', borderBottom: `1px solid ${BORDER}` }}>
-                        <div style={{ height: 11, background: '#e8e2d9', borderRadius: 2, width: j === 1 ? '80%' : '55%' }} />
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              ) : incidents.slice(0, 6).map(inc => (
-                <tr
-                  key={inc.id}
-                  onClick={() => navigate(`/incidents/${inc.id}`)}
-                  className="table-row-hover"
-                  style={{ cursor: 'pointer', transition: 'background 0.1s' }}
-                  onMouseEnter={e => (e.currentTarget.style.background = '#e8e2d9')}
-                  onMouseLeave={e => (e.currentTarget.style.background = '')}
+            <div>
+              {topRecommendations.map((rec: any, idx: number, arr: any[]) => {
+                const priorityColor: Record<string, string> = { critical: RED, high: ORANGE, medium: AMBER, low: GREEN }
+                const col = priorityColor[rec.priority] ?? GRAY
+                return (
+                  <div
+                    key={idx}
+                    onClick={() => navigate(rec.link ?? '/security-score')}
+                    style={{ padding: '14px 20px', borderBottom: idx < arr.length - 1 ? `1px solid ${BORDER}` : 'none', cursor: 'pointer', transition: 'background 0.1s' }}
+                    onMouseEnter={e => (e.currentTarget.style.background = PARCH)}
+                    onMouseLeave={e => (e.currentTarget.style.background = '')}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                      <span style={{ marginTop: 4, width: 7, height: 7, borderRadius: '50%', background: col, flexShrink: 0 }} />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: BLACK, marginBottom: 4, lineHeight: 1.4 }}>{rec.title}</div>
+                        <div style={{ fontSize: 11, color: GRAY, lineHeight: 1.6 }}>
+                          {rec.detail && rec.detail.length > 90 ? rec.detail.slice(0, 90) + '...' : rec.detail}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 8, fontSize: 11, color: col }}>
+                          {rec.action} <ArrowRight style={{ width: 11, height: 11 }} />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+              <div style={{ padding: '12px 20px', borderTop: `1px solid ${BORDER}` }}>
+                <button
+                  onClick={() => navigate('/security-score')}
+                  style={{ width: '100%', fontSize: 12, color: ORANGE, background: 'none', border: `1px solid ${BORDER}`, borderRadius: 4, padding: '8px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
                 >
-                  <td style={{ padding: '10px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: GRAY, borderBottom: `1px solid ${BORDER}`, whiteSpace: 'nowrap' }}>
-                    {inc.external_id ?? inc.id.slice(0, 10)}
-                  </td>
-                  <td style={{ padding: '10px 16px', fontSize: 12, color: BLACK, borderBottom: `1px solid ${BORDER}`, fontWeight: 500 }}>
-                    {truncate(inc.title, 38)}
-                  </td>
-                  <td style={{ padding: '10px 16px', borderBottom: `1px solid ${BORDER}` }}>
-                    <SeverityBadge severity={inc.severity as IncidentSeverity} size="sm" />
-                  </td>
-                  <td style={{ padding: '10px 16px', borderBottom: `1px solid ${BORDER}` }}>
-                    <StatusBadge status={inc.status as IncidentStatus} size="sm" />
-                  </td>
-                  <td style={{ padding: '10px 16px', fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: GRAY, borderBottom: `1px solid ${BORDER}`, whiteSpace: 'nowrap' }}>
-                    {timeAgo(inc.detected_at)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {!incLoading && !incError && incidents.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '32px 0', color: GRAY, fontSize: 12 }}>No incidents</div>
+                  Full security report <ArrowRight style={{ width: 12, height: 12 }} />
+                </button>
+              </div>
+            </div>
           )}
         </div>
-      </div>
-    </div>
+      </div>    </div>
   )
 }

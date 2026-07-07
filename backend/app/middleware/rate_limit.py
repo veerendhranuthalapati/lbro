@@ -18,6 +18,22 @@ _PURGE_INTERVAL = 300       # purge stale keys every 5 minutes
 
 EXEMPT_PATHS = {"/health", "/metrics", "/docs", "/openapi.json", "/redoc"}
 
+# Auth endpoints are high-value targets — apply strict per-IP limits.
+# Key is a path prefix (matched with startswith) → max requests per 60s window.
+_STRICT_PATHS: dict[str, int] = {
+    "/api/v1/auth/login":    10,
+    "/api/v1/auth/register": 10,
+    "/api/v1/auth/refresh":  20,
+}
+
+
+def _limit_for_path(path: str) -> int:
+    """Return the request-per-minute limit for a given path."""
+    for prefix, limit in _STRICT_PATHS.items():
+        if path.startswith(prefix):
+            return limit
+    return settings.RATE_LIMIT_PER_MINUTE
+
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -29,12 +45,17 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if request.url.path in EXEMPT_PATHS:
             return await call_next(request)
 
-        # Key by IP + path prefix
         client_ip = request.client.host if request.client else "unknown"
-        key = f"{client_ip}:{request.url.path.split('/')[1]}"
+        path = request.url.path
+
+        # Key by IP + full path (not just the first segment).
+        # Previously used path.split('/')[1] which grouped ALL /api/* routes
+        # into one shared bucket — defeating per-endpoint limits entirely.
+        key = f"{client_ip}:{path}"
+        limit = _limit_for_path(path)
 
         now = time.monotonic()
-        window = 60  # 1-minute window
+        window = 60  # 1-minute sliding window
 
         async with _lock:
             q = _windows[key]
@@ -42,7 +63,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             while q and now - q[0] > window:
                 q.popleft()
 
-            if len(q) >= settings.RATE_LIMIT_PER_MINUTE:
+            if len(q) >= limit:
                 retry_after = int(window - (now - q[0])) + 1
                 return JSONResponse(
                     status_code=429,
@@ -52,7 +73,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             q.append(now)
 
             # ── Periodic purge of exhausted keys to prevent unbounded memory growth ──
-            # Without this, every unique IP that ever hit the service stays in memory.
             global _last_purge
             if now - _last_purge > _PURGE_INTERVAL:
                 stale = [k for k, dq in _windows.items() if not dq]
@@ -61,7 +81,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 _last_purge = now
 
         response = await call_next(request)
-        remaining = max(0, settings.RATE_LIMIT_PER_MINUTE - len(_windows[key]))
-        response.headers["X-RateLimit-Limit"] = str(settings.RATE_LIMIT_PER_MINUTE)
+        remaining = max(0, limit - len(_windows[key]))
+        response.headers["X-RateLimit-Limit"] = str(limit)
         response.headers["X-RateLimit-Remaining"] = str(remaining)
         return response

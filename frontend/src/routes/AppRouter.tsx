@@ -2,8 +2,8 @@
  * LBRO App Router - lazy-loaded, error-bounded.
  *
  * Auth guard: ProtectedRoute wraps all authenticated routes.
- * All authenticated pages are accessible to any logged-in user.
- * Permission enforcement happens on the backend.
+ * Route-level permission guards are applied for admin-only pages.
+ * Permission enforcement also happens on the backend.
  */
 import { lazy, Suspense } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
@@ -11,6 +11,7 @@ import { AppLayout } from '@/layouts/AppLayout'
 import { ProtectedRoute } from '@/routes/ProtectedRoute'
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary'
 import { Skeleton } from '@/components/ui/Skeleton'
+import { Permission } from '@/types/rbac'
 
 // Eager-load auth pages (always needed immediately)
 import LoginPage from '@/pages/LoginPage'
@@ -32,6 +33,11 @@ const NotificationsPage   = lazy(() => import('@/pages/NotificationsPage'))
 const UsersPage           = lazy(() => import('@/pages/UsersPage'))
 const MLInsightsPage      = lazy(() => import('@/pages/MLInsightsPage'))
 const AuditLogsPage       = lazy(() => import('@/pages/AuditLogsPage'))
+const SecurityScorePage   = lazy(() => import('@/pages/SecurityScorePage'))
+const WeeklyReportPage    = lazy(() => import('@/pages/WeeklyReportPage'))
+const PrivacyPage         = lazy(() => import('@/pages/PrivacyPage'))
+const RoadmapPage         = lazy(() => import('@/pages/RoadmapPage'))
+const ComplianceAuditPage = lazy(() => import('@/pages/ComplianceAuditPage'))
 
 function PageLoader() {
   return (
@@ -69,24 +75,71 @@ export function AppRouter() {
       <Route path="/register"        element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
-      {/* Authenticated - any logged-in user can access all pages */}
+      {/* Authenticated */}
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route index element={<Navigate to="/dashboard" replace />} />
+
+          {/* ── Available to all authenticated users ── */}
           <Route path="/dashboard"      element={<SuspenseRoute><DashboardPage /></SuspenseRoute>} />
           <Route path="/incidents"      element={<SuspenseRoute><IncidentsPage /></SuspenseRoute>} />
-          {/* /incidents/new MUST come before /incidents/:id */}
           <Route path="/incidents/new"  element={<SuspenseRoute><CreateIncidentPage /></SuspenseRoute>} />
           <Route path="/incidents/:id"  element={<SuspenseRoute><IncidentDetailPage /></SuspenseRoute>} />
-          <Route path="/compliance"     element={<SuspenseRoute><CompliancePage /></SuspenseRoute>} />
           <Route path="/evidence"       element={<SuspenseRoute><EvidencePage /></SuspenseRoute>} />
-          <Route path="/infrastructure" element={<SuspenseRoute><InfrastructurePage /></SuspenseRoute>} />
-          <Route path="/threat-intel"   element={<SuspenseRoute><ThreatIntelPage /></SuspenseRoute>} />
-          <Route path="/settings"       element={<SuspenseRoute><SettingsPage /></SuspenseRoute>} />
           <Route path="/notifications"  element={<SuspenseRoute><NotificationsPage /></SuspenseRoute>} />
-          <Route path="/users"          element={<SuspenseRoute><UsersPage /></SuspenseRoute>} />
-          <Route path="/ml-insights"    element={<SuspenseRoute><MLInsightsPage /></SuspenseRoute>} />
-          <Route path="/audit-logs"     element={<SuspenseRoute><AuditLogsPage /></SuspenseRoute>} />
+          <Route path="/settings"       element={<SuspenseRoute><SettingsPage /></SuspenseRoute>} />
+          <Route path="/privacy"        element={<SuspenseRoute><PrivacyPage /></SuspenseRoute>} />
+          <Route path="/roadmap"        element={<SuspenseRoute><RoadmapPage /></SuspenseRoute>} />
+          <Route path="/security-score" element={<SuspenseRoute><SecurityScorePage /></SuspenseRoute>} />
+          <Route path="/weekly-report"  element={<SuspenseRoute><WeeklyReportPage /></SuspenseRoute>} />
+
+          {/* ── Compliance — analyst + admin ── */}
+          <Route path="/compliance" element={
+            <ProtectedRoute requiredPermission={Permission.VIEW_COMPLIANCE}>
+              <SuspenseRoute><CompliancePage /></SuspenseRoute>
+            </ProtectedRoute>
+          } />
+          <Route path="/compliance/audit" element={
+            <ProtectedRoute requiredPermission={Permission.VIEW_COMPLIANCE}>
+              <SuspenseRoute><ComplianceAuditPage /></SuspenseRoute>
+            </ProtectedRoute>
+          } />
+
+          {/* ── Infrastructure — analyst + admin ── */}
+          <Route path="/infrastructure" element={
+            <ProtectedRoute requiredPermission={Permission.VIEW_INFRASTRUCTURE}>
+              <SuspenseRoute><InfrastructurePage /></SuspenseRoute>
+            </ProtectedRoute>
+          } />
+
+          {/* ── Threat Intel — analyst + admin ── */}
+          <Route path="/threat-intel" element={
+            <ProtectedRoute requiredPermission={Permission.READ_INCIDENT}>
+              <SuspenseRoute><ThreatIntelPage /></SuspenseRoute>
+            </ProtectedRoute>
+          } />
+
+          {/* ── ML Insights — analyst + admin ── */}
+          <Route path="/ml-insights" element={
+            <ProtectedRoute requiredPermission={Permission.VIEW_ML}>
+              <SuspenseRoute><MLInsightsPage /></SuspenseRoute>
+            </ProtectedRoute>
+          } />
+
+          {/* ── Audit Logs — admin only ── */}
+          <Route path="/audit-logs" element={
+            <ProtectedRoute requiredPermission={Permission.VIEW_AUDIT}>
+              <SuspenseRoute><AuditLogsPage /></SuspenseRoute>
+            </ProtectedRoute>
+          } />
+
+          {/* ── User Management — admin only ── */}
+   
+       <Route path="/users" element={
+            <ProtectedRoute requiredPermission={Permission.MANAGE_USERS}>
+              <SuspenseRoute><UsersPage /></SuspenseRoute>
+            </ProtectedRoute>
+          } />
         </Route>
       </Route>
 

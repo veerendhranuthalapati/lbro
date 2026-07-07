@@ -128,25 +128,21 @@ export const useAuthStore = create<AuthStoreState>()(
 
         if (refreshToken && sessionExpiresAt && now < sessionExpiresAt) {
           // Valid session: restore refresh token to memory.
-          // Access token is gone (not persisted for security); we'll re-acquire
-          // it via the refresh endpoint on the first 401 the interceptor sees.
+          // Access token is gone (not persisted for security); the request
+          // interceptor will proactively refresh it before the first API call.
           _refreshTokenMemory = refreshToken
-          // Mark authenticated so ProtectedRoute lets the user through.
-          // The first protected-page API call will either succeed (if the
-          // server still honours the refresh) or 401 -> logout.
-          setTimeout(() => {
-            useAuthStore.setState({ isAuthenticated: true, user: user ?? null })
-          }, 0)
+          // Set synchronously — NOT via setTimeout — so ProtectedRoute sees
+          // isAuthenticated = true on the very first render and does not flash
+          // the login page on every browser refresh.
+          useAuthStore.setState({ isAuthenticated: true, user: user ?? null })
         } else if (sessionExpiresAt && now > sessionExpiresAt) {
           _accessTokenMemory = null
           _refreshTokenMemory = null
-          setTimeout(() => {
-            useAuthStore.setState({
-              isAuthenticated: false,
-              user: null,
-              sessionExpiresAt: null,
-            })
-          }, 0)
+          useAuthStore.setState({
+            isAuthenticated: false,
+            user: null,
+            sessionExpiresAt: null,
+          })
         }
       },
     }

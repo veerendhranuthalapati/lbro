@@ -13,17 +13,6 @@ const GRAY   = '#6b6560'
 const CREAM  = '#f9f5ef'
 const PARCH  = '#e8e2d9'
 
-function MissingEndpointBanner({ endpoint, description }: { endpoint: string; description?: string }) {
-  return (
-    <div style={{ background: 'rgba(217,119,6,0.06)', border: `1px solid rgba(217,119,6,0.3)`, borderLeft: `3px solid #d97706`, borderRadius: 4, padding: '10px 14px', display: 'flex', alignItems: 'flex-start', gap: 8 }}>
-      <AlertTriangle style={{ width: 13, height: 13, color: '#d97706', flexShrink: 0, marginTop: 1 }} aria-hidden="true" />
-      <div>
-        <code style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: ORANGE }}>{endpoint}</code>
-        {description && <span style={{ fontSize: 11, color: GRAY, marginLeft: 6 }}>{description}</span>}
-      </div>
-    </div>
-  )
-}
 
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
@@ -97,36 +86,40 @@ export default function InfrastructurePage() {
         <p style={{ fontSize: 11, color: GRAY, marginTop: 4 }}>ECS Fargate · RDS · SQS · S3 · CloudWatch -- ap-south-1 (Mumbai)</p>
       </div>
 
-      {/* Missing endpoint banners */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <MissingEndpointBanner endpoint="GET /api/v1/infrastructure" description="-- AWS service status, ECS tasks, RDS metrics, SQS depths, S3 usage" />
-        <MissingEndpointBanner endpoint="GET /api/v1/infrastructure/sqs-history" description="-- 10-hour SQS queue depth time series" />
-      </div>
+      {/* Live status notice when infra endpoint is unavailable */}
+      {(infraError || sqsError) && (
+        <div style={{ background: 'rgba(217,119,6,0.06)', border: `1px solid rgba(217,119,6,0.3)`, borderLeft: `3px solid #d97706`, borderRadius: 4, padding: '10px 14px', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <AlertTriangle style={{ width: 13, height: 13, color: '#d97706', flexShrink: 0 }} aria-hidden="true" />
+          <span style={{ fontSize: 11, color: GRAY }}>
+            Infrastructure metrics are unavailable. AWS connectivity is required — data will appear automatically once the service is reachable.
+          </span>
+        </div>
+      )}
 
       {/* KPIs */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
         <StatCard
           label="ECS Tasks"
           value={infraLoading ? '…' : infraError ? '--' : `${ecsRunning}/${ecsDesired}`}
-          sub={infraError ? 'endpoint missing' : 'all healthy'}
+          sub={infraError ? 'unavailable' : 'all healthy'}
           icon={Server} accent="green"
         />
         <StatCard
           label="API p50"
           value={infraLoading ? '…' : infraError ? '--' : `${apiP50}ms`}
-          sub={infraError ? 'endpoint missing' : `p99: ${apiP99}ms`}
+          sub={infraError ? 'unavailable' : `p99: ${apiP99}ms`}
           icon={Zap} accent="orange"
         />
         <StatCard
           label="RDS CPU"
           value={infraLoading ? '…' : infraError ? '--' : `${rdsCpu}%`}
-          sub={infraError ? 'endpoint missing' : `${rdsConns} connections`}
+          sub={infraError ? 'unavailable' : `${rdsConns} connections`}
           icon={Database} accent="orange"
         />
         <StatCard
           label="Evidence (S3)"
           value={infraLoading ? '…' : infraError ? '--' : `${s3SizeGb} GB`}
-          sub={infraError ? 'endpoint missing' : 'Object Lock active'}
+          sub={infraError ? 'unavailable' : 'Object Lock active'}
           icon={HardDrive} accent="purple"
         />
       </div>
@@ -150,9 +143,8 @@ export default function InfrastructurePage() {
           )}
 
           {infraError && (
-            <div style={{ fontSize: 11, color: GRAY, textAlign: 'center', padding: '12px 0' }}>
-              <code style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: ORANGE }}>GET /api/v1/infrastructure</code>
-              <br />not yet deployed
+            <div style={{ fontSize: 11, color: GRAY, textAlign: 'center', padding: '16px 0' }}>
+              No data — AWS connection required
             </div>
           )}
 
@@ -196,9 +188,8 @@ export default function InfrastructurePage() {
           )}
 
           {infraError && (
-            <div style={{ fontSize: 11, color: GRAY, textAlign: 'center', padding: '12px 0' }}>
-              <code style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: ORANGE }}>GET /api/v1/infrastructure</code>
-              <br />not yet deployed
+            <div style={{ fontSize: 11, color: GRAY, textAlign: 'center', padding: '16px 0' }}>
+              No data — AWS connection required
             </div>
           )}
 
@@ -242,9 +233,8 @@ export default function InfrastructurePage() {
           )}
 
           {infraError && (
-            <div style={{ fontSize: 11, color: GRAY, textAlign: 'center', padding: '12px 0' }}>
-              <code style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: ORANGE }}>GET /api/v1/infrastructure</code>
-              <br />not yet deployed
+            <div style={{ fontSize: 11, color: GRAY, textAlign: 'center', padding: '16px 0' }}>
+              No data — AWS connection required
             </div>
           )}
 
@@ -295,8 +285,8 @@ export default function InfrastructurePage() {
 
         {sqsError && (
           <div style={{ height: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-            <code style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: ORANGE }}>GET /api/v1/infrastructure/sqs-history</code>
-            <span style={{ fontSize: 11, color: GRAY }}>not yet deployed -- chart unavailable</span>
+            <span style={{ fontSize: 12, color: BLACK, fontWeight: 500 }}>Queue history unavailable</span>
+            <span style={{ fontSize: 11, color: GRAY }}>AWS connection required to display SQS metrics</span>
           </div>
         )}
 

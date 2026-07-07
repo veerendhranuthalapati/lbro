@@ -79,9 +79,30 @@ async def update_user(
     user = result.scalar_one_or_none()
     if not user:
         raise NotFoundError("User")
-    for field, value in data.model_dump(exclude_none=True).items():
+    changes = data.model_dump(exclude_none=True)
+    old_role = user.role if "role" in changes else None
+    for field, value in changes.items():
         setattr(user, field, value)
     await db.flush()
+
+    # Audit role changes — privilege escalation must be traceable
+    if old_role is not None and old_role != user.role:
+        from app.models.audit import AuditLog
+        db.add(AuditLog(
+            user_id=current_user.id,
+            action="user.role_changed",
+            resource_type="user",
+            resource_id=str(user.id),
+            details={
+                "target_user": str(user.id),
+                "old_role": old_role,
+                "new_role": user.role,
+                "changed_by": str(current_user.id),
+            },
+            ip_address=None,
+        ))
+        await db.flush()
+
     return user
 
 

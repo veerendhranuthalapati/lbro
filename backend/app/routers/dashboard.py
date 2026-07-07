@@ -71,25 +71,21 @@ async def dashboard_summary(
     )
     recent_incidents = recent_result.scalars().all()
 
-    # Severity breakdown
-    severity_breakdown = {}
-    for s in IncidentSeverity:
-        count = (
-            await db.execute(
-                select(func.count(Incident.id)).where(Incident.severity == s.value)
-            )
-        ).scalar_one()
-        severity_breakdown[s.value] = count
+    # Severity breakdown — single GROUP BY query instead of one query per enum value
+    severity_rows = (await db.execute(
+        select(Incident.severity, func.count(Incident.id)).group_by(Incident.severity)
+    )).all()
+    severity_breakdown = {s.value: 0 for s in IncidentSeverity}
+    for sev, cnt in severity_rows:
+        severity_breakdown[sev] = cnt
 
-    # Status breakdown
-    status_breakdown = {}
-    for s in IncidentStatus:
-        count = (
-            await db.execute(
-                select(func.count(Incident.id)).where(Incident.status == s.value)
-            )
-        ).scalar_one()
-        status_breakdown[s.value] = count
+    # Status breakdown — single GROUP BY query
+    status_rows = (await db.execute(
+        select(Incident.status, func.count(Incident.id)).group_by(Incident.status)
+    )).all()
+    status_breakdown = {s.value: 0 for s in IncidentStatus}
+    for st, cnt in status_rows:
+        status_breakdown[st] = cnt
 
     return {
         "total_incidents": total_incidents,

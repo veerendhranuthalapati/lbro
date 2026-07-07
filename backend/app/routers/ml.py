@@ -127,10 +127,10 @@ async def ml_stats(
 
     # Top features from classifier (if model loaded)
     top_features: List[Dict[str, Any]] = []
-    if hasattr(classifier, "model") and classifier.model is not None:
+    if hasattr(classifier, "_model") and classifier._model is not None:
         try:
-            importances = classifier.model.feature_importances_
-            from app.ml.features import FEATURE_NAMES
+            importances = classifier._model.feature_importances_
+            from app.ml.features import CICIDS2017_FEATURES as FEATURE_NAMES
             pairs = sorted(
                 zip(FEATURE_NAMES, importances),
                 key=lambda x: x[1],
@@ -248,10 +248,10 @@ async def ml_metrics(
     """
     # Feature importance from the loaded classifier
     feature_importance: list[dict] = []
-    if hasattr(classifier, "model") and classifier.model is not None:
+    if hasattr(classifier, "_model") and classifier._model is not None:
         try:
-            from app.ml.features import FEATURE_NAMES
-            importances = classifier.model.feature_importances_
+            from app.ml.features import CICIDS2017_FEATURES as FEATURE_NAMES
+            importances = classifier._model.feature_importances_
             pairs = sorted(zip(FEATURE_NAMES, importances), key=lambda x: x[1], reverse=True)[:10]
             feature_importance = [{"feature": n, "importance": float(v)} for n, v in pairs]
         except Exception:
@@ -334,4 +334,3 @@ async def ml_metrics(
         "false_positive_analysis": fp_analysis,
         "tactic_distribution": tactic_distribution,
     }
-

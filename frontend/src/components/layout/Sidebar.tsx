@@ -2,7 +2,7 @@ import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard, ShieldAlert, FileText, Lock,
   Cloud, Settings, LogOut, Brain, Bell, Users,
-  Target, ClipboardList,
+  Target, ClipboardList, ShieldCheck, BarChart2, Map, ClipboardCheck,
 } from 'lucide-react'
 import type { LucideProps } from 'lucide-react'
 import { cn } from '@/utils'
@@ -19,16 +19,20 @@ interface NavItem {
 // Backend enforces access; sidebar never hides pages based on JWT permissions
 // because missing/empty permissions would cause the entire sidebar to collapse.
 const NAV: NavItem[] = [
-  { to: '/dashboard',      icon: LayoutDashboard, label: 'Dashboard' },
-  { to: '/incidents',      icon: ShieldAlert,     label: 'Incidents' },
+  { to: '/dashboard',      icon: LayoutDashboard, label: 'Application Security' },
+  { to: '/security-score', icon: ShieldCheck,     label: 'Security Score' },
+  { to: '/weekly-report',  icon: BarChart2,       label: 'Weekly Report' },
+  { to: '/incidents',      icon: ShieldAlert,     label: 'Security Events' },
   { to: '/notifications',  icon: Bell,            label: 'Notifications' },
-  { to: '/compliance',     icon: FileText,        label: 'Compliance' },
-  { to: '/ml-insights',    icon: Brain,           label: 'ML Insights' },
-  { to: '/threat-intel',   icon: Target,          label: 'Threat Intel' },
-  { to: '/evidence',       icon: Lock,            label: 'Evidence' },
+  { to: '/compliance',       icon: FileText,        label: 'Compliance' },
+  { to: '/compliance/audit', icon: ClipboardCheck,  label: 'Audit Report' },
+  { to: '/ml-insights',    icon: Brain,           label: 'Threat Detection' },
+  { to: '/threat-intel',   icon: Target,          label: 'Security Activity' },
+  { to: '/evidence',       icon: Lock,            label: 'Evidence Vault' },
   { to: '/infrastructure', icon: Cloud,           label: 'Infrastructure' },
-  { to: '/audit-logs',     icon: ClipboardList,   label: 'Audit Logs' },
+  { to: '/audit-logs',     icon: ClipboardList,   label: 'Security History' },
   { to: '/users',          icon: Users,           label: 'Users' },
+  { to: '/roadmap',        icon: Map,             label: 'Roadmap' },
   { to: '/settings',       icon: Settings,        label: 'Settings' },
 ]
 
@@ -109,7 +113,7 @@ export function Sidebar() {
           onClick={handleLogout}
           title="Sign out"
           aria-label="Sign out of LBRO"
-          className="flex items-center justify-center w-9 h-9 rounded text-zinc-500 hover:text-red-400 transition-all focus:outline-none focus:ring-2 focus:ring-red-500/50"
+            className="flex items-center justify-center w-9 h-9 rounded text-zinc-500 hover:text-red-400 transition-all focus:outline-none focus:ring-2 focus:ring-red-500/50"
         >
           <LogOut className="w-4 h-4" aria-hidden="true" />
         </button>

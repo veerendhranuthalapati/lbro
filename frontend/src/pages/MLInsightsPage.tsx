@@ -1,5 +1,5 @@
 import { useMlStats } from '@/hooks/useApi'
-import { Brain, TrendingUp, AlertCircle, CheckCircle, BarChart2, Cpu } from 'lucide-react'
+import { Brain, TrendingUp, AlertCircle, CheckCircle, BarChart2, Cpu, Wifi } from 'lucide-react'
 
 const ORANGE = '#e54e1b'
 const BLACK  = '#111111'
@@ -31,7 +31,7 @@ function confColor(score: number) {
 }
 
 export default function MLInsightsPage() {
-  const { data: rawStats, isLoading } = useMlStats()
+  const { data: rawStats, isLoading, isError } = useMlStats()
   const stats = rawStats as unknown as MLStats | undefined
 
   const maxAttackCount = stats ? Math.max(...Object.values(stats.attack_distribution)) : 1
@@ -42,7 +42,7 @@ export default function MLInsightsPage() {
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <Brain style={{ width: 20, height: 20, color: ORANGE }} aria-hidden="true" />
         <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, color: BLACK, letterSpacing: '0.04em', lineHeight: 1 }}>
-          ML Insights
+          Threat Detection
         </h1>
       </div>
 
@@ -51,6 +51,16 @@ export default function MLInsightsPage() {
           {[...Array(4)].map((_, i) => (
             <div key={i} style={{ height: 96, background: PARCH, borderRadius: 4 }} />
           ))}
+        </div>
+      ) : isError ? (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 0', gap: 12 }}>
+          <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'rgba(229,78,27,0.08)', border: '1px solid rgba(229,78,27,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Wifi style={{ width: 20, height: 20, color: ORANGE, opacity: 0.6 }} aria-hidden="true" />
+          </div>
+          <p style={{ fontSize: 13, color: BLACK, fontWeight: 500 }}>Detection engine offline</p>
+          <p style={{ fontSize: 11, color: GRAY, textAlign: 'center', maxWidth: 320 }}>
+            The ML service is not responding. Check that the backend is running and the model is loaded.
+          </p>
         </div>
       ) : stats ? (
         <>
@@ -180,9 +190,14 @@ export default function MLInsightsPage() {
           )}
         </>
       ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 0', color: GRAY }}>
-          <Brain style={{ width: 36, height: 36, opacity: 0.2, marginBottom: 12 }} aria-hidden="true" />
-          <p style={{ fontSize: 12 }}>ML statistics unavailable</p>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '64px 0', gap: 12 }}>
+          <div style={{ width: 48, height: 48, borderRadius: '50%', background: PARCH, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Brain style={{ width: 20, height: 20, color: GRAY, opacity: 0.5 }} aria-hidden="true" />
+          </div>
+          <p style={{ fontSize: 13, color: BLACK, fontWeight: 500 }}>No detection data yet</p>
+          <p style={{ fontSize: 11, color: GRAY, textAlign: 'center', maxWidth: 320 }}>
+            The detection engine is running, but no predictions have been recorded. Data will appear here once the model begins classifying traffic.
+          </p>
         </div>
       )}
     </div>

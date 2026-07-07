@@ -11,11 +11,9 @@ export type SHA256Hash = string & { readonly __brand: 'SHA256Hash' }
 
 // ---- Enums (string unions -- safer than TS enum) ----------------------------------------------------------------
 
-// Must match backend IncidentSeverity enum (lowercase to match DB values)
 export const INCIDENT_SEVERITIES = ['critical', 'high', 'medium', 'low', 'info'] as const
 export type IncidentSeverity = typeof INCIDENT_SEVERITIES[number]
 
-// Must match backend IncidentStatus enum: app/models/incident.py
 export const INCIDENT_STATUSES = [
   'new', 'triaging', 'contained', 'eradicating', 'recovering', 'closed', 'reopened',
 ] as const
@@ -24,7 +22,6 @@ export type IncidentStatus = typeof INCIDENT_STATUSES[number]
 export const JURISDICTIONS = ['GDPR', 'HIPAA', 'DPDPA'] as const
 export type Jurisdiction = typeof JURISDICTIONS[number]
 
-// Must match backend notification status values
 export const NOTIFICATION_STATUSES = ['pending', 'approved', 'sent', 'failed'] as const
 export type NotificationStatus = typeof NOTIFICATION_STATUSES[number]
 
@@ -51,7 +48,6 @@ export const CUSTODY_ACTIONS = [
 ] as const
 export type CustodyAction = typeof CUSTODY_ACTIONS[number]
 
-// Matches backend ChainOfCustodyResponse (app/schemas/evidence.py)
 export interface ChainOfCustodyEntry {
   readonly id: UUID
   readonly action: string
@@ -90,6 +86,7 @@ export interface Incident {
   readonly source_port: number | null
   readonly destination_port: number | null
   readonly protocol: string | null
+  readonly flow_duration_ms: number | null
   readonly affected_jurisdictions: readonly string[] | null
   readonly personal_data_involved: boolean
   readonly health_data_involved: boolean
@@ -144,7 +141,6 @@ export interface IncidentUpdate {
 
 // ---- Evidence ------------------------------------------------------------------------------------------------------------------------------------
 
-// Matches backend EvidenceResponse (app/schemas/evidence.py)
 export interface EvidencePackage {
   readonly id: UUID
   readonly incident_id: UUID
@@ -167,11 +163,11 @@ export interface EvidencePackage {
 export interface RegulatoryNotification {
   readonly id: UUID
   readonly incident_id: UUID
-  readonly regulation: string          // GDPR | HIPAA | DPDPA
+  readonly regulation: string
   readonly jurisdiction: string
   readonly authority: string
   readonly authority_email: string | null
-  readonly status: string              // pending | approved | sent | failed
+  readonly status: string
   readonly subject: string
   readonly body: string
   readonly deadline: ISODateString
@@ -204,7 +200,6 @@ export interface User {
 
 // ---- Pagination ----------------------------------------------------------------------------------------------------------------------------------
 
-// Matches backend IncidentListResponse (app/schemas/incident.py)
 export interface PagedResponse<T> {
   readonly total: number
   readonly page: number
@@ -213,8 +208,6 @@ export interface PagedResponse<T> {
 }
 
 export type PagedIncidentResponse = PagedResponse<Incident>
-
-// ---- Cursor pagination (for infinite scroll at scale) ----------------------------------------------------
 
 export interface CursorPagedResponse<T> {
   readonly items: readonly T[]
@@ -225,7 +218,6 @@ export interface CursorPagedResponse<T> {
 
 // ---- Health ----------------------------------------------------------------------------------------------------------------------------------------
 
-// Matches backend /health endpoint (app/main.py)
 export interface HealthCheck {
   readonly status: 'ok' | 'degraded' | 'unhealthy'
   readonly version: string
@@ -233,7 +225,6 @@ export interface HealthCheck {
 
 // ---- Auth --------------------------------------------------------------------------------------------------------------------------------------------
 
-// Re-export RBAC types from the canonical source so callers can import from either place.
 export type { PermissionValue as Permission, Role as UserRole } from '@/types/rbac'
 import type { PermissionValue } from '@/types/rbac'
 import type { Role } from '@/types/rbac'
@@ -242,9 +233,7 @@ export interface AuthUser {
   readonly id: UUID
   readonly name: string
   readonly email: string
-  /** Backend role string (e.g. 'analyst'). Check permissions, not this. */
   readonly role: Role
-  /** JWT-embedded permission values for this session. */
   readonly permissions: readonly PermissionValue[]
   readonly last_login: ISODateString | null
 }
@@ -290,9 +279,9 @@ export interface CICIDSFlow {
   readonly flow_packets_per_sec: number
   readonly fwd_iat_mean: number
   readonly bwd_iat_mean: number
-  readonly confidence_score: number         // ML confidence 0--1
+  readonly confidence_score: number
   readonly is_false_positive: boolean
-  readonly mitre_technique: string | null   // e.g. T1498
+  readonly mitre_technique: string | null
   readonly label: AttackType
 }
 
@@ -301,13 +290,13 @@ export interface CICIDSPrediction {
   readonly confidence: number
   readonly model_version: string
   readonly features_used: readonly string[]
-  readonly explanation: Record<string, number> // SHAP values
+  readonly explanation: Record<string, number>
 }
 
 // ---- MITRE ATT&CK --------------------------------------------------------------------------------------------------------------------------
 
 export interface MitreTechnique {
-  readonly technique_id: string   // T1498
+  readonly technique_id: string
   readonly name: string
   readonly tactic: string
   readonly description: string
@@ -329,8 +318,8 @@ export interface DashboardStats {
   readonly pending_notifications: number
   readonly overdue_notifications: number
   readonly compliance_score: number
-  readonly mttr_seconds: number         // Mean Time to Respond
-  readonly false_positive_rate: number  // CICIDS2017 FP rate
+  readonly mttr_seconds: number
+  readonly false_positive_rate: number
 }
 
 // ---- AWS Infrastructure ----------------------------------------------------------------------------------------------------------------

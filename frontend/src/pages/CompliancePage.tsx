@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   FileText, Clock, AlertTriangle, CheckCircle,
@@ -62,12 +62,23 @@ const REGULATIONS = {
   },
 }
 
-// ---- Obligation compliance state (local UI state -- persisted per session) ------------
-// TODO: backend endpoint needed: GET/POST /api/v1/compliance/obligations/{incidentId}
+// ---- Obligation compliance state (persisted to localStorage) ---------------
+const LS_KEY = 'lbro:compliance:obligations'
+
 const INITIAL_STATE: Record<string, Record<string, boolean>> = {
   GDPR:  { g1: false, g2: false, g3: false, g4: false, g5: false },
   HIPAA: { h1: false, h2: false, h3: false, h4: false             },
   DPDPA: { d1: false, d2: false, d3: false                        },
+}
+
+function loadState(): Record<string, Record<string, boolean>> {
+  try {
+    const raw = localStorage.getItem(LS_KEY)
+    if (!raw) return INITIAL_STATE
+    return { ...INITIAL_STATE, ...JSON.parse(raw) }
+  } catch {
+    return INITIAL_STATE
+  }
 }
 
 // ---- Ring component ------------------------------------------------------------------------------------------------------------------------
@@ -97,7 +108,12 @@ function getScore(metState: Record<string, Record<string, boolean>>, reg: string
 export default function CompliancePage() {
   const navigate  = useNavigate()
   const [expanded, setExpanded] = useState<string | null>('GDPR')
-  const [metState, setMetState] = useState(INITIAL_STATE)
+  const [metState, setMetState] = useState<Record<string, Record<string, boolean>>>(loadState)
+
+  // Persist obligation state across sessions
+  useEffect(() => {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(metState)) } catch { /* storage unavailable */ }
+  }, [metState])
 
   const { data: notifResponse, isLoading: notifsLoading, isError: notifsError } = useNotifications()
   const { data: incidentsData } = useIncidents({ page_size: 100 })
@@ -141,7 +157,7 @@ export default function CompliancePage() {
       {/* ---- API error state ---- */}
       {notifsError && (
         <div style={{ background: 'rgba(229,78,27,0.06)', border: `1px solid rgba(229,78,27,0.3)`, borderLeft: `3px solid ${ORANGE}`, borderRadius: 4, padding: '12px 16px', fontSize: 12, color: BLACK }}>
-          Failed to load notifications from <code style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 10 }}>GET /api/v1/notifications</code>
+          Unable to load regulatory notifications. Check backend connectivity and try refreshing the page.
         </div>
       )}
 
@@ -438,14 +454,11 @@ export default function CompliancePage() {
                   {reg.deadline_h < 100 ? `${reg.deadline_h}h` : `${reg.deadline_h / 24} days`}
                 </span>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '5px 0', borderTop: `1px solid ${BORDER}` }}>
-                <span style={{ color: GRAY }}>Obligations</span>
-                <span style={{ color: BLACK }}>{reg.obligations.length} items</span>
-              </div>
             </div>
           </div>
         ))}
       </div>
+
     </div>
   )
 }

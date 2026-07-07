@@ -1,7 +1,7 @@
 """Regulatory notification ORM models."""
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, List
 
 import uuid
 from datetime import datetime, timezone
@@ -59,8 +59,9 @@ class Notification(Base):
     )
 
     incident: Mapped["Incident"] = relationship("Incident", back_populates="notifications")
-    recipients: Mapped[list] = relationship(
-        "NotificationRecipient", back_populates="notification", cascade="all, delete-orphan"
+    recipients: Mapped[List["NotificationRecipient"]] = relationship(
+        "NotificationRecipient", back_populates="notification", cascade="all, delete-orphan",
+        uselist=True,
     )
 
 

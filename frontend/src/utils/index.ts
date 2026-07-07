@@ -9,12 +9,18 @@ export function cn(...inputs: ClassValue[]) {
 
 // ---- Date formatting --------------------------------------------------------------------------------------------------------------------
 
-export function timeAgo(date: string | Date): string {
-  return formatDistanceToNow(new Date(date), { addSuffix: true })
+export function timeAgo(date: string | Date | null | undefined): string {
+  if (!date) return 'unknown'
+  const d = new Date(date)
+  if (isNaN(d.getTime())) return 'unknown'
+  return formatDistanceToNow(d, { addSuffix: true })
 }
 
-export function formatDate(date: string | Date, fmt = 'MMM dd, yyyy HH:mm'): string {
-  return format(new Date(date), fmt)
+export function formatDate(date: string | Date | null | undefined, fmt = 'MMM dd, yyyy HH:mm'): string {
+  if (!date) return '—'
+  const d = new Date(date)
+  if (isNaN(d.getTime())) return '—'
+  return format(d, fmt)
 }
 
 export function formatBytes(bytes: number): string {
@@ -75,10 +81,12 @@ export const JURISDICTION_CONFIG = {
 
 // ---- Misc ------------------------------------------------------------------------------------------------------------------------------------------
 
-export function truncate(str: string, maxLen: number): string {
-  return str.length > maxLen ? str.slice(0, maxLen) + '…' : str
+export function truncate(str: string, n: number): string {
+  if (str.length <= n) return str
+  return str.slice(0, n) + '…'
 }
 
 export function shortHash(hash: string): string {
+  if (!hash || hash.length < 16) return hash ?? ''
   return `${hash.slice(0, 8)}…${hash.slice(-8)}`
 }

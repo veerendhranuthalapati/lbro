@@ -6,7 +6,8 @@ import re
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.rbac import Permission
@@ -30,18 +31,19 @@ async def upload_evidence(
     db: Annotated[AsyncSession, Depends(get_db)] = None,
     current_user: Annotated[User, Depends(require_permission(Permission.UPLOAD_EVIDENCE))] = None,
 ):
+    content_length = request.headers.get("content-length")
+    if content_length and int(content_length) > MAX_UPLOAD_SIZE:
+        raise HTTPException(413, "File exceeds 100 MB limit")
+
     data = await file.read()
     if len(data) > MAX_UPLOAD_SIZE:
-        from fastapi import HTTPException
-        raise HTTPException(400, "File exceeds 100 MB limit")
+        raise HTTPException(413, "File exceeds 100 MB limit")
 
-    # Sanitize filename: strip path components, collapse whitespace, block null bytes
     raw_name = file.filename or "unknown"
-    safe_name = os.path.basename(raw_name)                          # strip path traversal
-    safe_name = re.sub(r'[^\w.\-]', '_', safe_name)                 # allow only word chars, dots, dashes
-    safe_name = safe_name[:255] if safe_name else "evidence_file"  # cap length
+    safe_name = os.path.basename(raw_name)
+    safe_name = re.sub(r'[^\w.\-]', '_', safe_name)
+    safe_name = safe_name[:255] if safe_name else "evidence_file"
 
-    # Validate content type against allowlist (client-supplied but used only for storage metadata)
     allowed_types = {
         "application/octet-stream", "text/plain", "application/json",
         "application/zip", "application/x-tar", "application/gzip",
@@ -50,20 +52,17 @@ async def upload_evidence(
     }
     declared_type = file.content_type or "application/octet-stream"
     if declared_type not in allowed_types:
-        from fastapi import HTTPException
         raise HTTPException(400, f"Content type '{declared_type}' not allowed")
 
-    # Magic-byte sniff to catch disguised executables
     DANGEROUS_SIGNATURES = [
-        b'\x4d\x5a',           # PE/EXE (MZ header)
-        b'\x7fELF',            # ELF Linux executable
-        b'#!/',                # Shell shebang
-        b'<script',            # HTML/JS injection
-        b'<?php',              # PHP script
+        b'\x4d\x5a',
+        b'\x7fELF',
+        b'#!/',
+        b'<script',
+        b'<?php',
     ]
     for sig in DANGEROUS_SIGNATURES:
         if data[:len(sig)].lower() == sig.lower():
-            from fastapi import HTTPException
             raise HTTPException(400, "File type rejected by content inspection")
 
     ip = request.client.host if request.client else None
@@ -94,10 +93,27 @@ async def list_evidence(
 ):
     svc = EvidenceService(db)
     items = await svc.list_for_incident(incident_id)
-    # Attach presigned URLs
     result = []
     for ev in items:
-        ev_dict = {
+        # Explicitly convert custody_chain ORM objects to dicts so Pydantic
+        # never receives a raw SQLAlchemy relationship proxy.
+        coc = [
+            {
+                "id": c.id,
+                "action": c.action,
+                "performed_by_name": c.performed_by_name,
+                "ip_address": c.ip_address,
+                "notes": c.notes,
+                "hash_at_time": c.hash_at_time,
+                "created_at": c.created_at,
+            }
+            for c in (ev.custody_chain or [])
+        ]
+        try:
+            download_url = svc.get_download_url(ev)
+        except Exception:
+            download_url = None
+        result.append({
             "id": ev.id,
             "incident_id": ev.incident_id,
             "filename": ev.filename,
@@ -110,15 +126,10 @@ async def list_evidence(
             "is_immutable": ev.is_immutable,
             "uploaded_by": ev.uploaded_by,
             "created_at": ev.created_at,
-            "custody_chain": ev.custody_chain,
-        }
-        try:
-            ev_dict["download_url"] = svc.get_download_url(ev)
-        except Exception:
-            ev_dict["download_url"] = None
-        result.append(ev_dict)
+            "custody_chain": coc,
+            "download_url": download_url,
+        })
     return EvidenceListResponse(items=result, total=len(result))
-
 
 
 @router.get("/evidence", tags=["evidence"])
@@ -128,7 +139,7 @@ async def list_all_evidence(
     page: int = 1,
     page_size: int = 50,
 ):
-    """Global paginated evidence listing across all incidents. Required by EvidencePage."""
+    """Global paginated evidence listing across all incidents."""
     svc = EvidenceService(db)
     items, total = await svc.list_all(page, page_size)
     result = []
@@ -187,6 +198,34 @@ async def get_download_url(
     return {"url": url, "expires_at": expires_at}
 
 
+@router.get("/evidence/{evidence_id}/download")
+async def download_evidence(
+    evidence_id: uuid.UUID,
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_permission(Permission.DOWNLOAD_EVIDENCE))],
+):
+    """Serve evidence file bytes directly from PostgreSQL storage."""
+    ip = request.client.host if request.client else None
+    svc = EvidenceService(db)
+    ev = await svc.get(evidence_id, current_user, ip)
+    file_data = await svc.get_file_data(evidence_id)
+
+    if not file_data:
+        raise HTTPException(404, "File data not available")
+
+    # Use plain Response — all bytes are already in memory.
+    # StreamingResponse + io.BytesIO iterates line-by-line and can corrupt binary.
+    return Response(
+        content=file_data,
+        media_type=ev.content_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{ev.original_filename}"',
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
 @router.post("/evidence/{evidence_id}/verify")
 async def verify_integrity(
     evidence_id: uuid.UUID,
@@ -194,19 +233,16 @@ async def verify_integrity(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_permission(Permission.DOWNLOAD_EVIDENCE))],
 ):
-    """Verify evidence SHA-256 hash against S3 object."""
-    from app.services.s3_service import s3_service, compute_sha256
+    """Verify evidence SHA-256 hash against stored file_data."""
+    from app.services.s3_service import compute_sha256
     ip = request.client.host if request.client else None
     svc = EvidenceService(db)
     ev = await svc.get(evidence_id, current_user, ip)
-    try:
-        obj = s3_service.client.get_object(Bucket=ev.s3_bucket, Key=ev.s3_key)
-        data = obj["Body"].read()
-        actual_hash = compute_sha256(data)
-        ok = actual_hash == ev.sha256_hash
-    except Exception:
-        ok = False
-        actual_hash = ev.sha256_hash
+    file_data = await svc.get_file_data(evidence_id)
+    if file_data is None:
+        return {"ok": False, "hash": ev.sha256_hash, "error": "file_data not stored in database"}
+    actual_hash = compute_sha256(file_data)
+    ok = actual_hash == ev.sha256_hash
     return {"ok": ok, "hash": actual_hash}
 
 

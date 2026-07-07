@@ -22,6 +22,10 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY --chown=lbro:lbro . .
 
+# WORKDIR is root-owned; give lbro write access so Vite can write its temp
+# .mjs config file alongside vite.config.ts during the build step.
+RUN chown lbro:lbro /app
+
 USER lbro
 
 # Build args for runtime injection

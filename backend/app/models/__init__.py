@@ -4,6 +4,7 @@ from app.models.evidence import Evidence, ChainOfCustody
 from app.models.notification import Notification, NotificationRecipient
 from app.models.audit import AuditLog
 from app.models.compliance import ComplianceRecord
+from app.models.revoked_token import RevokedToken
 
 __all__ = [
     "User",
@@ -15,4 +16,5 @@ __all__ = [
     "NotificationRecipient",
     "AuditLog",
     "ComplianceRecord",
+    "RevokedToken",
 ]

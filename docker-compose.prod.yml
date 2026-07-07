@@ -1,0 +1,129 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# LBRO — Production Docker Compose
+# Target: AWS EC2 (single-host)
+#
+# Usage:
+#   1. Copy .env.prod.example to .env and fill in all values
+#   2. Build images:
+#        docker compose -f docker-compose.prod.yml build
+#   3. Run migrations (one-off, before first start or after schema changes):
+#        docker compose -f docker-compose.prod.yml run --rm api alembic upgrade head
+#   4. Start all services:
+#        docker compose -f docker-compose.prod.yml up -d
+#
+# Key differences from docker-compose.yml (dev):
+#   - No LocalStack — uses real AWS S3 + SQS
+#   - No live source mounts — code is baked into the image
+#   - No migrate/seed services — migrations run manually (see step 3 above)
+#   - Worker reuses the api image (single build, zero duplicate layers)
+#   - Frontend exposed on port 80; api is internal only
+# ─────────────────────────────────────────────────────────────────────────────
+
+x-common-env: &common-env
+  DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+  AWS_REGION: ${AWS_REGION}
+  S3_BUCKET_EVIDENCE: ${S3_BUCKET_EVIDENCE}
+  S3_BUCKET_REPORTS: ${S3_BUCKET_REPORTS}
+  SQS_INCIDENT_QUEUE_URL: ${SQS_INCIDENT_QUEUE_URL}
+  SQS_NOTIFICATION_QUEUE_URL: ${SQS_NOTIFICATION_QUEUE_URL}
+  SQS_DLQ_URL: ${SQS_DLQ_URL}
+  SECRET_KEY: ${SECRET_KEY}
+  ENVIRONMENT: production
+  DEBUG: "false"
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  CORS_ORIGINS: ${CORS_ORIGINS}
+
+services:
+
+  # ── PostgreSQL ────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: lbro-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  # ── API ───────────────────────────────────────────────────────────────────
+  # `image:` + `build:` together: Compose builds the image AND tags it
+  # as lbro-api:prod so the worker service can reference it without rebuilding.
+  api:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.api
+    image: lbro-api:prod
+    container_name: lbro-api
+    environment:
+      <<: *common-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    volumes:
+      - ml_models:/app/ml/models
+
+  # ── Worker ────────────────────────────────────────────────────────────────
+  # Reuses lbro-api:prod — no separate build, zero duplicate layers.
+  # Command override switches the entrypoint to the SQS consumer.
+  worker:
+    image: lbro-api:prod
+    container_name: lbro-worker
+    command: ["python", "-m", "app.workers.main"]
+    environment:
+      <<: *common-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    volumes:
+      - ml_models:/app/ml/models
+
+  # ── Frontend (nginx) ──────────────────────────────────────────────────────
+  # Nginx proxies /api/* to the api container (same Docker network).
+  # Exposed on port 80; put an HTTPS terminating load balancer (ALB / Caddy)
+  # in front of this in production.
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ""              # Empty = same-origin nginx proxy
+        VITE_APP_VERSION: ${APP_VERSION:-2.0.0}
+        VITE_APP_NAME: "LBRO"
+    container_name: lbro-frontend
+    ports:
+      - "80:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  ml_models:
+
+networks:
+  default:
+    name: lbro-prod-network

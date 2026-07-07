@@ -1,0 +1,60 @@
+# ── Python ────────────────────────────────────────────────────────────────────
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+**/*.egg-info
+**/.eggs
+**/dist
+**/build
+
+# ── Virtual environments ──────────────────────────────────────────────────────
+**/.venv
+**/venv
+**/env
+
+# ── Tests ─────────────────────────────────────────────────────────────────────
+backend/tests
+backend/test_*
+backend/*_test.py
+backend/.coverage
+backend/htmlcov
+
+# ── Dev tooling ───────────────────────────────────────────────────────────────
+backend/.env
+backend/.env.*
+.env
+.env.*
+!.env.example
+
+# ── Node / Frontend ───────────────────────────────────────────────────────────
+# (frontend uses its own build context — these guard the root-level COPY)
+frontend/node_modules
+frontend/dist
+frontend/.vite
+
+# ── Git / Editor ──────────────────────────────────────────────────────────────
+.git
+.gitignore
+.gitattributes
+.editorconfig
+.vscode
+.idea
+
+# ── Documentation ─────────────────────────────────────────────────────────────
+*.md
+docs/
+
+# ── Docker files themselves ───────────────────────────────────────────────────
+docker-compose*.yml
+Dockerfile*
+docker/
+
+# ── Misc ─────────────────────────────────────────────────────────────────────
+**/*.log
+**/*.tmp
+.DS_Store
+Thumbs.db

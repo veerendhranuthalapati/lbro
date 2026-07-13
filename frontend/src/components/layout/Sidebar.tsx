@@ -3,10 +3,12 @@ import {
   LayoutDashboard, ShieldAlert, FileText, Lock,
   Cloud, Settings, LogOut, Brain, Bell, Users,
   Target, ClipboardList, ShieldCheck, BarChart2, Map, ClipboardCheck,
+  Layers, BookOpen,
 } from 'lucide-react'
 import type { LucideProps } from 'lucide-react'
 import { cn } from '@/utils'
 import { useAuthStore } from '@/store/authStore'
+import { useProjectStore } from '@/store/projectStore'
 import { logger, auditAction } from '@/lib/logger'
 
 interface NavItem {
@@ -33,6 +35,7 @@ const NAV: NavItem[] = [
   { to: '/audit-logs',     icon: ClipboardList,   label: 'Security History' },
   { to: '/users',          icon: Users,           label: 'Users' },
   { to: '/roadmap',        icon: Map,             label: 'Roadmap' },
+  { to: '/docs',           icon: BookOpen,        label: 'API Docs' },
   { to: '/settings',       icon: Settings,        label: 'Settings' },
 ]
 
@@ -40,6 +43,7 @@ export function Sidebar() {
   const logout = useAuthStore(s => s.logout)
   const navigate = useNavigate()
   const location = useLocation()
+  const currentProject = useProjectStore(s => s.currentProject)
 
   const handleLogout = () => {
     auditAction('auth:logout', 'session', 'current')
@@ -47,6 +51,11 @@ export function Sidebar() {
     logout()
     navigate('/login', { replace: true })
   }
+
+  // First two letters of project name for the badge, or generic icon
+  const projectInitials = currentProject
+    ? currentProject.name.slice(0, 2).toUpperCase()
+    : null
 
   return (
     <aside
@@ -66,6 +75,27 @@ export function Sidebar() {
         >
           LB
         </span>
+      </div>
+
+      {/* Project switcher */}
+      <div
+        className="flex items-center justify-center py-2 border-b"
+        style={{ borderColor: '#1e1e1e' }}
+      >
+        <button
+          onClick={() => navigate('/projects')}
+          title={currentProject ? `Project: ${currentProject.name}` : 'Select project'}
+          aria-label={currentProject ? `Switch project (current: ${currentProject.name})` : 'Select a project'}
+          className={cn(
+            'flex items-center justify-center w-9 h-9 rounded text-xs font-bold transition-all focus:outline-none focus:ring-2',
+            currentProject
+              ? 'text-white'
+              : 'text-zinc-600 hover:text-zinc-400 border border-dashed border-zinc-700 hover:border-zinc-500',
+          )}
+          style={currentProject ? { background: '#2a2a2a', color: '#e54e1b', border: '1px solid #3a3a3a' } : {}}
+        >
+          {projectInitials ?? <Layers className="w-3.5 h-3.5" aria-hidden="true" />}
+        </button>
       </div>
 
       <nav

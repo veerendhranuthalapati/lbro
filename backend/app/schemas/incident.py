@@ -120,6 +120,8 @@ class IncidentCreate(BaseModel):
     affected_jurisdictions: Optional[List[str]] = Field(None, max_length=20)
     personal_data_involved: bool = False
     health_data_involved: bool = False
+    # Optional: assign to a specific project at creation time
+    project_id: Optional[uuid.UUID] = None
 
     @field_validator("title")
     @classmethod

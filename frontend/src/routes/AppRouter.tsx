@@ -38,6 +38,14 @@ const WeeklyReportPage    = lazy(() => import('@/pages/WeeklyReportPage'))
 const PrivacyPage         = lazy(() => import('@/pages/PrivacyPage'))
 const RoadmapPage         = lazy(() => import('@/pages/RoadmapPage'))
 const ComplianceAuditPage = lazy(() => import('@/pages/ComplianceAuditPage'))
+const WelcomePage            = lazy(() => import('@/pages/WelcomePage'))
+const ProjectsPage           = lazy(() => import('@/pages/ProjectsPage'))
+const ProjectOverviewPage    = lazy(() => import('@/pages/ProjectOverviewPage'))
+const ProjectSettingsPage    = lazy(() => import('@/pages/ProjectSettingsPage'))
+const ProjectSetupWizardPage = lazy(() => import('@/pages/ProjectSetupWizardPage'))
+const IntegrationsPage       = lazy(() => import('@/pages/IntegrationsPage'))
+const LiveEventsPage         = lazy(() => import('@/pages/LiveEventsPage'))
+const ApiDocsPage            = lazy(() => import('@/pages/ApiDocsPage'))
 
 function PageLoader() {
   return (
@@ -75,7 +83,19 @@ export function AppRouter() {
       <Route path="/register"        element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
-      {/* Authenticated */}
+      {/* Authenticated — full-screen (no AppLayout) */}
+      <Route element={<ProtectedRoute />}>
+        <Route path="/welcome"    element={<SuspenseRoute><WelcomePage /></SuspenseRoute>} />
+        <Route path="/projects"   element={<SuspenseRoute><ProjectsPage /></SuspenseRoute>} />
+        <Route path="/docs"       element={<SuspenseRoute><ApiDocsPage /></SuspenseRoute>} />
+        <Route path="/projects/:projectId"               element={<SuspenseRoute><ProjectOverviewPage /></SuspenseRoute>} />
+        <Route path="/projects/:projectId/setup"         element={<SuspenseRoute><ProjectSetupWizardPage /></SuspenseRoute>} />
+        <Route path="/projects/:projectId/settings"      element={<SuspenseRoute><ProjectSettingsPage /></SuspenseRoute>} />
+        <Route path="/projects/:projectId/integrations"  element={<SuspenseRoute><IntegrationsPage /></SuspenseRoute>} />
+        <Route path="/projects/:projectId/events"        element={<SuspenseRoute><LiveEventsPage /></SuspenseRoute>} />
+      </Route>
+
+      {/* Authenticated — inside AppLayout */}
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
           <Route index element={<Navigate to="/dashboard" replace />} />
@@ -134,8 +154,7 @@ export function AppRouter() {
           } />
 
           {/* ── User Management — admin only ── */}
-   
-       <Route path="/users" element={
+          <Route path="/users" element={
             <ProtectedRoute requiredPermission={Permission.MANAGE_USERS}>
               <SuspenseRoute><UsersPage /></SuspenseRoute>
             </ProtectedRoute>

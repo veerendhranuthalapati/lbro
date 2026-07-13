@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   FileText, Clock, AlertTriangle, CheckCircle,
@@ -7,6 +7,9 @@ import {
 import { useNotifications, useIncidents } from '@/hooks/useApi'
 import { formatDate, JURISDICTION_CONFIG } from '@/utils'
 import type { Jurisdiction } from '@/types'
+import { complianceApi } from '@/api/client'
+import type { ObligationResponse } from '@/api/client'
+import { useProjectStore } from '@/store/projectStore'
 
 // ---- Design tokens --------------------------------------------------------------------------------------------------------------------------
 const ORANGE = '#e54e1b'
@@ -62,23 +65,15 @@ const REGULATIONS = {
   },
 }
 
-// ---- Obligation compliance state (persisted to localStorage) ---------------
-const LS_KEY = 'lbro:compliance:obligations'
+// ---- Obligation compliance state (persisted to DB via API) -----------------
+// The checklist structure is defined statically in REGULATIONS above.
+// The *checked* state for each item is loaded from the backend and kept in
+// the `obligations` array.  `metState` is derived from that array.
 
-const INITIAL_STATE: Record<string, Record<string, boolean>> = {
+const INITIAL_MET_STATE: Record<string, Record<string, boolean>> = {
   GDPR:  { g1: false, g2: false, g3: false, g4: false, g5: false },
   HIPAA: { h1: false, h2: false, h3: false, h4: false             },
   DPDPA: { d1: false, d2: false, d3: false                        },
-}
-
-function loadState(): Record<string, Record<string, boolean>> {
-  try {
-    const raw = localStorage.getItem(LS_KEY)
-    if (!raw) return INITIAL_STATE
-    return { ...INITIAL_STATE, ...JSON.parse(raw) }
-  } catch {
-    return INITIAL_STATE
-  }
 }
 
 // ---- Ring component ------------------------------------------------------------------------------------------------------------------------
@@ -106,21 +101,123 @@ function getScore(metState: Record<string, Record<string, boolean>>, reg: string
 }
 
 export default function CompliancePage() {
-  const navigate  = useNavigate()
+  const navigate   = useNavigate()
   const [expanded, setExpanded] = useState<string | null>('GDPR')
-  const [metState, setMetState] = useState<Record<string, Record<string, boolean>>>(loadState)
 
-  // Persist obligation state across sessions
+  // Current project from global store — obligations are project-scoped
+  const projectId = useProjectStore(s => s.currentProject?.id)
+
+  // Server-side obligation state (replaces localStorage)
+  const [obligations, setObligations] = useState<ObligationResponse[]>([])
+
+  // Derive the checked/unchecked map from the server obligations
+  const metState = useMemo<Record<string, Record<string, boolean>>>(() => {
+    const result: Record<string, Record<string, boolean>> = {
+      GDPR:  { ...INITIAL_MET_STATE.GDPR  },
+      HIPAA: { ...INITIAL_MET_STATE.HIPAA },
+      DPDPA: { ...INITIAL_MET_STATE.DPDPA },
+    }
+    for (const obl of obligations) {
+      if (result[obl.framework]) {
+        result[obl.framework][obl.control_id] = obl.status === 'compliant'
+      }
+    }
+    return result
+  }, [obligations])
+
+  // Load obligations from backend when the project changes
   useEffect(() => {
-    try { localStorage.setItem(LS_KEY, JSON.stringify(metState)) } catch { /* storage unavailable */ }
-  }, [metState])
+    if (!projectId) {
+      setObligations([])
+      return
+    }
+    complianceApi.getObligations(projectId)
+      .then(setObligations)
+      .catch(() => { /* silently degrade — page remains usable with empty state */ })
+  }, [projectId])
 
   const { data: notifResponse, isLoading: notifsLoading, isError: notifsError } = useNotifications()
   const { data: incidentsData } = useIncidents({ page_size: 100 })
 
-  const toggle   = (reg: string) => setExpanded(v => v === reg ? null : reg)
-  const markDone = (reg: string, id: string) =>
-    setMetState(prev => ({ ...prev, [reg]: { ...prev[reg], [id]: !prev[reg]?.[id] } }))
+  const toggle = (reg: string) => setExpanded(v => v === reg ? null : reg)
+
+  /**
+   * Toggle an obligation's checked state.
+   *
+   * Applies an optimistic local update immediately, then persists to the DB.
+   * On API failure the optimistic update is reverted so the UI stays consistent.
+   *
+   * When no project is selected the toggle is a no-op (state stays in-memory
+   * and is not persisted — preserving the previous UX for unscoped views).
+   */
+  const markDone = useCallback((reg: string, oblId: string) => {
+    if (!projectId) return
+
+    const currentlyMet = !!metState[reg]?.[oblId]
+    const newStatus    = currentlyMet ? 'not_started' : 'compliant'
+
+    // Snapshot for revert
+    const prevObligations = obligations
+
+    // --- Optimistic update ---
+    const existing = obligations.find(o => o.framework === reg && o.control_id === oblId)
+    if (existing) {
+      setObligations(prev =>
+        prev.map(o => o.id === existing.id ? { ...o, status: newStatus } : o)
+      )
+    } else {
+      const oblDef = REGULATIONS[reg as keyof typeof REGULATIONS]?.obligations.find(o => o.id === oblId)
+      const tempId = `__temp__${reg}_${oblId}`
+      setObligations(prev => [...prev, {
+        id: tempId,
+        project_id: projectId,
+        framework: reg,
+        control_id: oblId,
+        control_name: oblDef?.text ?? oblId,
+        description: null,
+        status: newStatus,
+        evidence_reference: null,
+        score: newStatus === 'compliant' ? 100 : 0,
+        recommendations: null,
+        last_updated: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+      }])
+    }
+
+    // --- API call ---
+    const apiCall = existing && !existing.id.startsWith('__temp__')
+      ? complianceApi.updateObligationStatus(existing.id, { status: newStatus })
+      : (() => {
+          const oblDef = REGULATIONS[reg as keyof typeof REGULATIONS]?.obligations.find(o => o.id === oblId)
+          return complianceApi.upsertObligation(projectId, {
+            framework: reg,
+            control_id: oblId,
+            control_name: oblDef?.text ?? oblId,
+            status: newStatus,
+          })
+        })()
+
+    apiCall
+      .then(updated => {
+        // Replace optimistic entry with the real server response
+        setObligations(prev => {
+          const filtered = prev.filter(
+            o => !(o.id.startsWith('__temp__') && o.framework === reg && o.control_id === oblId)
+          )
+          const idx = filtered.findIndex(o => o.id === updated.id)
+          if (idx >= 0) {
+            const next = [...filtered]
+            next[idx] = updated
+            return next
+          }
+          return [...filtered, updated]
+        })
+      })
+      .catch(() => {
+        // Revert to the pre-toggle state on API failure
+        setObligations(prevObligations)
+      })
+  }, [projectId, metState, obligations])
 
   const notifList = notifResponse?.items ?? []
 

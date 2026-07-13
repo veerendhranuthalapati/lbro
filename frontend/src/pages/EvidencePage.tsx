@@ -44,6 +44,32 @@ export default function EvidencePage() {
     }
   }
 
+  const handleView = async (downloadUrl: string | null, contentType: string, filename: string) => {
+    if (!downloadUrl) return
+    try {
+      const res = await fetch(downloadUrl, {
+        headers: (() => { const t = getAccessToken(); const h: Record<string,string> = {}; if (t) h['Authorization'] = `Bearer ${t}`; return h; })(),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const blob = await res.blob()
+      const objectUrl = URL.createObjectURL(new Blob([blob], { type: contentType }))
+      // Open in new tab — browser will render images, PDFs, and text files natively
+      const win = window.open(objectUrl, '_blank')
+      if (!win) {
+        // Fallback: trigger download if popup blocked
+        const a = document.createElement('a')
+        a.href = objectUrl
+        a.download = filename
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+      }
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000)
+    } catch (err) {
+      alert('Preview failed — check backend connectivity.')
+    }
+  }
+
   const evidenceList = data?.items ?? []
   const totalCount   = data?.total ?? 0
   const totalSize    = evidenceList.reduce((sum, e) => sum + (e.file_size ?? 0), 0)
@@ -114,7 +140,10 @@ export default function EvidencePage() {
                       </div>
                     </div>
                     <div style={{ display: 'flex', gap: 6 }}>
-                      <button style={{ fontSize: 10, color: GRAY, border: '1px solid #c8c2b8', padding: '4px 10px', borderRadius: 2, background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      <button
+                        onClick={() => handleView(ev.download_url, ev.content_type, ev.filename)}
+                        disabled={!ev.download_url}
+                        style={{ fontSize: 10, color: GRAY, border: '1px solid #c8c2b8', padding: '4px 10px', borderRadius: 2, background: 'transparent', cursor: ev.download_url ? 'pointer' : 'not-allowed', opacity: ev.download_url ? 1 : 0.5, display: 'flex', alignItems: 'center', gap: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                         <Eye style={{ width: 11, height: 11 }} aria-hidden="true" /> Preview
                       </button>
                       <button

@@ -20,18 +20,24 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import DeclarativeBase
 
-from app.core.config import settings
+from app.config import settings
 
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    pool_size=settings.DB_POOL_SIZE,
-    max_overflow=settings.DB_MAX_OVERFLOW,
-    pool_timeout=settings.DB_POOL_TIMEOUT,
-    pool_recycle=1800,        # Recycle connections every 30 min — prevents stale TCP
-    pool_pre_ping=True,       # Test connection before use — handles RDS Proxy failover
-    pool_use_lifo=True,       # LIFO: reuse most-recently-used connections (fewer idle)
-    echo=settings.APP_ENV == "dev",
-)
+# SQLite (used in tests) does not support connection pool sizing args.
+_is_sqlite = settings.DATABASE_URL.startswith("sqlite")
+_engine_kwargs: dict = {
+    "echo": settings.ENVIRONMENT == "development",
+}
+if not _is_sqlite:
+    _engine_kwargs["pool_size"] = settings.DATABASE_POOL_SIZE
+    _engine_kwargs["max_overflow"] = settings.DATABASE_MAX_OVERFLOW
+    _engine_kwargs["pool_timeout"] = 30
+    _engine_kwargs["pool_recycle"] = 1800
+    _engine_kwargs["pool_pre_ping"] = True
+    _engine_kwargs["pool_use_lifo"] = True
+else:
+    _engine_kwargs["connect_args"] = {"check_same_thread": False}
+
+engine = create_async_engine(settings.DATABASE_URL, **_engine_kwargs)
 
 AsyncSessionLocal = async_sessionmaker(
     engine,
@@ -39,18 +45,3 @@ AsyncSessionLocal = async_sessionmaker(
     expire_on_commit=False,
     autoflush=False,
 )
-
-
-class Base(DeclarativeBase):
-    pass
-
-
-async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    """FastAPI dependency — yields a session and ensures cleanup."""
-    async with AsyncSessionLocal() as session:
-        try:
-            yield session
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise

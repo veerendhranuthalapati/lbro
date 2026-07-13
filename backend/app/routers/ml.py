@@ -1,6 +1,7 @@
 """ML classification and model registry router."""
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 from typing import Annotated, Any, Dict, List, Optional
 
@@ -48,7 +49,7 @@ async def classify_flow(
     current_user: Annotated[User, Depends(require_permission(Permission.VIEW_ML))],
 ):
     """Classify a network flow and return attack category with confidence."""
-    result = classifier.predict(features.model_dump())
+    result = await asyncio.to_thread(classifier.predict, features.model_dump())
     return result
 
 
@@ -105,8 +106,8 @@ async def ml_stats(
     attack_distribution: Dict[str, int] = {row.attack_category: row.cnt for row in dist_result}
 
     # Model info
-    active_info = get_active_model_info()
-    all_models = list_models()
+    active_info = await asyncio.to_thread(get_active_model_info)
+    all_models = await asyncio.to_thread(list_models)
 
     def to_model_info(m: dict, is_active: bool = False) -> ModelInfo:
         metrics = m.get("metrics", {})

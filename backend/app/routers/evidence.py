@@ -40,7 +40,7 @@ async def upload_evidence(
         raise HTTPException(413, "File exceeds 100 MB limit")
 
     raw_name = file.filename or "unknown"
-    safe_name = os.path.basename(raw_name)
+    safe_name = os.path.basename(raw_name.replace("\\", "/"))  # handle Windows-style paths
     safe_name = re.sub(r'[^\w.\-]', '_', safe_name)
     safe_name = safe_name[:255] if safe_name else "evidence_file"
 
@@ -138,10 +138,11 @@ async def list_all_evidence(
     current_user: Annotated[User, Depends(require_permission(Permission.DOWNLOAD_EVIDENCE))],
     page: int = 1,
     page_size: int = 50,
+    project_id: uuid.UUID | None = None,
 ):
-    """Global paginated evidence listing across all incidents."""
+    """Global paginated evidence listing across all incidents, optionally scoped to a project."""
     svc = EvidenceService(db)
-    items, total = await svc.list_all(page, page_size)
+    items, total = await svc.list_all(page, page_size, project_id=project_id)
     result = []
     for ev in items:
         try:
@@ -204,11 +205,16 @@ async def download_evidence(
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_permission(Permission.DOWNLOAD_EVIDENCE))],
+    project_id: uuid.UUID | None = None,
 ):
-    """Serve evidence file bytes directly from PostgreSQL storage."""
+    """Serve evidence file bytes directly from PostgreSQL storage.
+
+    If project_id is provided, the evidence must belong to an incident in that project;
+    otherwise 404 is returned, closing the IDOR gap on cross-project downloads.
+    """
     ip = request.client.host if request.client else None
     svc = EvidenceService(db)
-    ev = await svc.get(evidence_id, current_user, ip)
+    ev = await svc.get(evidence_id, current_user, ip, project_id=project_id)
     file_data = await svc.get_file_data(evidence_id)
 
     if not file_data:

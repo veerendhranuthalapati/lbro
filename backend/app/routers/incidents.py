@@ -4,7 +4,7 @@ from __future__ import annotations
 import uuid
 from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Header, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.rbac import Permission
@@ -22,8 +22,32 @@ from app.schemas.incident import (
 from app.services.incident_service import IncidentService
 from app.services.compliance_service import ComplianceService
 from app.services.notification_service import NotificationService
+from app.services.project_service import ProjectService
 
 router = APIRouter(prefix="/incidents", tags=["incidents"])
+
+
+async def _resolve_project_id(
+    db: AsyncSession,
+    body_project_id: Optional[uuid.UUID],
+    x_project_key: Optional[str],
+) -> Optional[uuid.UUID]:
+    """
+    Determine which project an incident belongs to.
+
+    Priority:
+      1. project_id in request body (authenticated users selecting a project)
+      2. X-Project-Key header (external apps — look up the project by api_key)
+      3. None (global / Default Project fallback)
+    """
+    if body_project_id is not None:
+        return body_project_id
+    if x_project_key:
+        svc = ProjectService(db)
+        project = await svc.get_by_api_key(x_project_key)
+        if project:
+            return project.id
+    return None
 
 
 @router.post("", response_model=IncidentResponse, status_code=201)
@@ -31,19 +55,19 @@ async def create_incident(
     data: IncidentCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_permission(Permission.CREATE_INCIDENT))],
+    x_project_key: Annotated[Optional[str], Header(alias="X-Project-Key")] = None,
 ):
-    svc = IncidentService(db)
-    incident = await svc.create(data, current_user)
+    project_id = await _resolve_project_id(db, getattr(data, "project_id", None), x_project_key)
 
-    # Auto-generate compliance obligations if applicable
+    svc = IncidentService(db)
+    incident = await svc.create(data, current_user, project_id=project_id)
+
     if incident.affected_jurisdictions or incident.personal_data_involved or incident.health_data_involved:
         comp_svc = ComplianceService(db)
         await comp_svc.generate_obligations(incident)
         notif_svc = NotificationService(db)
         await notif_svc.generate_for_incident(incident)
 
-    # Reload with relationships eagerly loaded — async SQLAlchemy cannot lazy-load
-    # during Pydantic serialization (raises MissingGreenlet), so we must use selectinload.
     incident = await svc.get(incident.id)
     return incident
 
@@ -58,6 +82,7 @@ async def list_incidents(
     severity: Optional[str] = None,
     needs_review: Optional[bool] = None,
     search: Optional[str] = Query(None, max_length=200),
+    project_id: Optional[uuid.UUID] = Query(None, description="Filter by project"),
 ):
     svc = IncidentService(db)
     items, total = await svc.list(
@@ -67,6 +92,7 @@ async def list_incidents(
         severity=severity,
         needs_review=needs_review,
         search=search,
+        project_id=project_id,
     )
     return IncidentListResponse(items=items, total=total, page=page, page_size=page_size)
 
@@ -75,9 +101,10 @@ async def list_incidents(
 async def incident_stats(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_permission(Permission.READ_INCIDENT))],
+    project_id: Optional[uuid.UUID] = Query(None, description="Filter by project"),
 ):
     svc = IncidentService(db)
-    return await svc.get_stats()
+    return await svc.get_stats(project_id=project_id)
 
 
 @router.get("/{incident_id}", response_model=IncidentResponse)
@@ -85,9 +112,10 @@ async def get_incident(
     incident_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_permission(Permission.READ_INCIDENT))],
+    project_id: Optional[uuid.UUID] = Query(None),
 ):
     svc = IncidentService(db)
-    return await svc.get(incident_id)
+    return await svc.get(incident_id, project_id=project_id)
 
 
 @router.patch("/{incident_id}", response_model=IncidentResponse)
@@ -96,8 +124,11 @@ async def update_incident(
     data: IncidentUpdate,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_permission(Permission.UPDATE_INCIDENT))],
+    project_id: Optional[uuid.UUID] = Query(None),
 ):
     svc = IncidentService(db)
+    # Verify project scope before updating
+    await svc.get(incident_id, project_id=project_id)
     return await svc.update(incident_id, data, current_user)
 
 
@@ -107,8 +138,11 @@ async def change_status(
     body: StatusChangeRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_permission(Permission.UPDATE_INCIDENT))],
+    project_id: Optional[uuid.UUID] = Query(None),
 ):
     svc = IncidentService(db)
+    # Verify project scope before transitioning
+    await svc.get(incident_id, project_id=project_id)
     incident = await svc.transition_status(incident_id, body.status, current_user, body.notes or "")
     return {"id": incident.id, "status": incident.status}
 
@@ -119,9 +153,12 @@ async def reopen_incident(
     body: ReopenRequest,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_permission(Permission.UPDATE_INCIDENT))],
+    project_id: Optional[uuid.UUID] = Query(None),
 ):
     from app.models.incident import IncidentStatus
     svc = IncidentService(db)
+    # Verify project scope before reopening
+    await svc.get(incident_id, project_id=project_id)
     incident = await svc.transition_status(
         incident_id,
         IncidentStatus.REOPENED.value,
@@ -136,8 +173,11 @@ async def delete_incident(
     incident_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_permission(Permission.DELETE_INCIDENT))],
+    project_id: Optional[uuid.UUID] = Query(None),
 ):
     svc = IncidentService(db)
+    # Verify project scope before deleting
+    await svc.get(incident_id, project_id=project_id)
     await svc.delete(incident_id)
 
 
@@ -146,14 +186,15 @@ async def explain_incident(
     incident_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_permission(Permission.READ_INCIDENT))],
+    project_id: Optional[uuid.UUID] = Query(None),
 ):
     """Return a plain-English explanation for this incident's attack type."""
     from sqlalchemy import select
     from app.models.incident import Incident
     from app.services.incident_explainer import explain_incident as _explain
 
-    result = await db.execute(select(Incident).where(Incident.id == incident_id))
-    incident = result.scalar_one_or_none()
+    svc = IncidentService(db)
+    incident = await svc.get(incident_id, project_id=project_id)
     if incident is None:
         from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Incident not found")

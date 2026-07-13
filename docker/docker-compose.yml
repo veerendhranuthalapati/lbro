@@ -1,96 +1,13 @@
-version: "3.9"
-
-services:
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: lbro
-      POSTGRES_USER: lbro
-      POSTGRES_PASSWORD: lbro_dev
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U lbro"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
-  localstack:
-    image: localstack/localstack:3.7
-    environment:
-      SERVICES: sqs,s3,secretsmanager
-      DEFAULT_REGION: ap-south-1
-      PERSIST_ALL: 0
-    ports:
-      - "4566:4566"
-    volumes:
-      - ./scripts/localstack-init.sh:/etc/localstack/init/ready.d/init.sh
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:4566/_localstack/health | grep '\"sqs\": \"available\"'"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-
-  api:
-    build:
-      context: backend
-      dockerfile: ../docker/Dockerfile.api
-    environment:
-      APP_ENV: dev
-      DATABASE_URL: postgresql+asyncpg://lbro:lbro_dev@postgres:5432/lbro
-      SECRET_KEY: dev-secret-key-change-me
-      AWS_REGION: ap-south-1
-      AWS_ACCESS_KEY_ID: test
-      AWS_SECRET_ACCESS_KEY: test
-      AWS_ENDPOINT_URL: http://localstack:4566
-      SQS_QUEUE_URL: http://localstack:4566/000000000000/lbro-dev-incident-events
-      S3_EVIDENCE_BUCKET: lbro-dev-evidence
-      LOG_LEVEL: DEBUG
-    ports:
-      - "8000:8000"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      localstack:
-        condition: service_healthy
-    volumes:
-      - ./backend/app:/app/app  # Hot reload in dev
-    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
-
-  worker:
-    build:
-      context: backend
-      dockerfile: ../docker/Dockerfile.worker
-    environment:
-      APP_ENV: dev
-      DATABASE_URL: postgresql+asyncpg://lbro:lbro_dev@postgres:5432/lbro
-      SECRET_KEY: dev-secret-key-change-me
-      AWS_REGION: ap-south-1
-      AWS_ACCESS_KEY_ID: test
-      AWS_SECRET_ACCESS_KEY: test
-      AWS_ENDPOINT_URL: http://localstack:4566
-      SQS_QUEUE_URL: http://localstack:4566/000000000000/lbro-dev-incident-events
-      S3_EVIDENCE_BUCKET: lbro-dev-evidence
-      WORKER_MODE: "true"
-      LOG_LEVEL: DEBUG
-    depends_on:
-      postgres:
-        condition: service_healthy
-      localstack:
-        condition: service_healthy
-
-  frontend:
-    build:
-      context: frontend
-      dockerfile: Dockerfile.dev
-    ports:
-      - "5173:5173"
-    volumes:
-      - ./frontend/src:/app/src
-    environment:
-      VITE_API_URL: http://localhost:8000
-
-volumes:
-  pgdata:
+# ⚠️  DEPRECATED — DO NOT USE THIS FILE ⚠️
+#
+# This file is an obsolete development compose fragment with incorrect
+# environment variable names, hardcoded ap-south-1 region, and wrong
+# build contexts. It will break your stack if used.
+#
+# Use the authoritative compose files at the repo root:
+#
+#   Development:  docker compose -f docker-compose.yml up --build
+#   Production:   docker compose -f docker-compose.prod.yml up -d
+#
+# This file intentionally has no services so it cannot be accidentally deployed.
+services: {}

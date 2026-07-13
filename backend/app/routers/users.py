@@ -13,8 +13,6 @@ from app.database import get_db
 from app.dependencies import require_permission
 from app.models.user import User
 from app.schemas.user import UserCreate, UserListResponse, UserResponse, UserUpdate
-from app.services.auth_service import AuthService
-from app.schemas.auth import RegisterRequest
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -40,15 +38,30 @@ async def create_user(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_permission(Permission.MANAGE_USERS))],
 ):
-    svc = AuthService(db)
-    req = RegisterRequest(
+    """Admin-only user creation. Bypasses public registration toggle."""
+    from fastapi import HTTPException
+    from app.core.security import hash_password
+
+    # Reject duplicate email
+    dup_email = (await db.execute(select(User).where(User.email == data.email))).scalar_one_or_none()
+    if dup_email:
+        raise HTTPException(status_code=409, detail="Email already registered")
+
+    # Reject duplicate username
+    dup_user = (await db.execute(select(User).where(User.username == data.username))).scalar_one_or_none()
+    if dup_user:
+        raise HTTPException(status_code=409, detail="Username already taken")
+
+    user = User(
         email=data.email,
         username=data.username,
         full_name=data.full_name,
-        password=data.password,
+        hashed_password=hash_password(data.password),
+        role=data.role,
+        is_active=True,
+        is_verified=True,
     )
-    user = await svc.register(req)
-    user.role = data.role
+    db.add(user)
     await db.flush()
     return user
 

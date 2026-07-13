@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 from typing import List, Optional
 
 from pydantic import field_validator
@@ -42,6 +43,10 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+
+    # ── Login lockout ─────────────────────────────────────────────────────────
+    MAX_LOGIN_ATTEMPTS: int = 5          # consecutive failures before lockout
+    LOCKOUT_DURATION_MINUTES: int = 15   # how long the account stays locked
 
     @field_validator("SECRET_KEY")
     @classmethod
@@ -94,8 +99,8 @@ class Settings(BaseSettings):
     SQS_WAIT_TIME_SECONDS: int = 20
 
     # ── ML ───────────────────────────────────────────────────────────────────
-    ML_MODEL_PATH: str = "/app/ml/models/cicids2017_classifier.pkl"
-    ML_SCALER_PATH: str = "/app/ml/models/scaler.pkl"
+    ML_MODEL_PATH: str = str(Path(__file__).parent / "ml" / "models" / "cicids2017_classifier.pkl")
+    ML_SCALER_PATH: str = str(Path(__file__).parent / "ml" / "models" / "scaler.pkl")
     ML_CONFIDENCE_THRESHOLD: float = 0.75
     ML_REVIEW_QUEUE_THRESHOLD: float = 0.60
     ML_MODEL_VERSION: str = "1.0.0"
@@ -145,6 +150,7 @@ class Settings(BaseSettings):
     # ── Logging ──────────────────────────────────────────────────────────────
     LOG_LEVEL: str = "INFO"
     LOG_FORMAT: str = "json"
+
 
 
 @lru_cache()

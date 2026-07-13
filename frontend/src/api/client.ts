@@ -24,6 +24,7 @@ import type {
   PagedIncidentResponse, EvidencePackage, RegulatoryNotification,
   HealthCheck, ApiError, User,
   DashboardStats, AWSStatus, CICIDSFlow, PagedResponse,
+  Project, ProjectListResponse, ProjectCreate, ProjectUpdate, ProjectDashboard,
 } from '@/types'
 
 // ---- Extend Axios config with per-request metadata -------------------------
@@ -148,8 +149,18 @@ apiClient.interceptors.response.use(
     const status = err.response?.status ?? 0
     const config = err.config as (InternalAxiosRequestConfig & { _retryCount?: number; _isRefresh?: boolean }) | undefined
 
-    // 401: try token refresh once, then logout
-    if (status === 401 && config && !config._isRefresh) {
+    // 401: try token refresh once, then logout.
+    // Skip this path for auth endpoints that legitimately return 401
+    // (login with bad creds, register, refresh itself) — those 401s must
+    // bubble back to the calling component so it can show the error message.
+    // Without this guard the interceptor would reload the page before the
+    // catch block in handleSubmit could display anything.
+    const url = config?.url ?? ''
+    const isAuthEndpoint = url.includes('/auth/login')
+      || url.includes('/auth/register')
+      || url.includes('/auth/refresh')
+      || url.includes('/auth/me')
+    if (status === 401 && config && !config._isRefresh && !isAuthEndpoint) {
       try {
         const newToken = await refreshAccessToken()
         config._isRefresh = true
@@ -191,8 +202,11 @@ export const authApi = {
       headers: token ? { [AUTH_HEADER]: `Bearer ${token}` } : undefined,
     }).then(r => r.data),
 
-  register: (data: { email: string; username: string; full_name: string; password: string }): Promise<User> =>
-    apiClient.post<User>('/api/v1/auth/register', data).then(r => r.data),
+  register: (data: { email: string; full_name: string; password: string; username?: string }): Promise<LoginResponse> =>
+    apiClient.post<LoginResponse>('/api/v1/auth/register', data).then(r => r.data),
+
+  updateProfile: (data: { full_name?: string; email?: string; new_password?: string; current_password?: string }): Promise<User> =>
+    apiClient.patch<User>('/api/v1/auth/profile', data).then(r => r.data),
 
   refresh: (refreshToken: string): Promise<LoginResponse> =>
     apiClient.post<LoginResponse>('/api/v1/auth/refresh', { refresh_token: refreshToken }).then(r => r.data),
@@ -221,15 +235,17 @@ export interface DashboardSummary {
 
 export const dashboardApi = {
   /** GET /api/v1/dashboard/summary -- exists */
-  summary: (): Promise<DashboardSummary> =>
-    apiClient.get<DashboardSummary>('/api/v1/dashboard/summary').then(r => r.data),
+  summary: (project_id?: string): Promise<DashboardSummary> =>
+    apiClient.get<DashboardSummary>('/api/v1/dashboard/summary', {
+      params: project_id ? { project_id } : undefined,
+    }).then(r => r.data),
 }
 
 // ---- Incidents --------------------------------------------------------------
 export const incidentsApi = {
   list: (params?: {
     status?: string; severity?: string; page?: number
-    page_size?: number; search?: string
+    page_size?: number; search?: string; project_id?: string
   }): Promise<PagedIncidentResponse> =>
     apiClient.get<PagedIncidentResponse>('/api/v1/incidents', { params }).then(r => r.data),
 
@@ -245,8 +261,10 @@ export const incidentsApi = {
   delete: (id: string): Promise<void> =>
     apiClient.delete(`/api/v1/incidents/${id}`).then(() => undefined),
 
-  stats: (): Promise<Record<string, unknown>> =>
-    apiClient.get('/api/v1/incidents/stats').then(r => r.data),
+  stats: (project_id?: string): Promise<Record<string, unknown>> =>
+    apiClient.get('/api/v1/incidents/stats', {
+      params: project_id ? { project_id } : undefined,
+    }).then(r => r.data),
 
   explain: (id: string): Promise<IncidentExplanation> =>
     apiClient.get<IncidentExplanation>(`/api/v1/incidents/${id}/explain`).then(r => r.data),
@@ -326,12 +344,96 @@ export interface ComplianceDashboard {
   upcoming_deadlines: ComplianceRecord[]
 }
 
+/** Project-scoped obligation (replaces localStorage persistence). */
+export interface ObligationResponse {
+  id: string
+  project_id: string
+  framework: string
+  control_id: string
+  control_name: string
+  description: string | null
+  status: string           // not_started | in_progress | compliant | non_compliant | not_applicable
+  evidence_reference: string | null
+  score: number
+  recommendations: string | null
+  last_updated: string | null
+  created_at: string
+}
+
+export interface ObligationCreate {
+  framework: string
+  control_id: string
+  control_name: string
+  description?: string
+  status?: string
+  evidence_reference?: string
+  recommendations?: string
+}
+
+export interface ObligationUpdate {
+  status?: string
+  evidence_reference?: string
+  recommendations?: string
+  score?: number
+}
+
+export interface ComplianceScoreResponse {
+  project_id: string
+  framework: string | null
+  overall_score: number
+  total_controls: number
+  compliant_controls: number
+  non_compliant_controls: number
+  in_progress_controls: number
+}
+
 export const complianceApi = {
-  dashboard: (): Promise<ComplianceDashboard> =>
-    apiClient.get<ComplianceDashboard>('/api/v1/compliance/dashboard').then(r => r.data),
+  dashboard: (project_id?: string): Promise<ComplianceDashboard> =>
+    apiClient.get<ComplianceDashboard>('/api/v1/compliance/dashboard', {
+      params: project_id ? { project_id } : undefined,
+    }).then(r => r.data),
 
   markMet: (recordId: string, notes?: string): Promise<ComplianceRecord> =>
     apiClient.post<ComplianceRecord>(`/api/v1/compliance/records/${recordId}/mark-met`, { notes }).then(r => r.data),
+
+  // --- Project-scoped obligation persistence (DB-backed, replaces localStorage) ---
+
+  getObligations: (projectId: string, framework?: string): Promise<ObligationResponse[]> =>
+    apiClient.get<ObligationResponse[]>('/api/v1/compliance/obligations', {
+      params: { project_id: projectId, ...(framework ? { framework } : {}) },
+    }).then(r => r.data),
+
+  /**
+   * Upsert an obligation (create-or-update by project+framework+control_id).
+   * Use this when toggling a checkbox for the first time or when no obligation
+   * ID is available yet.
+   */
+  upsertObligation: (projectId: string, data: ObligationCreate): Promise<ObligationResponse> =>
+    apiClient.post<ObligationResponse>('/api/v1/compliance/obligations', data, {
+      params: { project_id: projectId },
+    }).then(r => r.data),
+
+  /**
+   * Patch an existing obligation by its UUID.
+   * Use when the obligation already has a server-assigned ID.
+   */
+  updateObligationStatus: (id: string, data: ObligationUpdate): Promise<ObligationResponse> =>
+    apiClient.patch<ObligationResponse>(`/api/v1/compliance/obligations/${id}`, data).then(r => r.data),
+
+  getScore: (projectId: string, framework?: string): Promise<ComplianceScoreResponse> =>
+    apiClient.get<ComplianceScoreResponse>('/api/v1/compliance/score', {
+      params: { project_id: projectId, ...(framework ? { framework } : {}) },
+    }).then(r => r.data),
+
+  createAssessment: (projectId: string, framework: string, notes?: string): Promise<ObligationResponse> =>
+    apiClient.post<ObligationResponse>('/api/v1/compliance/assess', null, {
+      params: { project_id: projectId, framework, ...(notes ? { notes } : {}) },
+    }).then(r => r.data),
+
+  getAssessments: (projectId: string, framework?: string): Promise<ObligationResponse[]> =>
+    apiClient.get<ObligationResponse[]>('/api/v1/compliance/assessments', {
+      params: { project_id: projectId, ...(framework ? { framework } : {}) },
+    }).then(r => r.data),
 }
 
 // ---- Users ------------------------------------------------------------------
@@ -433,8 +535,10 @@ export interface SecurityScore {
 }
 
 export const securityScoreApi = {
-  get: (): Promise<SecurityScore> =>
-    apiClient.get<SecurityScore>('/api/v1/security-score').then(r => r.data),
+  get: (project_id?: string): Promise<SecurityScore> =>
+    apiClient.get<SecurityScore>('/api/v1/security-score', {
+      params: project_id ? { project_id } : undefined,
+    }).then(r => r.data),
 }
 
 
@@ -491,6 +595,60 @@ export interface WeeklyReport {
 }
 
 export const reportsApi = {
-  weekly: (): Promise<WeeklyReport> =>
-    apiClient.get<WeeklyReport>('/api/v1/reports/weekly').then(r => r.data),
+  weekly: (project_id?: string): Promise<WeeklyReport> =>
+    apiClient.get<WeeklyReport>('/api/v1/reports/weekly', {
+      params: project_id ? { project_id } : undefined,
+    }).then(r => r.data),
+}
+
+// ---- Projects ---------------------------------------------------------------
+export const projectsApi = {
+  list: (includeArchived = false): Promise<ProjectListResponse> =>
+    apiClient.get<ProjectListResponse>('/api/v1/projects', {
+      params: { include_archived: includeArchived },
+    }).then(r => r.data),
+
+  get: (id: string): Promise<Project> =>
+    apiClient.get<Project>(`/api/v1/projects/${id}`).then(r => r.data),
+
+  create: (data: ProjectCreate): Promise<Project> =>
+    apiClient.post<Project>('/api/v1/projects', data).then(r => r.data),
+
+  update: (id: string, data: ProjectUpdate): Promise<Project> =>
+    apiClient.patch<Project>(`/api/v1/projects/${id}`, data).then(r => r.data),
+
+  delete: (id: string): Promise<void> =>
+    apiClient.delete(`/api/v1/projects/${id}`).then(() => undefined),
+
+  regenerateKey: (id: string): Promise<Project> =>
+    apiClient.post<Project>(`/api/v1/projects/${id}/regenerate-key`).then(r => r.data),
+
+  dashboard: (id: string): Promise<ProjectDashboard> =>
+    apiClient.get<ProjectDashboard>(`/api/v1/projects/${id}/dashboard`).then(r => r.data),
+}
+
+
+// ---- Demo data generation ---------------------------------------------------
+export interface DemoGenerateResponse {
+  incidents_created: number
+  notifications_created: number
+  evidence_created: number
+  compliance_created: number
+}
+
+export interface DemoEventsResponse {
+  injected:   number
+  project_id: string
+  message:    string
+}
+
+export const demoApi = {
+  generate: (projectId?: string): Promise<DemoGenerateResponse> =>
+    apiClient.post<DemoGenerateResponse>(
+      '/api/v1/demo/generate',
+      projectId ? { project_id: projectId } : {},
+    ).then(r => r.data),
+
+  injectEvents: (project_id: string, count = 5): Promise<DemoEventsResponse> =>
+    apiClient.post<DemoEventsResponse>('/api/v1/demo/events', { project_id, count }).then(r => r.data),
 }

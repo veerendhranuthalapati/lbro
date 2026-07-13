@@ -1,16 +1,24 @@
 """FastAPI dependency injection.
 
 Auth flow:
-  Bearer JWT  -> decode -> user_id -> DB lookup -> User
-  X-API-Key   -> constant-time compare -> User
+  Bearer JWT        -> decode -> user_id -> DB lookup -> User
+  X-API-Key         -> constant-time compare -> User  (user-level, legacy)
+  Bearer proj_key   -> Project lookup -> project-scoped auth
 
 Permission flow:
-  require_permission(P)      -> 403 + AuditLog if role lacks P
-  require_any_permission(P)  -> 403 + AuditLog if role lacks ALL of P
-  require_role(R...)         -> 403 if role not in R (legacy; prefer permission checks)
+  require_permission(P)       -> 403 + AuditLog if role lacks P
+  require_any_permission(P)   -> 403 + AuditLog if role lacks ALL of P
+  require_role(R...)          -> 403 if role not in R
+  require_super_admin()       -> 403 + AuditLog if not super_admin
+  get_project_from_api_key()  -> Project resolved from Bearer proj_* key
 
-Every 403 is audit-logged with: timestamp, user, role, permission_requested, endpoint,
-IP, user agent, and reason.  401s are not audit-logged (user is unknown).
+SUPER_ADMIN bypass:
+  SUPER_ADMIN holds every permission, so require_permission() passes.
+  All SUPER_ADMIN accesses are audit-logged with the "super_admin_access" action
+  so that every privileged action is traceable.
+
+Every 403 is audit-logged with: timestamp, user, role, permission_requested,
+endpoint, IP, user agent, and reason.  401s are not audit-logged (user unknown).
 """
 from __future__ import annotations
 
@@ -24,7 +32,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import decode_token
-from app.core.rbac import Permission, Role, has_permission, has_any_permission
+from app.core.rbac import Permission, Role, has_permission, has_any_permission, is_super_admin
 from app.database import get_db
 from app.models.revoked_token import RevokedToken
 from app.models.user import User
@@ -33,7 +41,9 @@ bearer_scheme = HTTPBearer(auto_error=False)
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
 
+# ─────────────────────────────────────────────────────────────────────────────
 # Authentication dependencies
+# ─────────────────────────────────────────────────────────────────────────────
 
 async def get_current_user(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -41,8 +51,16 @@ async def get_current_user(
     api_key: Annotated[str | None, Depends(api_key_header)] = None,
 ) -> User:
     if credentials:
+        token = credentials.credentials
+        # Reject project API keys used as user bearer tokens
+        if token.startswith("proj_"):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail={"error": "invalid_token", "message": "Project API keys must be used on /api/v1/events, not as user tokens"},
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         try:
-            payload = decode_token(credentials.credentials)
+            payload = decode_token(token)
             if payload.get("type") != "access":
                 raise ValueError("Not an access token")
             user_id = uuid.UUID(payload["sub"])
@@ -53,7 +71,7 @@ async def get_current_user(
                 headers={"WWW-Authenticate": "Bearer"},
             )
 
-        # Check token revocation — rejects tokens whose jti was blacklisted on logout
+        # Check token revocation
         jti = payload.get("jti")
         if jti:
             revoked = (await db.execute(
@@ -76,9 +94,6 @@ async def get_current_user(
         return user
 
     elif api_key:
-        # Indexed O(log n) lookup — api_key has a unique index on the users table.
-        # Direct equality in the WHERE clause uses the index and returns at most one row,
-        # eliminating the previous O(n) full-table scan.
         result = await db.execute(
             select(User).where(
                 User.api_key == api_key,
@@ -112,16 +127,68 @@ async def get_current_active_user(
     return current_user
 
 
-# Internal helper: write a 403 audit log entry
+# ─────────────────────────────────────────────────────────────────────────────
+# Project API key dependency — for event ingestion endpoints
+# ─────────────────────────────────────────────────────────────────────────────
 
-async def _audit_authz_failure(
+async def get_project_from_api_key(
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)] = None,
+) -> "Project":  # type: ignore[name-defined]
+    """Resolve a Project from a Bearer project API key.
+
+    SECURITY: project_id is NEVER trusted from the request body or query string.
+    It is ALWAYS derived from the authenticated API key.  This prevents any
+    client from submitting events to a project it does not own.
+    """
+    from app.models.project import Project
+
+    if not credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error": "not_authenticated", "message": "Project API key required as Bearer token"},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    token = credentials.credentials
+    if not token.startswith("proj_"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error": "invalid_api_key", "message": "Invalid project API key format"},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    result = await db.execute(
+        select(Project).where(
+            Project.api_key == token,
+            Project.status == "active",
+        )
+    )
+    project = result.scalar_one_or_none()
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error": "invalid_api_key", "message": "Invalid or revoked project API key"},
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return project
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Internal helper: write audit log for authz failures and privileged access
+# ─────────────────────────────────────────────────────────────────────────────
+
+async def _write_audit_log(
     db: AsyncSession,
     user: User,
-    permission_requested: str,
+    action: str,
+    resource: str,
     request: Request | None,
-    reason: str,
+    details: dict,
+    status_code: int = 200,
 ) -> None:
-    """Best-effort 403 audit log -- never raises."""
+    """Best-effort audit log write — never raises."""
     try:
         from app.models.audit import AuditLog
         ip = request.client.host if request and request.client else None
@@ -132,37 +199,73 @@ async def _audit_authz_failure(
         log = AuditLog(
             user_id=user.id,
             user_email=user.email,
-            action="authz_failure",
+            action=action,
             resource_type="permission",
-            resource_id=permission_requested,
+            resource_id=resource,
             ip_address=ip,
             user_agent=ua,
             request_method=method,
             request_path=path,
-            response_status=403,
-            details={
-                "role": user.role,
-                "permission_requested": permission_requested,
-                "reason": reason,
-            },
+            response_status=status_code,
+            details=details,
         )
         db.add(log)
         await db.flush()
     except Exception as exc:
         import logging
-        logging.getLogger(__name__).error("Failed to write authz audit log: %s", exc)
+        logging.getLogger(__name__).error("Failed to write audit log: %s", exc)
 
 
+async def _audit_authz_failure(
+    db: AsyncSession,
+    user: User,
+    permission_requested: str,
+    request: Request | None,
+    reason: str,
+) -> None:
+    await _write_audit_log(
+        db, user, "authz_failure", permission_requested, request,
+        {"role": user.role, "permission_requested": permission_requested, "reason": reason},
+        status_code=403,
+    )
+
+
+async def _audit_super_admin_access(
+    db: AsyncSession,
+    user: User,
+    permission_requested: str,
+    request: Request | None,
+) -> None:
+    """Every SUPER_ADMIN bypass is audit-logged — intentional and traceable."""
+    await _write_audit_log(
+        db, user, "super_admin_access", permission_requested, request,
+        {"role": user.role, "permission_requested": permission_requested,
+         "note": "super_admin_bypass_intentional"},
+        status_code=200,
+    )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Permission dependency factories
+# ─────────────────────────────────────────────────────────────────────────────
 
 def require_permission(permission: Permission):
-    """Dependency factory: 403 + audit log if current user lacks *permission*."""
+    """Dependency factory: 403 + audit log if current user lacks *permission*.
+
+    SUPER_ADMIN automatically passes all permission checks (platform bypass).
+    The bypass is audit-logged with action="super_admin_access".
+    """
 
     async def _dep(
         request: Request,
         db: Annotated[AsyncSession, Depends(get_db)],
         current_user: Annotated[User, Depends(get_current_active_user)],
     ) -> User:
+        # SUPER_ADMIN bypass — logged for every privileged access
+        if is_super_admin(current_user.role):
+            await _audit_super_admin_access(db, current_user, permission.value, request)
+            return current_user
+
         try:
             role = Role(current_user.role)
         except ValueError:
@@ -199,10 +302,7 @@ def require_permission(permission: Permission):
 
 
 def require_any_permission(*permissions: Permission):
-    """Dependency factory: 403 + audit log if user lacks ALL of the given permissions.
-
-    Use when an endpoint is accessible by multiple different permission holders.
-    """
+    """Dependency factory: 403 + audit log if user lacks ALL of the given permissions."""
     perm_values = " | ".join(p.value for p in permissions)
 
     async def _dep(
@@ -210,6 +310,11 @@ def require_any_permission(*permissions: Permission):
         db: Annotated[AsyncSession, Depends(get_db)],
         current_user: Annotated[User, Depends(get_current_active_user)],
     ) -> User:
+        # SUPER_ADMIN bypass
+        if is_super_admin(current_user.role):
+            await _audit_super_admin_access(db, current_user, perm_values, request)
+            return current_user
+
         try:
             role = Role(current_user.role)
         except ValueError:
@@ -245,11 +350,40 @@ def require_any_permission(*permissions: Permission):
     return _dep
 
 
+def require_super_admin():
+    """Dependency factory: 403 + audit log if user is not SUPER_ADMIN.
+
+    Use this for platform-only routes that project admins must never reach.
+    """
+    async def _dep(
+        request: Request,
+        db: Annotated[AsyncSession, Depends(get_db)],
+        current_user: Annotated[User, Depends(get_current_active_user)],
+    ) -> User:
+        if not is_super_admin(current_user.role):
+            await _audit_authz_failure(
+                db, current_user, "platform:super_admin", request,
+                "not_super_admin",
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "error": "forbidden",
+                    "message": "Platform super_admin role required",
+                    "your_role": current_user.role,
+                },
+            )
+        # Log every super_admin platform route access
+        await _audit_super_admin_access(db, current_user, "platform:super_admin", request)
+        return current_user
+
+    return _dep
+
+
 def require_role(*roles: Role):
     """Dependency factory: 403 if user role not in *roles*.
 
-    Prefer require_permission for new endpoints.  Use this only for coarse
-    guards where no single permission fits (e.g. SUPER_ADMIN-only routes).
+    Prefer require_permission for new endpoints.
     """
     async def _dep(
         request: Request,

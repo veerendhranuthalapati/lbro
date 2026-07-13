@@ -9,7 +9,7 @@ from typing import Any
 
 import structlog
 
-from app.core.config import settings
+from app.config import settings
 
 log = structlog.get_logger(__name__)
 

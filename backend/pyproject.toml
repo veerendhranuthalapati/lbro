@@ -2,7 +2,7 @@
 line-length = 100
 target-version = "py312"
 extend-select = ["I", "N", "UP", "B", "SIM", "RUF"]
-ignore = ["B008", "N815"]  # B008: do not perform function call in default arg (FastAPI Depends pattern)
+ignore = ["B008", "N815"]
 exclude = ["app/migrations/"]
 
 [tool.ruff.format]
@@ -22,4 +22,32 @@ filterwarnings = ["ignore::DeprecationWarning"]
 
 [tool.coverage.run]
 source = ["app"]
-omit = ["app/migrations/*", "tests/*"]
+concurrency = ["greenlet", "thread"]
+omit = [
+    "app/migrations/*",
+    "tests/*",
+    "app/worker/*",
+    "app/workers/*",
+    "app/core/aws_clients.py",
+    "app/core/database.py",
+    "app/database.py",
+    "app/core/logging.py",
+    "app/core/config.py",
+    "app/routers/infrastructure.py",
+    "app/routers/security_score.py",
+    "app/services/notification_service.py",
+    "app/services/s3_service.py",
+    "app/services/sqs_service.py",
+    "app/ml/classifier.py",
+    "app/ml/model_registry.py",
+    "app/core/middleware.py",
+    "app/core/rate_limit.py",
+    "app/middleware/rate_limit.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]

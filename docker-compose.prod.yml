@@ -7,7 +7,8 @@
 #   2. Build images:
 #        docker compose -f docker-compose.prod.yml build
 #   3. Run migrations (one-off, before first start or after schema changes):
-#        docker compose -f docker-compose.prod.yml run --rm api alembic upgrade head
+#        docker compose -f docker-compose.prod.yml run --rm api \
+#          python /app/scripts/run_migrations.py
 #   4. Start all services:
 #        docker compose -f docker-compose.prod.yml up -d
 #
@@ -17,6 +18,7 @@
 #   - No migrate/seed services — migrations run manually (see step 3 above)
 #   - Worker reuses the api image (single build, zero duplicate layers)
 #   - Frontend exposed on port 80; api is internal only
+#   - ALLOW_PUBLIC_REGISTRATION is explicitly false
 # ─────────────────────────────────────────────────────────────────────────────
 
 x-common-env: &common-env
@@ -32,6 +34,7 @@ x-common-env: &common-env
   DEBUG: "false"
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
   CORS_ORIGINS: ${CORS_ORIGINS}
+  ALLOW_PUBLIC_REGISTRATION: "false"
 
 services:
 
@@ -68,6 +71,7 @@ services:
       postgres:
         condition: service_healthy
     healthcheck:
+      # Use Host: api because TrustedHostMiddleware allows "api" in production.
       test: ["CMD", "curl", "-f", "-H", "Host: api", "http://localhost:8000/health"]
       interval: 15s
       timeout: 5s

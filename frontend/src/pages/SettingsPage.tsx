@@ -1,204 +1,243 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Key, Bell, Users, Shield, Eye, EyeOff, Copy, CheckCircle, Lock, ChevronRight, Info } from 'lucide-react'
-import { toast } from '@/components/ui/Toast'
-import { useAuthStore, getAccessToken } from '@/store/authStore'
-import { useUsers } from '@/hooks/useApi'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { Save, Sparkles, Loader2, Check, AlertCircle, User } from 'lucide-react'
+import { authApi, demoApi } from '@/api/client'
+import { useAuthStore } from '@/store/authStore'
 
 const ORANGE = '#e54e1b'
 const BLACK  = '#111111'
 const BORDER = '#c8c2b8'
 const GRAY   = '#6b6560'
 const CREAM  = '#f9f5ef'
-const PARCH  = '#e8e2d9'
+const BG     = '#f0ebe2'
 
-function Section({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
+function Section({ title, description, children }: { title: string; description?: string; children: React.ReactNode }) {
   return (
-    <div style={{ background: CREAM, border: `1px solid ${BORDER}`, borderRadius: 4, padding: 20 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-        {icon}
-        <h3 style={{ fontSize: 12, fontWeight: 500, color: BLACK, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{title}</h3>
+    <section style={{ background: CREAM, border: `1px solid ${BORDER}`, borderRadius: 4, padding: 24, marginBottom: 16 }}>
+      <div style={{ marginBottom: 20, paddingBottom: 16, borderBottom: `1px solid ${BORDER}` }}>
+        <h2 style={{ fontSize: 13, fontWeight: 600, color: BLACK, margin: 0 }}>{title}</h2>
+        {description && <p style={{ fontSize: 11, color: GRAY, margin: '4px 0 0' }}>{description}</p>}
       </div>
       {children}
-    </div>
+    </section>
   )
 }
 
+function Toggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={enabled}
+      onClick={() => onChange(!enabled)}
+      style={{
+        width: 40, height: 22, borderRadius: 11, border: 'none', cursor: 'pointer',
+        background: enabled ? ORANGE : BORDER,
+        position: 'relative', transition: 'background 0.2s', flexShrink: 0,
+      }}
+    >
+      <span style={{
+        position: 'absolute', top: 3, left: enabled ? 20 : 3,
+        width: 16, height: 16, borderRadius: '50%', background: '#fff',
+        transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+      }} />
+    </button>
+  )
+}
 
-function TeamSection() {
-  const { data: usersData, isLoading } = useUsers()
-  const users = usersData?.items ?? []
+function Label({ htmlFor, children }: { htmlFor?: string; children: React.ReactNode }) {
+  return (
+    <label htmlFor={htmlFor} style={{ display: 'block', fontSize: 10, fontWeight: 500, color: GRAY, marginBottom: 6, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
+      {children}
+    </label>
+  )
+}
+
+function Input({ id, type = 'text', value, onChange, placeholder, autoComplete }: {
+  id?: string; type?: string; value: string; onChange: (v: string) => void
+  placeholder?: string; autoComplete?: string
+}) {
+  return (
+    <input
+      id={id} type={type} value={value} placeholder={placeholder}
+      autoComplete={autoComplete}
+      onChange={e => onChange(e.target.value)}
+      style={{ width: '100%', padding: '9px 12px', fontSize: 12, boxSizing: 'border-box', background: BG, border: `1px solid ${BORDER}`, borderRadius: 4, color: BLACK, outline: 'none' }}
+    />
+  )
+}
+
+function ProfileSection() {
+  const { user, setUser } = useAuthStore()
+  const [fullName,   setFullName]   = useState(user?.name ?? '')
+  const [email,      setEmail]      = useState(user?.email ?? '')
+  const [currentPw,  setCurrentPw]  = useState('')
+  const [newPw,      setNewPw]      = useState('')
+  const [saved,      setSaved]      = useState(false)
+  const [error,      setError]      = useState('')
+
+  const mutation = useMutation({
+    mutationFn: () => authApi.updateProfile({
+      full_name: fullName.trim() || undefined,
+      email: email.trim() || undefined,
+      current_password: currentPw || undefined,
+      new_password: newPw || undefined,
+    }),
+    onSuccess: updatedUser => {
+      setSaved(true)
+      setCurrentPw('')
+      setNewPw('')
+      setError('')
+      setTimeout(() => setSaved(false), 2500)
+      if (user) {
+        setUser({
+          ...user,
+          name:  updatedUser.full_name ?? user.name,
+          email: updatedUser.email     ?? user.email,
+        })
+      }
+    },
+    onError: (err: unknown) => {
+      const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
+      setError(detail ?? 'Could not save changes.')
+    },
+  })
+
+  const initials = (user?.name ?? 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
 
   return (
-    <Section icon={<Users style={{ width: 14, height: 14, color: ORANGE }} />} title="Team">
-      {isLoading ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {[1,2,3].map(i => <div key={i} style={{ height: 40, background: PARCH, borderRadius: 4 }} />)}
+    <Section title="Profile" description="Update your name, email and password.">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 20 }}>
+        <div style={{ width: 52, height: 52, borderRadius: '50%', background: ORANGE, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, fontWeight: 700, color: '#fff', flexShrink: 0 }}>
+          {initials}
         </div>
-      ) : users.length === 0 ? (
-        <p style={{ fontSize: 11, color: GRAY }}>No users found</p>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-          {users.map((m, idx, arr) => (
-            <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 0', borderBottom: idx < arr.length - 1 ? '1px solid ' + BORDER : 'none' }}>
-              <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'rgba(229,78,27,0.1)', border: '1px solid rgba(229,78,27,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: ORANGE, flexShrink: 0 }}>
-                {(m.full_name || m.email)[0].toUpperCase()}
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 12, color: BLACK, fontWeight: 500 }}>{m.full_name ?? m.email}</div>
-                <div style={{ fontSize: 10, color: GRAY, marginTop: 1 }}>{m.email}</div>
-              </div>
-              <span style={{ fontSize: 10, padding: '2px 8px', border: '1px solid ' + BORDER, borderRadius: 2, color: GRAY, fontFamily: 'JetBrains Mono, monospace', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                {m.role}
-              </span>
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: BLACK }}>{user?.name}</div>
+          <div style={{ fontSize: 11, color: GRAY }}>{user?.email}</div>
+          <div style={{ fontSize: 10, color: GRAY, marginTop: 2, textTransform: 'capitalize' }}>{user?.role}</div>
+        </div>
+      </div>
+
+      {error && (
+        <div style={{ display: 'flex', gap: 8, padding: '9px 12px', background: 'rgba(229,78,27,0.08)', border: `1px solid rgba(229,78,27,0.3)`, borderRadius: 4, fontSize: 11, color: ORANGE, marginBottom: 16 }}>
+          <AlertCircle style={{ width: 13, height: 13, flexShrink: 0, marginTop: 1 }} /> {error}
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+        <div>
+          <Label htmlFor="profile-name">Full name</Label>
+          <Input id="profile-name" value={fullName} onChange={setFullName} placeholder="Jane Smith" autoComplete="name" />
+        </div>
+        <div>
+          <Label htmlFor="profile-email">Email</Label>
+          <Input id="profile-email" type="email" value={email} onChange={setEmail} placeholder="you@company.com" autoComplete="email" />
+        </div>
+      </div>
+
+      <div style={{ background: BG, border: `1px solid ${BORDER}`, borderRadius: 4, padding: 14, marginBottom: 16 }}>
+        <div style={{ fontSize: 10, fontWeight: 600, color: GRAY, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 12 }}>Change password</div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+          <div>
+            <Label htmlFor="current-pw">Current password</Label>
+            <Input id="current-pw" type="password" value={currentPw} onChange={setCurrentPw} autoComplete="current-password" />
+          </div>
+          <div>
+            <Label htmlFor="new-pw">New password</Label>
+            <Input id="new-pw" type="password" value={newPw} onChange={setNewPw} autoComplete="new-password" />
+          </div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button
+          onClick={() => mutation.mutate()}
+          disabled={mutation.isPending}
+          style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 18px', background: saved ? '#16a34a' : ORANGE, color: '#fff', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: mutation.isPending ? 'not-allowed' : 'pointer', transition: 'background 0.2s' }}
+        >
+          {mutation.isPending
+            ? <><Loader2 style={{ width: 13, height: 13, animation: 'spin 1s linear infinite' }} /> Saving…</>
+            : saved
+            ? <><Check style={{ width: 13, height: 13 }} /> Saved</>
+            : <><Save style={{ width: 13, height: 13 }} /> Save changes</>
+          }
+        </button>
+      </div>
+    </Section>
+  )
+}
+
+function DemoModeSection() {
+  const qc = useQueryClient()
+  const [enabled, setEnabled] = useState(false)
+  const [generated, setGenerated] = useState(false)
+
+  const mutation = useMutation({
+    mutationFn: () => demoApi.generate(),
+    onSuccess: () => {
+      setGenerated(true)
+      qc.invalidateQueries({ queryKey: ['incidents'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+      qc.invalidateQueries({ queryKey: ['compliance'] })
+      setTimeout(() => setGenerated(false), 4000)
+    },
+  })
+
+  return (
+    <Section title="Demo Mode" description="Populate the platform with sample data to explore its features.">
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 12, fontWeight: 500, color: BLACK, marginBottom: 4 }}>Enable demo data</div>
+          <div style={{ fontSize: 11, color: GRAY, lineHeight: 1.5 }}>
+            Generates sample incidents, evidence, and compliance records so you can explore all features immediately.
+          </div>
+        </div>
+        <Toggle enabled={enabled} onChange={setEnabled} />
+      </div>
+
+      {enabled && (
+        <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${BORDER}` }}>
+          {generated ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: '#16a34a' }}>
+              <Check style={{ width: 14, height: 14 }} />
+              Demo data generated — check the Dashboard and Incidents pages.
             </div>
-          ))}
+          ) : (
+            <button
+              onClick={() => mutation.mutate()}
+              disabled={mutation.isPending}
+              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px', background: BLACK, color: '#fff', border: 'none', borderRadius: 4, fontSize: 11, fontWeight: 600, cursor: mutation.isPending ? 'not-allowed' : 'pointer' }}
+            >
+              {mutation.isPending
+                ? <><Loader2 style={{ width: 13, height: 13, animation: 'spin 1s linear infinite' }} /> Generating…</>
+                : <><Sparkles style={{ width: 13, height: 13 }} /> Generate sample data</>
+              }
+            </button>
+          )}
+          {mutation.isError && (
+            <div style={{ fontSize: 11, color: ORANGE, marginTop: 8, display: 'flex', gap: 6 }}>
+              <AlertCircle style={{ width: 13, height: 13 }} /> Failed to generate demo data. Is the backend running?
+            </div>
+          )}
         </div>
       )}
     </Section>
   )
 }
 
-const DEFAULT_PREFS = [
-  { label: 'Critical incident alerts', desc: 'Immediate notification for CRITICAL severity', on: true },
-  { label: 'High severity alerts', desc: 'Notification for HIGH severity incidents', on: true },
-  { label: 'Compliance deadline warnings', desc: 'Alert 24h and 6h before regulatory deadline', on: true },
-  { label: 'New evidence uploaded', desc: 'Alert when files are attached to an incident', on: false },
-  { label: 'Background service alerts', desc: 'Alert when a background job stops working', on: true },
-]
-
 export default function SettingsPage() {
-  const navigate = useNavigate()
-  // Subscribe to auth state changes so we re-render on login/logout
-  const isAuthenticated = useAuthStore(s => s.isAuthenticated)
-  const currentUser = useAuthStore(s => s.user)
-  // getAccessToken() reads module-level memory (not Zustand state) -- safe after the persist-getter fix
-  const accessToken = isAuthenticated ? getAccessToken() : null
-  const [showKey, setShowKey] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const [prefs, setPrefs] = useState(DEFAULT_PREFS)
-
-  const togglePref = (idx: number) =>
-    setPrefs(prev => prev.map((p, i) => i === idx ? { ...p, on: !p.on } : p))
-
-  const copyKey = () => {
-    if (accessToken) {
-      navigator.clipboard.writeText(accessToken)
-      setCopied(true)
-      toast.success('Session token copied to clipboard')
-      setTimeout(() => setCopied(false), 2000)
-    }
-  }
-
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 700 }}>
-      <div>
-        <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, color: BLACK, letterSpacing: '0.04em', lineHeight: 1 }}>Settings</h2>
-        <p style={{ fontSize: 11, color: GRAY, marginTop: 4 }}>Account, notifications, team, and activity log preferences</p>
+    <div style={{ maxWidth: 780, margin: '0 auto', padding: '32px 24px' }}>
+      <div style={{ marginBottom: 28 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4 }}>
+          <User style={{ width: 16, height: 16, color: ORANGE }} />
+          <h1 style={{ fontSize: 18, fontWeight: 700, color: BLACK, margin: 0 }}>Settings</h1>
+        </div>
+        <p style={{ fontSize: 11, color: GRAY, margin: 0 }}>Manage your account and platform preferences.</p>
       </div>
 
-      {/* Session Token */}
-      <Section icon={<Key style={{ width: 14, height: 14, color: ORANGE }} />} title="Session Token">
-        <div>
-          <label style={{ display: 'block', fontSize: 10, color: GRAY, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 6 }}>Current JWT (Bearer)</label>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <div style={{ flex: 1, background: PARCH, border: '1px solid ' + BORDER, borderRadius: 4, padding: '8px 12px', fontFamily: 'JetBrains Mono, monospace', fontSize: 11, color: BLACK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {showKey
-                ? (accessToken ?? '--')
-                : (accessToken ? '•'.repeat(24) + accessToken.slice(-8) : '--')}
-            </div>
-            <button onClick={() => setShowKey(v => !v)} style={{ padding: 8, border: '1px solid ' + BORDER, borderRadius: 4, background: 'transparent', cursor: 'pointer', color: GRAY, display: 'flex' }}>
-              {showKey ? <EyeOff style={{ width: 14, height: 14 }} /> : <Eye style={{ width: 14, height: 14 }} />}
-            </button>
-            <button onClick={copyKey} style={{ padding: 8, border: '1px solid ' + BORDER, borderRadius: 4, background: 'transparent', cursor: 'pointer', color: copied ? '#3a7a50' : GRAY, display: 'flex' }}>
-              {copied ? <CheckCircle style={{ width: 14, height: 14 }} /> : <Copy style={{ width: 14, height: 14 }} />}
-            </button>
-          </div>
-          <p style={{ fontSize: 11, color: GRAY, marginTop: 8 }}>Short-lived JWT -- do not share. Session expires automatically and clears on tab close.</p>
-        </div>
-      </Section>
-
-      {/* Notifications */}
-      <Section icon={<Bell style={{ width: 14, height: 14, color: ORANGE }} />} title="Notification Preferences">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 0 }}>
-          {prefs.map((pref, idx, arr) => (
-            <div key={pref.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 0', borderBottom: idx < arr.length - 1 ? '1px solid ' + BORDER : 'none' }}>
-              <div>
-                <div style={{ fontSize: 12, color: BLACK, fontWeight: 500 }}>{pref.label}</div>
-                <div style={{ fontSize: 10, color: GRAY, marginTop: 2 }}>{pref.desc}</div>
-              </div>
-              <button
-                onClick={() => togglePref(idx)}
-                aria-checked={pref.on}
-                role="switch"
-                aria-label={pref.label}
-                style={{ width: 36, height: 20, borderRadius: 10, background: pref.on ? 'rgba(229,78,27,0.15)' : PARCH, border: '1px solid ' + (pref.on ? 'rgba(229,78,27,0.4)' : BORDER), display: 'flex', alignItems: 'center', cursor: 'pointer', position: 'relative', flexShrink: 0, padding: 0 }}
-              >
-                <span style={{ width: 14, height: 14, borderRadius: '50%', background: pref.on ? ORANGE : GRAY, position: 'absolute', left: pref.on ? 18 : 2, transition: 'left 0.15s' }} />
-              </button>
-            </div>
-          ))}
-        </div>
-        <p style={{ fontSize: 10, color: GRAY, marginTop: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
-          <Info style={{ width: 11, height: 11, flexShrink: 0 }} />
-          Preferences are saved for this session. Persistent notification settings require a backend profile endpoint.
-        </p>
-      </Section>
-
-      {/* IAM */}
-      <Section icon={<Shield style={{ width: 14, height: 14, color: ORANGE }} />} title="Infrastructure Configuration">
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {[
-            ['ECS Task Role', import.meta.env.VITE_AWS_TASK_ROLE ?? 'Not configured'],
-            ['S3 Evidence Bucket', import.meta.env.VITE_S3_BUCKET ?? 'Not configured'],
-            ['SQS Queues', import.meta.env.VITE_SQS_QUEUES ?? 'Not configured'],
-            ['Secrets Manager', import.meta.env.VITE_SECRETS_PATH ?? 'Not configured'],
-            ['Region', import.meta.env.VITE_AWS_REGION ?? 'Not configured'],
-          ].map(([k, v]) => (
-            <div key={k} style={{ display: 'flex', gap: 12, fontSize: 11, fontFamily: 'JetBrains Mono, monospace' }}>
-              <span style={{ color: GRAY, width: 150, flexShrink: 0 }}>{k}</span>
-              <span style={{ color: v === 'Not configured' ? GRAY : BLACK, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontStyle: v === 'Not configured' ? 'italic' : 'normal' }}>{v}</span>
-            </div>
-          ))}
-        </div>
-        <p style={{ fontSize: 10, color: GRAY, marginTop: 10, display: 'flex', alignItems: 'center', gap: 4 }}>
-          <Info style={{ width: 11, height: 11, flexShrink: 0 }} />
-          Set VITE_AWS_TASK_ROLE, VITE_S3_BUCKET, VITE_SQS_QUEUES, VITE_SECRETS_PATH, VITE_AWS_REGION in your .env file.
-        </p>
-        </Section>
-
-      
-      {/* Team -- live from /api/v1/users */}
-      <TeamSection />
-
-      {/* Privacy & Data */}
-      <div
-        onClick={() => navigate('/privacy')}
-        style={{
-          background: CREAM,
-          border: `1px solid ${BORDER}`,
-          borderRadius: 4,
-          padding: '16px 20px',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 12,
-          cursor: 'pointer',
-          transition: 'border-color 0.15s',
-        }}
-        onMouseEnter={e => (e.currentTarget.style.borderColor = ORANGE)}
-        onMouseLeave={e => (e.currentTarget.style.borderColor = BORDER)}
-        role="link"
-        aria-label="Privacy and Data Handling"
-      >
-        <Lock style={{ width: 14, height: 14, color: ORANGE, flexShrink: 0 }} />
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 12, fontWeight: 500, color: BLACK }}>Privacy & Data Handling</div>
-          <div style={{ fontSize: 11, color: GRAY, marginTop: 2 }}>
-            How your data is stored, redacted, and deleted -- and for how long.
-          </div>
-        </div>
-        <ChevronRight style={{ width: 14, height: 14, color: GRAY }} />
-      </div>
+      <ProfileSection />
+      <DemoModeSection />
     </div>
   )
 }

@@ -7,11 +7,13 @@ All data is pulled from live DB state at request time.
 """
 from __future__ import annotations
 
+import uuid
+
 import io
 from datetime import datetime, timedelta, timezone
-from typing import Annotated
+from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,72 +32,77 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 
 # ── Shared data builder ───────────────────────────────────────────────────────
 
-async def _build_report_data(db: AsyncSession) -> dict:
+async def _build_report_data(db: AsyncSession, project_id=None, days: int = 7) -> dict:
     now = datetime.now(timezone.utc)
-    week_ago = now - timedelta(days=7)
+    week_ago = now - timedelta(days=days)
     open_statuses = [s.value for s in IncidentStatus if s != IncidentStatus.CLOSED]
 
-    # ── Incident counts ───────────────────────────────────────────────────────
-    total = (await db.execute(select(func.count(Incident.id)))).scalar_one()
+    def _pf(q):
+        if project_id is not None:
+            q = q.where(Incident.project_id == project_id)
+        return q
 
-    open_critical = (await db.execute(select(func.count(Incident.id)).where(
+    # ── Incident counts ───────────────────────────────────────────────────────
+    total = (await db.execute(_pf(select(func.count(Incident.id))))).scalar_one()
+
+    open_critical = (await db.execute(_pf(select(func.count(Incident.id)).where(
         Incident.severity == IncidentSeverity.CRITICAL.value,
         Incident.status.in_(open_statuses),
-    ))).scalar_one()
+    )))).scalar_one()
 
-    open_high = (await db.execute(select(func.count(Incident.id)).where(
+    open_high = (await db.execute(_pf(select(func.count(Incident.id)).where(
         Incident.severity == IncidentSeverity.HIGH.value,
         Incident.status.in_(open_statuses),
-    ))).scalar_one()
+    )))).scalar_one()
 
-    open_medium = (await db.execute(select(func.count(Incident.id)).where(
+    open_medium = (await db.execute(_pf(select(func.count(Incident.id)).where(
         Incident.severity == IncidentSeverity.MEDIUM.value,
         Incident.status.in_(open_statuses),
-    ))).scalar_one()
+    )))).scalar_one()
 
-    open_low = (await db.execute(select(func.count(Incident.id)).where(
+    open_low = (await db.execute(_pf(select(func.count(Incident.id)).where(
         Incident.severity == IncidentSeverity.LOW.value,
         Incident.status.in_(open_statuses),
-    ))).scalar_one()
+    )))).scalar_one()
 
-    new_this_week = (await db.execute(select(func.count(Incident.id)).where(
+    new_this_week = (await db.execute(_pf(select(func.count(Incident.id)).where(
         Incident.created_at >= week_ago,
-    ))).scalar_one()
+    )))).scalar_one()
 
-    closed_this_week = (await db.execute(select(func.count(Incident.id)).where(
+    closed_this_week = (await db.execute(_pf(select(func.count(Incident.id)).where(
         Incident.status == IncidentStatus.CLOSED.value,
         Incident.updated_at >= week_ago,
-    ))).scalar_one()
+    )))).scalar_one()
 
     # ── Top attack categories ─────────────────────────────────────────────────
     attack_rows = (await db.execute(
-        select(Incident.attack_category, func.count(Incident.id).label("cnt"))
+        _pf(select(Incident.attack_category, func.count(Incident.id).label("cnt"))
         .where(Incident.attack_category.isnot(None))
         .group_by(Incident.attack_category)
         .order_by(func.count(Incident.id).desc())
-        .limit(5)
+        .limit(5))
     )).all()
     top_attack_types = [{"category": r[0], "count": r[1]} for r in attack_rows]
 
     # ── Most targeted ports ───────────────────────────────────────────────────
     port_rows = (await db.execute(
-        select(Incident.destination_port, func.count(Incident.id).label("cnt"))
+        _pf(select(Incident.destination_port, func.count(Incident.id).label("cnt"))
         .where(Incident.destination_port.isnot(None))
         .group_by(Incident.destination_port)
         .order_by(func.count(Incident.id).desc())
-        .limit(5)
+        .limit(5))
     )).all()
     most_targeted_ports = [{"port": r[0], "count": r[1]} for r in port_rows]
 
     # ── Critical open incidents ───────────────────────────────────────────────
     crit_result = await db.execute(
-        select(Incident)
+        _pf(select(Incident)
         .where(
             Incident.severity == IncidentSeverity.CRITICAL.value,
             Incident.status.in_(open_statuses),
         )
         .order_by(Incident.created_at.desc())
-        .limit(5)
+        .limit(5))
     )
     critical_incidents = [
         {
@@ -108,13 +115,13 @@ async def _build_report_data(db: AsyncSession) -> dict:
 
     # ── Recently resolved incidents ───────────────────────────────────────────
     resolved_result = await db.execute(
-        select(Incident)
+        _pf(select(Incident)
         .where(
             Incident.status == IncidentStatus.CLOSED.value,
             Incident.updated_at >= week_ago,
         )
         .order_by(Incident.updated_at.desc())
-        .limit(5)
+        .limit(5))
     )
     resolved_incidents = [
         {
@@ -261,9 +268,11 @@ async def _build_report_data(db: AsyncSession) -> dict:
 async def weekly_report_json(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_permission(Permission.VIEW_DASHBOARD))],
+    project_id: Optional[uuid.UUID] = Query(None),
+    days: Annotated[int, Query(ge=1, le=365)] = 7,
 ):
     """Return the weekly security report as JSON (used for the preview UI)."""
-    return await _build_report_data(db)
+    return await _build_report_data(db, project_id=project_id, days=days)
 
 
 # ── PDF endpoint ──────────────────────────────────────────────────────────────
@@ -272,9 +281,11 @@ async def weekly_report_json(
 async def weekly_report_pdf(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_permission(Permission.VIEW_DASHBOARD))],
+    project_id: Optional[uuid.UUID] = Query(None),
+    days: Annotated[int, Query(ge=1, le=365)] = 7,
 ):
     """Generate and stream the weekly security report as a PDF file."""
-    data = await _build_report_data(db)
+    data = await _build_report_data(db, project_id=project_id, days=days)
     pdf_bytes = _generate_pdf(data)
     filename = f"lbro-security-report-{datetime.now().strftime('%Y-%m-%d')}.pdf"
     return StreamingResponse(
@@ -609,9 +620,10 @@ def _generate_pdf(data: dict) -> bytes:
 async def compliance_report_pdf(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_permission(Permission.VIEW_COMPLIANCE))],
+    project_id: Optional[uuid.UUID] = Query(None),
 ):
     """Generate and stream the compliance audit report as a PDF file."""
-    pdf_bytes = await _generate_compliance_pdf(db)
+    pdf_bytes = await _generate_compliance_pdf(db, project_id=project_id)
     filename = f"lbro-compliance-audit-{datetime.now().strftime('%Y-%m-%d')}.pdf"
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
@@ -623,7 +635,7 @@ async def compliance_report_pdf(
     )
 
 
-async def _generate_compliance_pdf(db: AsyncSession) -> bytes:
+async def _generate_compliance_pdf(db: AsyncSession, project_id=None) -> bytes:
     """Query compliance records and generate a PDF audit report."""
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle
@@ -637,12 +649,20 @@ async def _generate_compliance_pdf(db: AsyncSession) -> bytes:
     now = datetime.now(timezone.utc)
 
     # ── Pull records from DB ──────────────────────────────────────────────────
-    result = await db.execute(
-        select(ComplianceRecord).order_by(
+    if project_id is not None:
+        from sqlalchemy import join
+        compliance_q = (
+            select(ComplianceRecord)
+            .join(Incident, ComplianceRecord.incident_id == Incident.id)
+            .where(Incident.project_id == project_id)
+            .order_by(ComplianceRecord.regulation, ComplianceRecord.obligation)
+        )
+    else:
+        compliance_q = select(ComplianceRecord).order_by(
             ComplianceRecord.regulation,
             ComplianceRecord.obligation,
         )
-    )
+    result = await db.execute(compliance_q)
     records = result.scalars().all()
 
     total     = len(records)

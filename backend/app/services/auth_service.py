@@ -1,7 +1,6 @@
-"""Authentication service."""
 from __future__ import annotations
 
-import secrets
+import re
 import uuid
 from datetime import datetime, timezone
 
@@ -15,80 +14,118 @@ from app.core.security import (
     hash_password,
     verify_password,
 )
-from app.config import settings
 from app.models.user import User
-from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
-from app.core.exceptions import ConflictError, LBROException
-
-
-def _permissions_for(role: str) -> list:
-    """Return permission list for role, embedded in JWT. Empty list on unknown role."""
-    from app.core.rbac import Role as R, get_permissions_for_role
-    try:
-        return get_permissions_for_role(R(role))
-    except ValueError:
-        return []
+from app.schemas.auth import LoginRequest, ProfileUpdateRequest, RegisterRequest, TokenResponse
+from app.core.exceptions import ConflictError, LBROException, NotFoundError
 
 
 class AuthService:
-    def __init__(self, db: AsyncSession):
+    def __init__(self, db: AsyncSession) -> None:
         self.db = db
 
-    async def register(self, data: RegisterRequest) -> User:
+    async def register(self, data: RegisterRequest) -> TokenResponse:
+        from app.config import settings
+        if not settings.ALLOW_PUBLIC_REGISTRATION:
+            raise LBROException("Public registration is disabled.", 403)
+
         result = await self.db.execute(select(User).where(User.email == data.email))
         if result.scalar_one_or_none():
             raise ConflictError("Email already registered")
 
-        result = await self.db.execute(select(User).where(User.username == data.username))
-        if result.scalar_one_or_none():
-            raise ConflictError("Username already taken")
+        username = data.username
+        if not username:
+            local = data.email.split("@")[0]
+            base = re.sub(r"[^a-zA-Z0-9_]", "", local)[:20] or "user"
+            username = base
+            suffix = 0
+            while True:
+                candidate = username if suffix == 0 else f"{username}{suffix}"
+                r = await self.db.execute(select(User).where(User.username == candidate))
+                if not r.scalar_one_or_none():
+                    username = candidate
+                    break
+                suffix += 1
 
-        user = User(
+        new_user = User(
             email=data.email,
-            username=data.username,
+            username=username,
             full_name=data.full_name,
             hashed_password=hash_password(data.password),
             role="viewer",
             is_active=True,
-            is_verified=False,
+            is_verified=True,
         )
-        self.db.add(user)
+        self.db.add(new_user)
         await self.db.flush()
-        return user
+
+        try:
+            from app.services.project_service import ProjectService
+            from app.schemas.project import ProjectCreate
+            project_svc = ProjectService(self.db)
+            await project_svc.create(
+                ProjectCreate(
+                    name="My First Project",
+                    description="Your default project.",
+                    environment="production",
+                ),
+                owner_id=new_user.id,
+            )
+        except Exception:
+            pass
+
+        from app.core.rbac import Role as RbacRole, get_permissions_for_role
+        permissions = get_permissions_for_role(RbacRole(new_user.role))
+        access_token = create_access_token(str(new_user.id), extra={
+            "role": new_user.role,
+            "email": new_user.email,
+            "permissions": permissions,
+        })
+        refresh_token = create_refresh_token(str(new_user.id))
+
+        return TokenResponse(
+            access_token=access_token,
+            refresh_token=refresh_token,
+            token_type="bearer",
+            expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        )
 
     async def login(self, data: LoginRequest) -> TokenResponse:
+        from app.config import settings
         result = await self.db.execute(select(User).where(User.email == data.email))
         user = result.scalar_one_or_none()
 
-        # Lockout check BEFORE bcrypt (prevents timing side-channel)
         if user and user.locked_until and user.locked_until > datetime.now(timezone.utc):
             raise LBROException("Account temporarily locked. Try again later.", 403)
 
-        # Always run verify_password even for missing users (prevents timing leak)
-        _DUMMY_HASH = "$2b$12$KIXOg5OcV2I8k/fNEaGm8uLK7s1Q1xXzQ0tYOF9n5Q6k4F3v9KBSW"
-        pw_ok = verify_password(data.password, user.hashed_password if user else _DUMMY_HASH)
+        password_ok = verify_password(data.password, user.hashed_password) if user else False
 
-        if not user or not pw_ok:
+        if not user or not password_ok:
             if user:
-                from datetime import timedelta
                 user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
-                if user.failed_login_attempts >= 5:
-                    user.locked_until = datetime.now(timezone.utc) + timedelta(minutes=15)
+                if user.failed_login_attempts >= settings.MAX_LOGIN_ATTEMPTS:
+                    from datetime import timedelta
+                    user.locked_until = datetime.now(timezone.utc) + timedelta(
+                        minutes=settings.LOCKOUT_DURATION_MINUTES
+                    )
                 await self.db.flush()
-            raise LBROException("Invalid credentials", 401)
+            raise LBROException("Invalid email or password", 401)
 
         if not user.is_active:
-            raise LBROException("Account is inactive", 403)
+            raise LBROException("Account is deactivated", 403)
 
         user.failed_login_attempts = 0
+        user.locked_until = None
         user.last_login = datetime.now(timezone.utc)
         await self.db.flush()
 
-        access_token = create_access_token(
-            user.id,
-            {"role": user.role, "email": user.email, "permissions": _permissions_for(user.role)},
-        )
-        refresh_token = create_refresh_token(user.id)
+        from app.core.rbac import Role as RbacRole, get_permissions_for_role
+        permissions = get_permissions_for_role(RbacRole(user.role))
+        access_token = create_access_token(str(user.id), extra={
+            "role": user.role,
+            "email": user.email,
+            "permissions": permissions,
+        })
+        refresh_token = create_refresh_token(str(user.id))
 
         return TokenResponse(
             access_token=access_token,
@@ -98,34 +135,52 @@ class AuthService:
         )
 
     async def refresh(self, refresh_token: str) -> TokenResponse:
+        from app.config import settings
         try:
             payload = decode_token(refresh_token)
-            if payload.get("type") != "refresh":
-                raise ValueError("Not a refresh token")
-            user_id = uuid.UUID(payload["sub"])
-        except (ValueError, KeyError):
-            raise LBROException("Invalid refresh token", 401)
+        except Exception:
+            raise LBROException("Invalid or expired refresh token", 401)
 
-        result = await self.db.execute(select(User).where(User.id == user_id))
+        if payload.get("type") != "refresh":
+            raise LBROException("Token is not a refresh token", 401)
+
+        user_id = payload.get("sub")
+        if not user_id:
+            raise LBROException("Invalid refresh token payload", 401)
+
+        result = await self.db.execute(select(User).where(User.id == uuid.UUID(user_id)))
         user = result.scalar_one_or_none()
         if not user or not user.is_active:
-            raise LBROException("User not found or inactive", 401)
+            raise LBROException("User not found or deactivated", 401)
 
-        access_token = create_access_token(
-            user.id,
-            {"role": user.role, "email": user.email, "permissions": _permissions_for(user.role)},
-        )
-        new_refresh = create_refresh_token(user.id)
+        from app.core.rbac import Role as RbacRole, get_permissions_for_role
+        permissions = get_permissions_for_role(RbacRole(user.role))
+        new_access_token = create_access_token(str(user.id), extra={
+            "role": user.role,
+            "email": user.email,
+            "permissions": permissions,
+        })
 
         return TokenResponse(
-            access_token=access_token,
-            refresh_token=new_refresh,
+            access_token=new_access_token,
+            refresh_token=refresh_token,
             token_type="bearer",
             expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         )
 
-    async def rotate_api_key(self, user: User) -> str:
-        new_key = secrets.token_urlsafe(48)
-        user.api_key = new_key
+    async def update_profile(self, user: User, data: ProfileUpdateRequest) -> User:
+        if data.new_password:
+            if not data.current_password:
+                raise LBROException("Current password is required to set a new password", 400)
+            if not verify_password(data.current_password, user.hashed_password):
+                raise LBROException("Current password is incorrect", 400)
+            user.hashed_password = hash_password(data.new_password)
+        if data.full_name is not None:
+            user.full_name = data.full_name
+        if data.email is not None and data.email != user.email:
+            r = await self.db.execute(select(User).where(User.email == data.email))
+            if r.scalar_one_or_none():
+                raise ConflictError("Email already in use")
+            user.email = data.email
         await self.db.flush()
-        return new_key
+        return user

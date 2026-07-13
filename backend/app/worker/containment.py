@@ -14,7 +14,7 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.aws_clients import get_sqs
-from app.core.config import settings
+from app.config import settings
 from app.models.incident import (
     Incident,
     IncidentStatus,

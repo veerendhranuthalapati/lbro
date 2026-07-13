@@ -6,20 +6,15 @@ Populates PostgreSQL with realistic demonstration data suitable for
 portfolio review, interviews, and frontend integration testing.
 
 Seeded (idempotent — safe to re-run):
-  • 10 users  (1 admin, 4 analysts, 5 viewers)
-  • 100 incidents  (CICIDS2017 attack distribution, realistic IPs/ports/timestamps)
-  • 150 evidence records  (pcap, json, txt, zip, png, pdf) with chain-of-custody
-  •  50 regulatory notifications  (GDPR / HIPAA / DPDPA)
-  •  ~80 compliance records  (triggered by jurisdiction / data flags)
-  • 500 audit log entries
-
-Frontend pages covered by seeded data:
-  Dashboard · Incidents · Incident Detail · Evidence Vault · Notifications
-  Compliance · Compliance Audit PDF · Threat Intel · ML Insights · Security Score
-  Weekly Report · Audit Logs · Users · Settings
+  * 10 users  (1 admin, 4 analysts, 5 viewers)
+  * 100 incidents  (CICIDS2017 attack distribution, realistic IPs/ports/timestamps)
+  * 150 evidence records  (pcap, json, txt, zip, png, pdf) with chain-of-custody
+  *  50 regulatory notifications  (GDPR / HIPAA / DPDPA)
+  *  ~80 compliance records  (triggered by jurisdiction / data flags)
+  * 500 audit log entries
 
 Usage:
-  python scripts/seed_demo_data.py         # idempotent — skips existing data
+  python scripts/seed_demo_data.py         # idempotent -- skips existing data
   python scripts/seed_demo_data.py --wipe  # wipe demo data then re-seed
 
 Environment:
@@ -38,7 +33,7 @@ import sys
 import uuid
 from datetime import datetime, timedelta, timezone
 
-# ── Path setup ────────────────────────────────────────────────────────────────
+# -- Path setup ---------------------------------------------------------------
 _here = os.path.dirname(os.path.abspath(__file__))
 for _candidate in [os.path.join(_here, "..", "backend"), "/app"]:
     _candidate = os.path.normpath(_candidate)
@@ -67,27 +62,25 @@ from app.models.incident import Incident, IncidentAction
 from app.models.notification import Notification, NotificationRecipient
 from app.models.user import User
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # Data pools
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 DEMO_EMAIL_DOMAIN = "lbro.demo"
 
 DEMO_USERS = [
-    # (full_name, email, role, password)
-    ("Priya Sharma",      f"priya.sharma@lbro.demo",    "admin",   "Admin@Demo1!"),
-    ("James Okafor",      f"james.okafor@lbro.demo",    "analyst", "Analyst@Demo1!"),
-    ("Mei-Ling Chen",     f"mei.chen@lbro.demo",        "analyst", "Analyst@Demo2!"),
-    ("Rafael Torres",     f"rafael.torres@lbro.demo",   "analyst", "Analyst@Demo3!"),
-    ("Aisha Mohammed",    f"aisha.mohammed@lbro.demo",  "analyst", "Analyst@Demo4!"),
-    ("Dmitri Volkov",     f"dmitri.volkov@lbro.demo",   "viewer",  "Viewer@Demo1!"),
-    ("Yuki Tanaka",       f"yuki.tanaka@lbro.demo",     "viewer",  "Viewer@Demo2!"),
-    ("Fatima Al-Rashid",  f"fatima.alrashid@lbro.demo", "viewer",  "Viewer@Demo3!"),
-    ("Marcus Johnson",    f"marcus.johnson@lbro.demo",  "viewer",  "Viewer@Demo4!"),
-    ("Lena Mueller",      f"lena.muller@lbro.demo",     "viewer",  "Viewer@Demo5!"),
+    ("Priya Sharma",      "priya.sharma@lbro.demo",    "admin",   "Admin@Demo1!"),
+    ("James Okafor",      "james.okafor@lbro.demo",    "analyst", "Analyst@Demo1!"),
+    ("Mei-Ling Chen",     "mei.chen@lbro.demo",        "analyst", "Analyst@Demo2!"),
+    ("Rafael Torres",     "rafael.torres@lbro.demo",   "analyst", "Analyst@Demo3!"),
+    ("Aisha Mohammed",    "aisha.mohammed@lbro.demo",  "analyst", "Analyst@Demo4!"),
+    ("Dmitri Volkov",     "dmitri.volkov@lbro.demo",   "viewer",  "Viewer@Demo1!"),
+    ("Yuki Tanaka",       "yuki.tanaka@lbro.demo",     "viewer",  "Viewer@Demo2!"),
+    ("Fatima Al-Rashid",  "fatima.alrashid@lbro.demo", "viewer",  "Viewer@Demo3!"),
+    ("Marcus Johnson",    "marcus.johnson@lbro.demo",  "viewer",  "Viewer@Demo4!"),
+    ("Lena Mueller",      "lena.muller@lbro.demo",     "viewer",  "Viewer@Demo5!"),
 ]
 
-# CICIDS2017 attack categories — weighted to match realistic intrusion distributions
 ATTACK_WEIGHTS = [
     ("PortScan",                      22),
     ("DoS Hulk",                      18),
@@ -130,7 +123,6 @@ DEST_PORTS = [
 ]
 PROTOCOLS = ["TCP", "UDP", "ICMP"]
 
-# Jurisdictions that trigger compliance obligations
 JURISDICTION_POOL = [
     ["EU"], ["EU", "DE"], ["EU", "FR"], ["US"], ["IN"],
     ["US", "EU"], ["UK"], ["AU"], ["SG"], [],
@@ -150,12 +142,12 @@ INCIDENT_TITLE_TEMPLATES = {
     "DDoS": [
         "Distributed denial-of-service attack in progress",
         "Multi-source volumetric DDoS targeting port {port}",
-        "DDoS spike — {count}k req/s from {count2} source IPs",
+        "DDoS spike -- {count}k req/s from {count2} source IPs",
     ],
     "Web Attack - Brute Force": [
         "Credential brute-force on {endpoint}",
         "SSH brute-force attack from {ip}",
-        "Automated login attempts — {count}+ failed auth events",
+        "Automated login attempts -- {count}+ failed auth events",
     ],
     "Bot": [
         "Botnet C2 callback detected from {ip}",
@@ -172,12 +164,12 @@ INCIDENT_TITLE_TEMPLATES = {
     ],
     "SSH-Patator": [
         "SSH dictionary attack from {ip}",
-        "Patator tool — {count}+ SSH auth attempts",
+        "Patator tool -- {count}+ SSH auth attempts",
     ],
     "Web Attack - XSS": [
         "Cross-site scripting payload in request body",
         "Reflected XSS attempt on {endpoint}",
-        "Stored XSS injection vector — {endpoint}",
+        "Stored XSS injection vector -- {endpoint}",
     ],
     "DoS slowloris": [
         "Slowloris connection exhaustion on port {port}",
@@ -186,7 +178,7 @@ INCIDENT_TITLE_TEMPLATES = {
     "Web Attack - Sql Injection": [
         "SQL injection attempt on {endpoint} parameter",
         "Blind SQLi payload in POST body",
-        "SQL injection pattern detected — {endpoint}",
+        "SQL injection pattern detected -- {endpoint}",
     ],
     "DoS Slowhttptest": [
         "Slow HTTP test attack on {endpoint}",
@@ -209,7 +201,6 @@ ENDPOINTS = [
 ]
 
 AUDIT_ACTIONS = [
-    # (action, resource_type, http_status, weight)
     ("auth:login",            "users",         200, 12),
     ("auth:logout",           "users",         200,  8),
     ("incidents:create",      "incidents",     201, 15),
@@ -246,10 +237,10 @@ CUSTODY_ACTIONS = ["UPLOADED", "VERIFIED", "ACCESSED", "EXPORTED", "REVIEWED"]
 
 NOTIFICATION_AUTHORITIES = {
     "GDPR": [
-        ("Bundesbeauftragter fuer den Datenschutz (BfDI)", "poststelle@bfdi.bund.de",     "EU"),
-        ("Commission nationale de l'informatique (CNIL)",  "contact@cnil.fr",             "EU"),
-        ("Information Commissioner's Office (ICO)",        "casework@ico.org.uk",         "UK"),
-        ("Data Protection Commission (DPC)",               "info@dataprotection.ie",      "EU"),
+        ("Bundesbeauftragter fuer den Datenschutz (BfDI)", "poststelle@bfdi.bund.de", "EU"),
+        ("Commission nationale de l'informatique (CNIL)",  "contact@cnil.fr",         "EU"),
+        ("Information Commissioner's Office (ICO)",        "casework@ico.org.uk",     "UK"),
+        ("Data Protection Commission (DPC)",               "info@dataprotection.ie",  "EU"),
     ],
     "HIPAA": [
         ("HHS Office for Civil Rights", "OCRPrivacy@hhs.gov", "US"),
@@ -261,19 +252,19 @@ NOTIFICATION_AUTHORITIES = {
 
 COMPLIANCE_OBLIGATIONS = {
     "GDPR": [
-        ("Article 33 — 72-hour breach notification to supervisory authority",     72),
-        ("Article 34 — Communication of breach to affected data subjects",        168),
-        ("Article 32 — Implement appropriate technical & organisational measures", 720),
-        ("Article 35 — Data Protection Impact Assessment (DPIA)",                 336),
+        ("Article 33 -- 72-hour breach notification to supervisory authority",     72),
+        ("Article 34 -- Communication of breach to affected data subjects",        168),
+        ("Article 32 -- Implement appropriate technical & organisational measures", 720),
+        ("Article 35 -- Data Protection Impact Assessment (DPIA)",                 336),
     ],
     "HIPAA": [
-        ("Section 164.408 — Breach notification to HHS Secretary within 60 days", 1440),
-        ("Section 164.404 — Individual breach notification within 60 days",       1440),
-        ("Section 164.406 — Media notice for large breaches",                     1440),
+        ("Section 164.408 -- Breach notification to HHS Secretary within 60 days", 1440),
+        ("Section 164.404 -- Individual breach notification within 60 days",       1440),
+        ("Section 164.406 -- Media notice for large breaches",                     1440),
     ],
     "DPDPA": [
-        ("Section 8(6) — Report breach to Data Protection Board",                 168),
-        ("Section 8(7) — Notify affected Data Principals without delay",          336),
+        ("Section 8(6) -- Report breach to Data Protection Board",  168),
+        ("Section 8(7) -- Notify affected Data Principals without delay", 336),
     ],
 }
 
@@ -286,9 +277,9 @@ COMPLIANCE_NOTES = [
     "Regulatory filing complete; tracking ID issued by authority.",
 ]
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # Helpers
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 def _now() -> datetime:
     return datetime.now(timezone.utc)
@@ -304,7 +295,7 @@ def _random_ip(prefix: str) -> str:
 
 def _source_ip() -> str:
     prefixes, weights = zip(*[(p, w) for p, w in SOURCE_IP_PREFIXES])
-    return _random_ip(random.choices(prefixes, weights=weights)[0])  # type: ignore[arg-type]
+    return _random_ip(random.choices(prefixes, weights=list(weights))[0])
 
 
 def _dest_port() -> tuple[int, str]:
@@ -318,11 +309,6 @@ def _sha256(data: bytes) -> str:
 
 
 def _make_demo_file_data(content_type: str, filename: str) -> bytes:
-    """Generate small but realistic synthetic bytes for each evidence type.
-
-    Capped at ~2 KB so seeding stays fast while giving the download endpoint
-    real data to serve.
-    """
     uid = secrets.token_hex(4)
     ts  = datetime.now(timezone.utc).isoformat()
 
@@ -342,9 +328,9 @@ def _make_demo_file_data(content_type: str, filename: str) -> bytes:
 
     if content_type == "text/plain":
         lines = [
-            f"LBRO Forensic Report — {ts}",
+            f"LBRO Forensic Report -- {ts}",
             f"Evidence ID : {uid}",
-            f"Analyst     : auto-generated",
+            "Analyst     : auto-generated",
             "",
             "--- BEGIN LOG ---",
         ]
@@ -358,62 +344,27 @@ def _make_demo_file_data(content_type: str, filename: str) -> bytes:
         lines.append("--- END LOG ---")
         return "\n".join(lines).encode()
 
-    if content_type == "text/csv":
-        rows = ["timestamp,src_ip,dst_ip,proto,bytes,action"]
-        for _ in range(random.randint(5, 15)):
-            rows.append(
-                f"{ts},{random.randint(1,254)}.{random.randint(0,254)}.0.{random.randint(1,254)},"
-                f"10.0.0.{random.randint(1,50)},"
-                f"{random.choice(['TCP','UDP','ICMP'])},"
-                f"{random.randint(64,9000)},"
-                f"{random.choice(['ALLOW','DENY','ALERT'])}"
-            )
-        return "\n".join(rows).encode()
-
-    if content_type in ("application/xml", "text/xml"):
-        return (
-            f'<?xml version="1.0" encoding="UTF-8"?>\n'
-            f'<forensic-report id="{uid}" ts="{ts}">\n'
-            f'  <source>lbro-siem</source>\n'
-            f'  <severity>{random.choice(["LOW","MEDIUM","HIGH","CRITICAL"])}</severity>\n'
-            f'  <events count="{random.randint(1,10)}" />\n'
-            f'</forensic-report>\n'
-        ).encode()
-
-    if content_type == "application/vnd.tcpdump.pcap" or "pcap" in filename:
-        # Minimal valid libpcap global header (24 bytes) + one dummy packet (16 + 4 byte payload)
-        import struct
-        magic   = 0xA1B2C3D4          # big-endian magic
-        hdr     = struct.pack(">IHHiIII", magic, 2, 4, 0, 0, 65535, 1)  # LINKTYPE_ETHERNET
-        ts_sec  = int(datetime.now(timezone.utc).timestamp())
-        pkt_hdr = struct.pack(">IIII", ts_sec, 0, 4, 4)
-        payload = secrets.token_bytes(4)
-        return hdr + pkt_hdr + payload
-
     if content_type == "application/zip":
-        # Minimal valid ZIP (end-of-central-directory record only = empty archive)
         return (
-            b'PK\x05\x06'   # EOCD signature
-            + b'\x00' * 18  # all counts/offsets zero = empty archive
+            b'PK\x05\x06'
+            + b'\x00' * 18
         )
 
     if content_type == "image/png":
-        # Minimal valid 1×1 PNG (67 bytes)
         return bytes([
-            0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,  # PNG signature
-            0x00,0x00,0x00,0x0d,0x49,0x48,0x44,0x52,  # IHDR length + type
-            0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01,  # width=1, height=1
-            0x08,0x02,0x00,0x00,0x00,0x90,0x77,0x53,  # 8-bit RGB, CRC
-            0xde,0x00,0x00,0x00,0x0c,0x49,0x44,0x41,  # IDAT length + type
-            0x54,0x08,0xd7,0x63,0xf8,0xcf,0xc0,0x00,  # zlib-compressed 1 red pixel
-            0x00,0x00,0x02,0x00,0x01,0xe2,0x21,0xbc,  # CRC
-            0x33,0x00,0x00,0x00,0x00,0x49,0x45,0x4e,  # IEND length + type
-            0x44,0xae,0x42,0x60,0x82,                  # IEND CRC
+            0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,
+            0x00,0x00,0x00,0x0d,0x49,0x48,0x44,0x52,
+            0x00,0x00,0x00,0x01,0x00,0x00,0x00,0x01,
+            0x08,0x02,0x00,0x00,0x00,0x90,0x77,0x53,
+            0xde,0x00,0x00,0x00,0x0c,0x49,0x44,0x41,
+            0x54,0x08,0xd7,0x63,0xf8,0xcf,0xc0,0x00,
+            0x00,0x00,0x02,0x00,0x01,0xe2,0x21,0xbc,
+            0x33,0x00,0x00,0x00,0x00,0x49,0x45,0x4e,
+            0x44,0xae,0x42,0x60,0x82,
         ])
 
     if content_type == "application/pdf":
-        # Minimal valid single-page PDF
-        body = (
+        return (
             b"%PDF-1.4\n"
             b"1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n"
             b"2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
@@ -421,9 +372,16 @@ def _make_demo_file_data(content_type: str, filename: str) -> bytes:
             b"xref\n0 4\n0000000000 65535 f \n"
             b"trailer<</Size 4/Root 1 0 R>>\nstartxref\n9\n%%EOF\n"
         )
-        return body
 
-    # Fallback: random binary
+    if "pcap" in filename:
+        import struct
+        magic   = 0xA1B2C3D4
+        hdr     = struct.pack(">IHHiIII", magic, 2, 4, 0, 0, 65535, 1)
+        ts_sec  = int(datetime.now(timezone.utc).timestamp())
+        pkt_hdr = struct.pack(">IIII", ts_sec, 0, 4, 4)
+        payload = secrets.token_bytes(4)
+        return hdr + pkt_hdr + payload
+
     return secrets.token_bytes(512)
 
 
@@ -441,22 +399,17 @@ def _incident_title(category: str) -> str:
 
 
 def _spread(start_days: float, end_days: float) -> datetime:
-    """Random UTC timestamp between end_days ago and start_days ago."""
     span = (start_days - end_days) * 86400
     return _now() - timedelta(seconds=end_days * 86400 + random.random() * span)
 
 
 def _applicable_regulations(
-    jurisdictions: list[str],
+    jurisdictions: list,
     personal_data: bool,
     health_data: bool,
-) -> list[str]:
-    """
-    Mirrors ComplianceService.generate_obligations logic so seeded records
-    match exactly what the real service would create.
-    """
+) -> list:
     eu_jurs = {"EU", "DE", "FR", "AT", "BE", "DK", "ES", "FI", "IT", "NL", "PL", "SE"}
-    regs: list[str] = []
+    regs = []
     if personal_data or any(j in eu_jurs for j in jurisdictions) or "UK" in jurisdictions:
         regs.append("GDPR")
     if health_data or "US" in jurisdictions:
@@ -466,21 +419,17 @@ def _applicable_regulations(
     return regs or ["GDPR"]
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Wipe helper (shared with clear_demo_data.py)
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
+# Wipe helper
+# -----------------------------------------------------------------------------
 
 async def _wipe_demo_data(db: AsyncSession) -> int:
-    """
-    Delete all rows associated with demo users (email ends with @lbro.demo).
-    Deletes in correct FK dependency order. Returns the number of users removed.
-    """
     rows = (await db.execute(
         select(User.id, User.email).where(User.email.like("%@lbro.demo"))
     )).all()
 
     if not rows:
-        print("   No demo users found — nothing to wipe.")
+        print("   No demo users found -- nothing to wipe.")
         return 0
 
     user_ids = [r[0] for r in rows]
@@ -513,9 +462,9 @@ async def _wipe_demo_data(db: AsyncSession) -> int:
     return len(user_ids)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 # Main seeder
-# ─────────────────────────────────────────────────────────────────────────────
+# -----------------------------------------------------------------------------
 
 async def seed(wipe: bool = False) -> None:
     async with AsyncSessionLocal() as db:
@@ -523,15 +472,14 @@ async def seed(wipe: bool = False) -> None:
         print("  LBRO Demo Data Seeder")
         print("━" * 64)
 
-        # ── Optional wipe ─────────────────────────────────────────────
         if wipe:
             print("\nWiping existing demo data...")
             await _wipe_demo_data(db)
             print()
 
-        # ── 1. Users ──────────────────────────────────────────────────
+        # 1. Users
         print("[1/7] Creating 10 demo users...")
-        users: list[User] = []
+        users = []
         skipped = 0
         for full_name, email, role, password in DEMO_USERS:
             existing = (await db.execute(select(User).where(User.email == email))).scalar_one_or_none()
@@ -562,23 +510,21 @@ async def seed(wipe: bool = False) -> None:
         analysts   = [u for u in users if u.role in ("admin", "analyst")]
         admin_user = next(u for u in users if u.role == "admin")
 
-        # ── Idempotency check ─────────────────────────────────────────
         already_seeded = (await db.execute(
             select(Incident).where(Incident.created_by == admin_user.id).limit(1)
         )).scalar_one_or_none() is not None
 
         if already_seeded:
-            print("\n   Incidents already seeded — loading existing for summary.")
+            print("\n   Incidents already seeded -- loading existing for summary.")
             print("   Use --wipe to reset and re-seed from scratch.\n")
             incidents = list((await db.execute(select(Incident).limit(500))).scalars().all())
         else:
             incidents = []
 
-        # ── 2. Incidents ──────────────────────────────────────────────
+        # 2. Incidents
         print("[2/7] Creating 100 incidents...")
         if not already_seeded:
             for i in range(100):
-                # Weighted distribution: 60% last 30 days, 24% last 31-60, 16% last 61-90
                 if random.random() < 0.60:
                     detected = _spread(30, 0)
                 elif random.random() < 0.80:
@@ -643,11 +589,10 @@ async def seed(wipe: bool = False) -> None:
                 db.add(inc)
                 incidents.append(inc)
 
-                # Incident actions (1–3 per incident)
                 action_specs = [
-                    ("triage",      "Initial triage complete — attack vector confirmed via packet capture."),
+                    ("triage",      "Initial triage complete -- attack vector confirmed via packet capture."),
                     ("containment", "Source IP blocked at perimeter firewall; affected systems isolated."),
-                    ("analysis",    "Forensic analysis complete — no lateral movement; IOCs extracted."),
+                    ("analysis",    "Forensic analysis complete -- no lateral movement; IOCs extracted."),
                     ("escalation",  "Escalated to senior analyst; legal team notified per compliance policy."),
                     ("remediation", "Patch applied; system returned to service. 48h monitoring initiated."),
                 ]
@@ -665,7 +610,7 @@ async def seed(wipe: bool = False) -> None:
             await db.commit()
         print(f"   {len(incidents)} incidents ready")
 
-        # ── 3. Evidence ───────────────────────────────────────────────
+        # 3. Evidence
         print("[3/7] Creating 150 evidence records...")
         ev_count = 0
         if not already_seeded:
@@ -677,8 +622,6 @@ async def seed(wipe: bool = False) -> None:
                 analyst = random.choice(analysts)
                 ev_ts   = inc.detected_at + timedelta(minutes=random.randint(10, 480))
 
-                # Generate realistic synthetic file bytes so the download endpoint
-                # has real data to serve (capped at ~2 KB each for seeding speed).
                 file_bytes = _make_demo_file_data(ct, fname)
                 sha        = _sha256(file_bytes)
                 fsize      = len(file_bytes)
@@ -701,7 +644,6 @@ async def seed(wipe: bool = False) -> None:
                 )
                 db.add(ev)
 
-                # Chain of custody (1–3 steps)
                 coc_ts = ev_ts
                 for action in random.sample(CUSTODY_ACTIONS, k=random.randint(1, 3)):
                     coc_ts += timedelta(minutes=random.randint(5, 180))
@@ -724,7 +666,7 @@ async def seed(wipe: bool = False) -> None:
             await db.commit()
         print(f"   {ev_count or 'pre-existing'} evidence records with chain-of-custody")
 
-        # ── 4. Regulatory Notifications ───────────────────────────────
+        # 4. Regulatory Notifications
         print("[4/7] Creating ~50 regulatory notifications...")
         notif_count = 0
         if not already_seeded:
@@ -766,7 +708,7 @@ async def seed(wipe: bool = False) -> None:
                     body=(
                         f"We are writing to notify you of a personal data breach affecting individuals "
                         f"in your jurisdiction. Detected: {inc.detected_at.strftime('%Y-%m-%d %H:%M UTC')}. "
-                        f"Classification: {inc.severity.upper()} severity — {inc.attack_category}. "
+                        f"Classification: {inc.severity.upper()} severity -- {inc.attack_category}. "
                         f"Immediate containment measures applied. A full incident report will follow "
                         f"within the required regulatory timeline."
                     ),
@@ -792,11 +734,10 @@ async def seed(wipe: bool = False) -> None:
             await db.commit()
         print(f"   {notif_count or 'pre-existing'} regulatory notifications")
 
-        # ── 5. Compliance Records ─────────────────────────────────────
+        # 5. Compliance Records
         print("[5/7] Creating compliance records...")
         compliance_count = 0
         if not already_seeded:
-            # Filter incidents that trigger compliance (matches ComplianceService logic)
             regulated = [
                 i for i in incidents
                 if i.personal_data_involved
@@ -830,7 +771,7 @@ async def seed(wipe: bool = False) -> None:
                         db.add(ComplianceRecord(
                             incident_id=inc.id,
                             regulation=reg,
-                            jurisdiction=reg,   # free-text — use regulation label
+                            jurisdiction=reg,
                             obligation=obligation_text,
                             deadline=deadline,
                             is_met=is_met,
@@ -843,7 +784,7 @@ async def seed(wipe: bool = False) -> None:
             await db.commit()
         print(f"   {compliance_count or 'pre-existing'} compliance records")
 
-        # ── 6. Audit Logs ─────────────────────────────────────────────
+        # 6. Audit Logs
         print("[6/7] Creating 500 audit log entries...")
         audit_count = 0
         if not already_seeded:
@@ -878,7 +819,7 @@ async def seed(wipe: bool = False) -> None:
             await db.commit()
         print(f"   {audit_count or 'pre-existing'} audit log entries")
 
-        # -- 7. Summary ------------------------------------------------
+        # 7. Summary
         print("[7/7] Verifying totals...")
         totals = {
             "Users":              (await db.execute(text("SELECT COUNT(*) FROM users"))).scalar(),

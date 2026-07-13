@@ -4,12 +4,13 @@ from __future__ import annotations
 import uuid
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import NotFoundError
 from app.models.evidence import Evidence, ChainOfCustody
+from app.models.incident import Incident
 from app.models.user import User
 from app.services.s3_service import compute_sha256
 
@@ -60,12 +61,17 @@ class EvidenceService:
         await self.db.flush()
         return evidence
 
-    async def get(self, evidence_id: uuid.UUID, accessor: User, ip_address: Optional[str] = None) -> Evidence:
-        result = await self.db.execute(
+    async def get(self, evidence_id: uuid.UUID, accessor: User, ip_address: Optional[str] = None, project_id: Optional[uuid.UUID] = None) -> Evidence:
+        query = (
             select(Evidence)
             .where(Evidence.id == evidence_id)
             .options(selectinload(Evidence.custody_chain))
         )
+        if project_id is not None:
+            query = query.join(Incident, Evidence.incident_id == Incident.id).where(
+                Incident.project_id == project_id
+            )
+        result = await self.db.execute(query)
         evidence = result.scalar_one_or_none()
         if not evidence:
             raise NotFoundError("Evidence")
@@ -93,16 +99,22 @@ class EvidenceService:
         return result.scalars().all()
 
 
-    async def list_all(self, page: int = 1, page_size: int = 50) -> tuple[list[Evidence], int]:
+    async def list_all(self, page: int = 1, page_size: int = 50, project_id: Optional[uuid.UUID] = None) -> tuple[list[Evidence], int]:
         """Global evidence listing across all incidents — paginated."""
-        from sqlalchemy import func
         offset = (page - 1) * page_size
-        count_result = await self.db.execute(select(func.count(Evidence.id)))
+        base = select(Evidence).options(selectinload(Evidence.custody_chain))
+        count_base = select(func.count(Evidence.id))
+        if project_id is not None:
+            base = base.join(Incident, Evidence.incident_id == Incident.id).where(
+                Incident.project_id == project_id
+            )
+            count_base = count_base.join(Incident, Evidence.incident_id == Incident.id).where(
+                Incident.project_id == project_id
+            )
+        count_result = await self.db.execute(count_base)
         total: int = count_result.scalar_one() or 0
         result = await self.db.execute(
-            select(Evidence)
-            .options(selectinload(Evidence.custody_chain))
-            .order_by(Evidence.created_at.desc())
+            base.order_by(Evidence.created_at.desc())
             .offset(offset)
             .limit(page_size)
         )
@@ -128,11 +140,9 @@ class EvidenceService:
         ev = result.scalar_one_or_none()
         return ev.file_data if ev else None
 
-    async def delete(self, evidence_id: uuid.UUID, actor: User) -> None:
-        result = await self.db.execute(select(Evidence).where(Evidence.id == evidence_id))
-        evidence = result.scalar_one_or_none()
-        if not evidence:
-            raise NotFoundError("Evidence")
+    async def delete(self, evidence_id: uuid.UUID, actor: User, project_id: Optional[uuid.UUID] = None) -> None:
+        # reuse get() which already applies project scoping
+        evidence = await self.get(evidence_id, accessor=actor, project_id=project_id)
         if evidence.is_immutable:
             from app.core.exceptions import PermissionDeniedError
             raise PermissionDeniedError("Immutable evidence cannot be deleted")

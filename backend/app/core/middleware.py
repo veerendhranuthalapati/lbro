@@ -11,7 +11,7 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.types import ASGIApp
 
-from app.core.config import settings
+from app.config import settings
 
 log = structlog.get_logger(__name__)
 

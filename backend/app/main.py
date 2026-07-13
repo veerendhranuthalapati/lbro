@@ -19,29 +19,29 @@ from app.core.exceptions import (
 )
 from app.middleware.security_headers import SecurityHeadersMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
-from app.routers import auth, incidents, evidence, notifications, compliance, users, ml, dashboard, audit, infrastructure, security_score, reports
+from app.routers import (
+    auth, incidents, evidence, notifications, compliance,
+    users, ml, dashboard, audit, infrastructure,
+    security_score, reports, projects,
+)
+from app.routers import demo
+from app.routers import platform as platform_router
+from app.routers import events as events_router
 
-# ── Unified structlog logging ─────────────────────────────────────────────────
-# Single logging system — structlog wraps stdlib logging so third-party libraries
-# that use `logging.getLogger(...)` are also captured in the same format.
-# Previously main.py used logging.basicConfig while core/logging.py used structlog
-# against the dead core/config — two conflicting systems.
 _log_level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
 
-# Configure stdlib root logger first (third-party libs use it)
 logging.basicConfig(
     level=_log_level,
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 
-# Configure structlog to share the same output
 _shared_processors: list = [
-    structlog.contextvars.merge_contextvars,       # picks up request_id bound per-request
+    structlog.contextvars.merge_contextvars,
     structlog.stdlib.add_log_level,
     structlog.processors.TimeStamper(fmt="iso"),
 ]
 
-if settings.ENVIRONMENT == "development" or settings.DEBUG:
+if settings.ENVIRONMENT in ("development", "dev") or settings.DEBUG:
     structlog.configure(
         processors=_shared_processors + [structlog.dev.ConsoleRenderer()],
         wrapper_class=structlog.make_filtering_bound_logger(_log_level),
@@ -49,7 +49,6 @@ if settings.ENVIRONMENT == "development" or settings.DEBUG:
         cache_logger_on_first_use=True,
     )
 else:
-    # Production: machine-readable JSON lines (one JSON object per log entry)
     structlog.configure(
         processors=_shared_processors + [
             structlog.processors.dict_tracebacks,
@@ -66,8 +65,7 @@ logger = structlog.get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("startup", version=settings.APP_VERSION, env=settings.ENVIRONMENT)
-    # Ensure S3 buckets exist (skip in test environment — no real S3/LocalStack running)
-    if settings.ENVIRONMENT != "test" and (settings.AWS_ENDPOINT_URL or settings.AWS_ACCESS_KEY_ID):
+    if settings.ENVIRONMENT not in ("test",) and (settings.AWS_ENDPOINT_URL or settings.AWS_ACCESS_KEY_ID):
         try:
             from app.services.s3_service import s3_service
             s3_service.ensure_bucket(settings.S3_BUCKET_EVIDENCE)
@@ -88,17 +86,20 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# ── Middleware (order matters: outermost first) ────────────────────────────────
+# ── Middleware (outermost first) ──────────────────────────────────────────────
 app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RateLimitMiddleware)
-# Block requests with forged Host headers (prevents host-header injection / SSRF)
+
+# TrustedHostMiddleware — restrict Host header to known values
 if settings.ENVIRONMENT == "test":
-    # In test env (pytest + ASGI transport), Host header is "test" — allow wildcard
     _allowed_hosts = ["*"]
-elif settings.DEBUG:
-    _allowed_hosts = ["localhost", "127.0.0.1", "api", "lbro.local"]
+elif settings.ENVIRONMENT in ("development", "dev"):
+    # Local dev: browsers hit localhost; also allow container name "api"
+    _allowed_hosts = ["localhost", "127.0.0.1", "api", "lbro.local", "0.0.0.0"]
 else:
+    # Production: restrict to explicitly configured hostnames
     _allowed_hosts = ["lbro.local", "api"]
+
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=_allowed_hosts)
 app.add_middleware(
     CORSMiddleware,
@@ -121,12 +122,10 @@ app.add_middleware(
 app.add_exception_handler(LBROException, lbro_exception_handler)
 app.add_exception_handler(Exception, generic_exception_handler)
 
+
 # ── Request ID + timing middleware ────────────────────────────────────────────
 @app.middleware("http")
 async def request_context_middleware(request: Request, call_next):
-    # Use X-Request-ID from client if provided (allows end-to-end correlation),
-    # otherwise generate one.  Bind it to structlog context so every log line
-    # emitted during this request includes request_id automatically.
     request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
     structlog.contextvars.clear_contextvars()
     structlog.contextvars.bind_contextvars(request_id=request_id)
@@ -145,7 +144,7 @@ async def request_context_middleware(request: Request, call_next):
     return response
 
 
-# ── Routers ────────────────────────────────────────────────────────────────────
+# ── Routers ───────────────────────────────────────────────────────────────────
 app.include_router(auth.router,           prefix="/api/v1")
 app.include_router(incidents.router,      prefix="/api/v1")
 app.include_router(evidence.router,       prefix="/api/v1")
@@ -158,6 +157,10 @@ app.include_router(audit.router,          prefix="/api/v1")
 app.include_router(infrastructure.router, prefix="/api/v1")
 app.include_router(security_score.router, prefix="/api/v1")
 app.include_router(reports.router,        prefix="/api/v1")
+app.include_router(projects.router,       prefix="/api/v1")
+app.include_router(demo.router,           prefix="/api/v1")
+app.include_router(platform_router.router, prefix="/api/v1")
+app.include_router(events_router.router,   prefix="/api/v1")
 
 
 @app.get("/health", tags=["health"])

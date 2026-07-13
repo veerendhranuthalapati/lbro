@@ -5,10 +5,11 @@ Designed for developer-first audiences who need plain-English explanations.
 """
 from __future__ import annotations
 
+import uuid
 from datetime import datetime, timedelta, timezone
-from typing import Annotated
+from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -40,35 +41,44 @@ def _grade(score: int) -> tuple[str, str, str]:
 async def get_security_score(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_permission(Permission.VIEW_DASHBOARD))],
+    project_id: Optional[uuid.UUID] = Query(None, description="Scope score to a project"),
 ):
     """
     Calculate and return the current security posture score.
 
     Score is derived entirely from live database state — no hardcoded values.
+    When project_id is supplied, only incidents belonging to that project are used.
     """
     now = datetime.now(timezone.utc)
     last_24h = now - timedelta(hours=24)
     last_7d = now - timedelta(days=7)
 
+
+    # project filter helper
+    def _pf(q):
+        if project_id is not None:
+            q = q.where(Incident.project_id == project_id)
+        return q
+
     # ── Incident data ─────────────────────────────────────────────────────────
     open_statuses = [s.value for s in IncidentStatus if s != IncidentStatus.CLOSED]
 
     open_critical = (await db.execute(
-        select(func.count(Incident.id)).where(
+        _pf(select(func.count(Incident.id))).where(
             Incident.severity == IncidentSeverity.CRITICAL.value,
             Incident.status.in_(open_statuses),
         )
     )).scalar_one()
 
     open_high = (await db.execute(
-        select(func.count(Incident.id)).where(
+        _pf(select(func.count(Incident.id))).where(
             Incident.severity == IncidentSeverity.HIGH.value,
             Incident.status.in_(open_statuses),
         )
     )).scalar_one()
 
     open_medium_low = (await db.execute(
-        select(func.count(Incident.id)).where(
+        _pf(select(func.count(Incident.id))).where(
             Incident.severity.in_([IncidentSeverity.MEDIUM.value, IncidentSeverity.LOW.value]),
             Incident.status.in_(open_statuses),
         )

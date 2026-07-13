@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """
-Seed script — creates default admin user and sample incident for local dev.
+Seed script — creates default admin, analyst, and viewer users for local dev.
 
 Usage (local):  python scripts/seed.py           (from repo root)
 Usage (Docker): python /scripts/seed.py          (scripts/ mounted at /scripts, PYTHONPATH=/app)
+
+Idempotent — each user is checked individually before creation.
 """
 from __future__ import annotations
 
@@ -24,7 +26,6 @@ for _candidate in [
         break
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import AsyncSessionLocal
 from app.core.security import hash_password
@@ -33,46 +34,70 @@ from app.models.user import User
 
 async def seed():
     async with AsyncSessionLocal() as db:
-        # Check if admin already exists
+        new_keys: list[str] = []
+
+        # ── Admin ──────────────────────────────────────────────────────────────
         result = await db.execute(select(User).where(User.email == "admin@lbro.local"))
         if result.scalar_one_or_none():
             print("✓ Admin user already exists")
-            return
+        else:
+            admin_api_key = "lbro-admin-" + secrets.token_urlsafe(32)
+            db.add(User(
+                email="admin@lbro.local",
+                username="admin",
+                full_name="LBRO Administrator",
+                hashed_password=hash_password("Admin123!"),
+                role="admin",
+                is_active=True,
+                is_verified=True,
+                api_key=admin_api_key,
+            ))
+            new_keys.append("  admin@lbro.local   / Admin123!   (API key: " + admin_api_key + ")")
 
-        # Generate cryptographically random API keys — never use hardcoded values
-        admin_api_key = f"lbro-admin-{secrets.token_urlsafe(32)}"
-        analyst_api_key = f"lbro-analyst-{secrets.token_urlsafe(32)}"
+        # ── Analyst ────────────────────────────────────────────────────────────
+        result = await db.execute(select(User).where(User.email == "analyst@lbro.local"))
+        if result.scalar_one_or_none():
+            print("✓ Analyst user already exists")
+        else:
+            analyst_api_key = "lbro-analyst-" + secrets.token_urlsafe(32)
+            db.add(User(
+                email="analyst@lbro.local",
+                username="analyst",
+                full_name="SOC Analyst",
+                hashed_password=hash_password("Analyst123!"),
+                role="analyst",
+                is_active=True,
+                is_verified=True,
+                api_key=analyst_api_key,
+            ))
+            new_keys.append("  analyst@lbro.local / Analyst123! (API key: " + analyst_api_key + ")")
 
-        admin = User(
-            email="admin@lbro.local",
-            username="admin",
-            full_name="LBRO Administrator",
-            hashed_password=hash_password("Admin123!"),
-            role="admin",
-            is_active=True,
-            is_verified=True,
-            api_key=admin_api_key,
-        )
-        db.add(admin)
-
-        analyst = User(
-            email="analyst@lbro.local",
-            username="analyst",
-            full_name="SOC Analyst",
-            hashed_password=hash_password("Analyst123!"),
-            role="analyst",
-            is_active=True,
-            is_verified=True,
-            api_key=analyst_api_key,
-        )
-        db.add(analyst)
+        # ── Viewer ─────────────────────────────────────────────────────────────
+        result = await db.execute(select(User).where(User.email == "viewer@lbro.local"))
+        if result.scalar_one_or_none():
+            print("✓ Viewer user already exists")
+        else:
+            viewer_api_key = "lbro-viewer-" + secrets.token_urlsafe(32)
+            db.add(User(
+                email="viewer@lbro.local",
+                username="viewer",
+                full_name="Demo Viewer",
+                hashed_password=hash_password("ViewerPass1"),
+                role="viewer",
+                is_active=True,
+                is_verified=True,
+                api_key=viewer_api_key,
+            ))
+            new_keys.append("  viewer@lbro.local  / ViewerPass1 (API key: " + viewer_api_key + ")")
 
         await db.commit()
-        print("✓ Created users:")
-        print(f"  admin@lbro.local   / Admin123!   (API key: {admin_api_key})")
-        print(f"  analyst@lbro.local / Analyst123! (API key: {analyst_api_key})")
-        print()
-        print("⚠  Save these API keys — they will not be shown again.")
+
+        if new_keys:
+            print("✓ Created users:")
+            for line in new_keys:
+                print(line)
+            print()
+            print("⚠  Save these API keys — they will not be shown again.")
 
 
 if __name__ == "__main__":

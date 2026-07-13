@@ -1,16 +1,8 @@
-# Add this service to your existing docker/docker-compose.yml
-# under the `services:` key, alongside the backend services.
-
-  lbro-frontend:
-    build:
-      context: ../frontend
-      dockerfile: Dockerfile
-    ports:
-      - "5173:5173"
-    environment:
-      - VITE_API_URL=http://lbro-backend:8000
-    depends_on:
-      - lbro-backend
-    networks:
-      - lbro-network
-    restart: unless-stopped
+# ⚠️  DEPRECATED — DO NOT USE THIS FILE ⚠️
+#
+# This fragment references a non-existent service 'lbro-backend' and
+# exposes port 5173 which the production Nginx image does not serve.
+#
+# The frontend service is defined in the root docker-compose.yml (dev)
+# and docker-compose.prod.yml (production). Use those instead.
+services: {}

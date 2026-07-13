@@ -9,7 +9,7 @@ from typing import Any
 
 import boto3
 
-from app.core.config import settings
+from app.config import settings
 
 _sqs: Any = None
 _s3: Any = None

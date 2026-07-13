@@ -25,7 +25,7 @@ import structlog
 from sqlalchemy import select
 
 from app.core.aws_clients import get_sqs
-from app.core.config import settings
+from app.config import settings
 from app.core.database import AsyncSessionLocal, Base, engine
 from app.core.logging import configure_logging
 from app.models.incident import (

@@ -5,17 +5,20 @@
  * recent activity timeline, top threat, and recommended actions.
  * All data sourced from real backend APIs — no mock data.
  */
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ShieldCheck, AlertTriangle, ArrowRight,
-  Activity, Clock, Zap, Shield, ChevronRight,
+  Activity, Clock, Zap, Shield, ChevronRight, Sparkles, Loader2,
 } from 'lucide-react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useIncidents, useDashboardSummary, useSecurityScore } from '@/hooks/useApi'
 import { useAuthStore } from '@/store/authStore'
 import { SeverityBadge } from '@/components/ui/SeverityBadge'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { timeAgo, truncate } from '@/utils'
+import { demoApi } from '@/api/client'
+import { useProjectStore } from '@/store/projectStore'
 import type { IncidentSeverity, IncidentStatus } from '@/types'
 
 const ORANGE = '#e54e1b'
@@ -104,13 +107,59 @@ function InfoCard({ icon, label, value, sub, empty }: {
 }
 
 function EmptyTimeline() {
+  const qc = useQueryClient()
+  const currentProject = useProjectStore(s => s.currentProject)
+  const [done, setDone] = useState(false)
+  const [demoError, setDemoError] = useState<string | null>(null)
+  const mutation = useMutation({
+    mutationFn: () => demoApi.generate(currentProject?.id),
+    onSuccess: () => {
+      setDone(true)
+      setDemoError(null)
+      qc.invalidateQueries({ queryKey: ['incidents'] })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
+      qc.invalidateQueries({ queryKey: ['compliance'] })
+    },
+    onError: (err: any) => {
+      const detail = err?.response?.data?.detail
+      setDemoError(
+        typeof detail === 'string'
+          ? detail
+          : 'Demo generation failed — check backend connectivity.',
+      )
+    },
+  })
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '48px 24px', gap: 12 }}>
-      <Shield style={{ width: 32, height: 32, color: BORDER }} />
-      <div style={{ fontSize: 14, fontWeight: 500, color: BLACK }}>No recent security events</div>
-      <div style={{ fontSize: 12, color: GRAY, textAlign: 'center', maxWidth: 280, lineHeight: 1.6 }}>
-        No incidents have been detected in the last 24 hours. Your application looks clean.
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '48px 24px', gap: 14 }}>
+      <Shield style={{ width: 36, height: 36, color: BORDER }} />
+      <div style={{ fontSize: 14, fontWeight: 500, color: BLACK }}>No attacks detected yet</div>
+      <div style={{ fontSize: 12, color: GRAY, textAlign: 'center', maxWidth: 300, lineHeight: 1.7 }}>
+        Your application is connected and waiting for traffic. Once LBRO receives logs, you'll see incidents here.
       </div>
+      {done ? (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: GREEN }}>
+          <ShieldCheck style={{ width: 14, height: 14 }} /> Demo data generated — refreshing…
+        </div>
+      ) : (
+        <>
+          <button
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending}
+            style={{ display: 'flex', alignItems: 'center', gap: 7, padding: '9px 18px', background: 'rgba(229,78,27,0.08)', border: '1px solid rgba(229,78,27,0.3)', borderRadius: 5, color: ORANGE, fontSize: 12, fontWeight: 500, cursor: mutation.isPending ? 'not-allowed' : 'pointer', opacity: mutation.isPending ? 0.7 : 1 }}
+          >
+            {mutation.isPending
+              ? <><Loader2 style={{ width: 13, height: 13, animation: 'spin 1s linear infinite' }} /> Generating…</>
+              : <><Sparkles style={{ width: 13, height: 13 }} /> Generate Demo Data</>
+            }
+          </button>
+          {demoError && (
+            <div style={{ fontSize: 11, color: '#ef4444', textAlign: 'center', maxWidth: 320 }}>
+              {demoError}
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }
@@ -345,6 +394,7 @@ export default function DashboardPage() {
             </div>
           )}
         </div>
-      </div>    </div>
+      </div>
+    </div>
   )
 }

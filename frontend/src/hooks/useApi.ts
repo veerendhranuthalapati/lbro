@@ -17,9 +17,10 @@ import {
   dashboardApi, complianceApi, usersApi, mlApi, auditLogsApi,
   infrastructureApi, authApi, securityScoreApi, reportsApi,
 } from '@/api/client'
-import type { DashboardSummary } from '@/api/client'
+import type { DashboardSummary, ObligationCreate, ObligationUpdate } from '@/api/client'
 import { debounce } from '@/lib/rateLimiter'
 import { logger, auditAction } from '@/lib/logger'
+import { useProjectStore } from '@/store/projectStore'
 import {
   POLL_INCIDENTS_MS, POLL_NOTIFICATIONS_MS, POLL_HEALTH_MS,
   STALE_INCIDENTS_MS, STALE_EVIDENCE_MS, STALE_NOTIFICATIONS_MS, STALE_HEALTH_MS,
@@ -36,7 +37,7 @@ export const qk = {
     list:     (f: object) => ['incidents', 'list', f] as const,
     detail:   (id: string) => ['incidents', 'detail', id] as const,
     infinite: (f: object) => ['incidents', 'infinite', f] as const,
-    stats:    ['incidents', 'stats'] as const,
+    stats:    (pid?: string) => ['incidents', 'stats', pid] as const,
   },
   evidence: {
     all:        ['evidence'] as const,
@@ -48,8 +49,8 @@ export const qk = {
     list:       (p?: object) => ['notifications', 'list', p] as const,
     forIncident:(id: string) => ['notifications', 'incident', id] as const,
   },
-  dashboard:     ['dashboard', 'summary'] as const,
-  compliance:    ['compliance', 'dashboard'] as const,
+  dashboard:     (pid?: string) => ['dashboard', 'summary', pid] as const,
+  compliance:    (pid?: string) => ['compliance', 'dashboard', pid] as const,
   users:         (p?: object) => ['users', p] as const,
   ml: {
     stats:     ['ml', 'stats'] as const,
@@ -63,20 +64,23 @@ export const qk = {
     status:    ['infra', 'status'] as const,
     sqsHistory:['infra', 'sqs-history'] as const,
   },
-  securityScore: ['security-score'] as const,
+  securityScore: (pid?: string) => ['security-score', pid] as const,
+  weeklyReport:  (pid?: string) => ['reports', 'weekly', pid] as const,
 } as const
 
 // ---- Incident filters -------------------------------------------------------
 export interface IncidentFilters {
   status?: string; severity?: string; search?: string
-  page?: number; page_size?: number
+  page?: number; page_size?: number; project_id?: string
 }
 
 // ---- Incidents list (paginated) --------------------------------------------
 export function useIncidents(filters: IncidentFilters = {}) {
+  const pid = useProjectStore(s => s.currentProject?.id)
+  const merged = { ...filters, project_id: filters.project_id ?? pid }
   return useQuery({
-    queryKey: qk.incidents.list(filters),
-    queryFn:  () => incidentsApi.list(filters),
+    queryKey: qk.incidents.list(merged),
+    queryFn:  () => incidentsApi.list(merged),
     refetchInterval: POLL_INCIDENTS_MS,
     staleTime: STALE_INCIDENTS_MS,
     gcTime: 5 * 60_000,
@@ -86,10 +90,12 @@ export function useIncidents(filters: IncidentFilters = {}) {
 
 // ---- Infinite scroll -------------------------------------------------------
 export function useInfiniteIncidents(filters: Omit<IncidentFilters, 'page'> = {}) {
+  const pid = useProjectStore(s => s.currentProject?.id)
+  const merged = { ...filters, project_id: filters.project_id ?? pid }
   return useInfiniteQuery<PagedIncidentResponse>({
-    queryKey: qk.incidents.infinite(filters),
+    queryKey: qk.incidents.infinite(merged),
     queryFn:  ({ pageParam }) =>
-      incidentsApi.list({ ...filters, page: pageParam as number, page_size: DEFAULT_PAGE_SIZE }),
+      incidentsApi.list({ ...merged, page: pageParam as number, page_size: DEFAULT_PAGE_SIZE }),
     initialPageParam: 1,
     getNextPageParam: (last) =>
       last.page * last.page_size < last.total ? last.page + 1 : undefined,
@@ -112,9 +118,10 @@ export function useIncident(id: string) {
 
 // ---- Incident stats (GET /api/v1/incidents/stats) --------------------------
 export function useIncidentStats() {
+  const pid = useProjectStore(s => s.currentProject?.id)
   return useQuery({
-    queryKey: qk.incidents.stats,
-    queryFn:  () => incidentsApi.stats(),
+    queryKey: qk.incidents.stats(pid),
+    queryFn:  () => incidentsApi.stats(pid),
     staleTime: STALE_INCIDENTS_MS,
     refetchInterval: POLL_INCIDENTS_MS,
     retry: false,
@@ -128,7 +135,7 @@ export function useCreateIncident() {
     mutationFn: (payload: IncidentCreate) => incidentsApi.create(payload),
     onSuccess: (created) => {
       qc.invalidateQueries({ queryKey: qk.incidents.all })
-      qc.invalidateQueries({ queryKey: qk.dashboard })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
       auditAction('incidents:create', 'incident', created.id)
       logger.info('Incident created', { id: created.id, severity: created.severity })
     },
@@ -144,7 +151,7 @@ export function useUpdateIncident() {
     onSuccess: (updated, { id }) => {
       qc.invalidateQueries({ queryKey: qk.incidents.all })
       qc.setQueryData(qk.incidents.detail(id), updated)
-      qc.invalidateQueries({ queryKey: qk.dashboard })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
       auditAction('incidents:update', 'incident', id, { new_status: updated.status })
     },
     onError: (err, { id }) => logger.error('Failed to update incident', err, { id }),
@@ -169,7 +176,7 @@ export function useUploadEvidence() {
       evidenceApi.upload(incidentId, file, description),
     onSuccess: (_, { incidentId }) => {
       qc.invalidateQueries({ queryKey: qk.evidence.forIncident(incidentId) })
-      qc.invalidateQueries({ queryKey: qk.dashboard })
+      qc.invalidateQueries({ queryKey: ['dashboard'] })
     },
     onError: (err) => logger.error('Failed to upload evidence', err),
   })
@@ -219,9 +226,10 @@ export function useDispatchNotification() {
 
 // ---- Dashboard summary (GET /api/v1/dashboard/summary -- EXISTS) -----------
 export function useDashboardSummary() {
+  const pid = useProjectStore(s => s.currentProject?.id)
   return useQuery<DashboardSummary>({
-    queryKey: qk.dashboard,
-    queryFn:  () => dashboardApi.summary(),
+    queryKey: qk.dashboard(pid),
+    queryFn:  () => dashboardApi.summary(pid),
     refetchInterval: POLL_INCIDENTS_MS,
     staleTime: STALE_INCIDENTS_MS,
     retry: 1,
@@ -230,9 +238,10 @@ export function useDashboardSummary() {
 
 // ---- Compliance dashboard (GET /api/v1/compliance/dashboard -- EXISTS) -----
 export function useComplianceDashboard() {
+  const pid = useProjectStore(s => s.currentProject?.id)
   return useQuery({
-    queryKey: qk.compliance,
-    queryFn:  () => complianceApi.dashboard(),
+    queryKey: qk.compliance(pid),
+    queryFn:  () => complianceApi.dashboard(pid),
     staleTime: 60_000,
     refetchInterval: 120_000,
     retry: 1,
@@ -243,7 +252,63 @@ export function useMarkComplianceMet() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ id, notes }: { id: string; notes?: string }) => complianceApi.markMet(id, notes),
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.compliance }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['compliance'] }),
+  })
+}
+
+// ---- Project-scoped compliance obligation hooks (DB-backed) ----------------
+
+/**
+ * Fetch all saved obligation states for the current project.
+ * Returns an empty array when no project is selected so the page can render
+ * the obligation list in its default unchecked state.
+ */
+export function useComplianceObligations(framework?: string) {
+  const pid = useProjectStore(s => s.currentProject?.id)
+  return useQuery({
+    queryKey: ['compliance', 'obligations', pid, framework ?? null],
+    queryFn: () => pid
+      ? complianceApi.getObligations(pid, framework)
+      : Promise.resolve([]),
+    enabled: !!pid,
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+    retry: 1,
+  })
+}
+
+/**
+ * Upsert an obligation (create-or-update) for the current project.
+ * Used when toggling a checkbox that has not been saved to the DB yet.
+ */
+export function useUpsertObligation() {
+  const qc = useQueryClient()
+  const pid = useProjectStore(s => s.currentProject?.id)
+  return useMutation({
+    mutationFn: (data: ObligationCreate) => {
+      if (!pid) return Promise.reject(new Error('No project selected'))
+      return complianceApi.upsertObligation(pid, data)
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['compliance', 'obligations'] })
+    },
+    onError: (err) => logger.error('Failed to upsert obligation', err),
+  })
+}
+
+/**
+ * Patch an existing obligation by its server-assigned UUID.
+ * Used when toggling a checkbox that is already persisted in the DB.
+ */
+export function useUpdateObligation() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data: ObligationUpdate }) =>
+      complianceApi.updateObligationStatus(id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['compliance', 'obligations'] })
+    },
+    onError: (err) => logger.error('Failed to update obligation', err),
   })
 }
 
@@ -371,10 +436,11 @@ export function useDebouncedSearch(initialValue = '') {
 
 // ---- Security Score --------------------------------------------------------
 export function useSecurityScore() {
+  const pid = useProjectStore(s => s.currentProject?.id)
   return useQuery({
-    queryKey: qk.securityScore,
-    queryFn:  () => securityScoreApi.get(),
-    refetchInterval: 60_000,   // re-score every minute
+    queryKey: qk.securityScore(pid),
+    queryFn:  () => securityScoreApi.get(pid),
+    refetchInterval: 60_000,
     staleTime:       30_000,
     retry: 1,
   })
@@ -386,16 +452,17 @@ export function useIncidentExplanation(incidentId: string) {
     queryKey: ['incidents', 'explain', incidentId],
     queryFn:  () => incidentsApi.explain(incidentId),
     enabled:  !!incidentId,
-    staleTime: 5 * 60_000,   // explanations don't change — cache for 5 min
+    staleTime: 5 * 60_000,
     retry: 1,
   })
 }
 
 // ---- Weekly Report ---------------------------------------------------------
 export function useWeeklyReport() {
+  const pid = useProjectStore(s => s.currentProject?.id)
   return useQuery({
-    queryKey: ['reports', 'weekly'],
-    queryFn:   () => reportsApi.weekly(),
+    queryKey: qk.weeklyReport(pid),
+    queryFn:  () => reportsApi.weekly(pid),
     staleTime: 5 * 60_000,
     retry: 1,
   })

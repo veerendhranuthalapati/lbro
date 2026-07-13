@@ -14,6 +14,7 @@ from app.database import Base
 
 if TYPE_CHECKING:
     from app.models.user import User
+    from app.models.project import Project
 
 import enum
 
@@ -61,7 +62,6 @@ class Incident(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    # Human-readable reference for integrations (e.g. "INC-2024-0001")
     external_id: Mapped[str | None] = mapped_column(String(100), nullable=True, unique=True, index=True)
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -76,36 +76,37 @@ class Incident(Base):
     ml_model_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
     needs_analyst_review: Mapped[bool] = mapped_column(default=False, nullable=False)
 
-    # Network metadata
     source_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
     destination_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
     source_port: Mapped[int | None] = mapped_column(Integer, nullable=True)
     destination_port: Mapped[int | None] = mapped_column(Integer, nullable=True)
     protocol: Mapped[str | None] = mapped_column(String(20), nullable=True)
 
-    # Raw network features for ML
     network_features: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
-    # Containment
     containment_actions: Mapped[list | None] = mapped_column(JSON, nullable=True)
     containment_completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
 
-    # Jurisdictions for compliance
     affected_jurisdictions: Mapped[list | None] = mapped_column(JSON, nullable=True)
     personal_data_involved: Mapped[bool] = mapped_column(default=False, nullable=False)
     health_data_involved: Mapped[bool] = mapped_column(default=False, nullable=False)
 
-    # Assignment
-    assigned_to: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-    )
-    created_by: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    project_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
     )
 
-    # Timestamps
+    assigned_to: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    created_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+
     detected_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )
@@ -120,13 +121,16 @@ class Incident(Base):
         nullable=False,
     )
 
-    # Relationships
+    project: Mapped["Project | None"] = relationship("Project", back_populates="incidents")
     assigned_to_user: Mapped["User | None"] = relationship(
         "User", back_populates="incidents", foreign_keys=[assigned_to]
     )
     evidence: Mapped[list] = relationship("Evidence", back_populates="incident", cascade="all, delete-orphan")
     notifications: Mapped[list] = relationship("Notification", back_populates="incident")
-    actions: Mapped[list["IncidentAction"]] = relationship("IncidentAction", back_populates="incident", cascade="all, delete-orphan", lazy="selectin")
+    actions: Mapped[list["IncidentAction"]] = relationship(
+        "IncidentAction", back_populates="incident",
+        cascade="all, delete-orphan", lazy="selectin"
+    )
     compliance_records: Mapped[list] = relationship("ComplianceRecord", back_populates="incident")
 
     def __repr__(self) -> str:
@@ -149,7 +153,7 @@ class IncidentAction(Base):
     )
     automated: Mapped[bool] = mapped_column(default=False, nullable=False)
     result: Mapped[str | None] = mapped_column(Text, nullable=True)
-    action_metadata: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    action_metadata: Mapped[dict | None] = mapped_column("metadata", JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )

@@ -5,7 +5,6 @@ import logging
 import os
 import pickle
 
-
 import numpy as np
 
 from app.config import settings
@@ -17,9 +16,15 @@ logger = logging.getLogger(__name__)
 class AttackClassifier:
     """Loads a pre-trained sklearn pipeline and classifies network flows."""
 
+    # Minimum number of non-zero features required to run the model.
+    # GaussianNB collapses to PortScan (confidence=1.0) when the input vector
+    # is sparse; the heuristic is more accurate than the model below this threshold.
+    MIN_FEATURES_FOR_MODEL = 10
+
     def __init__(self):
         self._model = None
         self._scaler = None
+        self._version: str = ""
         self._loaded = False
 
     def _load(self) -> None:
@@ -31,9 +36,36 @@ class AttackClassifier:
                     self._model = pickle.load(f)
                 logger.info("ML model loaded from %s", settings.ML_MODEL_PATH)
             else:
-                logger.warning("ML model not found at %s — using heuristic fallback", settings.ML_MODEL_PATH)
+                logger.warning(
+                    "ML model not found at %s — using heuristic fallback",
+                    settings.ML_MODEL_PATH,
+                )
         except Exception as exc:
             logger.error("Failed to load ML model: %s", exc)
+
+        # Load scaler if available
+        try:
+            scaler_path = settings.ML_SCALER_PATH
+            if os.path.exists(scaler_path):
+                with open(scaler_path, "rb") as sf:
+                    self._scaler = pickle.load(sf)
+                logger.info("ML scaler loaded from %s", scaler_path)
+        except Exception as exc:
+            logger.warning("Failed to load scaler: %s", exc)
+
+        # Read version from registry if available
+        import json as _json
+        registry_path = os.path.join(os.path.dirname(settings.ML_MODEL_PATH), "registry.json")
+        if os.path.exists(registry_path):
+            try:
+                with open(registry_path) as rf:
+                    reg = _json.load(rf)
+                self._version = reg.get("active_version", settings.ML_MODEL_VERSION)
+            except Exception:
+                self._version = settings.ML_MODEL_VERSION
+        else:
+            self._version = settings.ML_MODEL_VERSION
+
         self._loaded = True
 
     def _features_to_vector(self, features: dict) -> np.ndarray:
@@ -58,13 +90,31 @@ class AttackClassifier:
             return self._predict_model(features)
         return self._heuristic_predict(features)
 
+    # Alias so callers using clf.classify() work without modification
+    classify = predict
+
     def _predict_model(self, features: dict) -> dict:
         vec = self._features_to_vector(features)
+
+        # Guard: GaussianNB collapses to PortScan (confidence=1.0) on sparse
+        # inputs. Any event without at least MIN_FEATURES_FOR_MODEL non-zero
+        # CICIDS2017 values must use the heuristic instead.
+        non_zero_count = int(np.count_nonzero(vec))
+        if non_zero_count < self.MIN_FEATURES_FOR_MODEL:
+            return self._heuristic_predict(features)
+
+        if self._scaler is not None:
+            try:
+                vec = self._scaler.transform(vec)
+            except Exception:
+                pass  # fall through with raw features if scaler fails
         try:
             probas = self._model.predict_proba(vec)[0]
             class_idx = int(np.argmax(probas))
             confidence = float(probas[class_idx])
-            attack_category = ATTACK_CLASSES[class_idx] if class_idx < len(ATTACK_CLASSES) else "Unknown"
+            attack_category = (
+                ATTACK_CLASSES[class_idx] if class_idx < len(ATTACK_CLASSES) else "Unknown"
+            )
             proba_map = {
                 ATTACK_CLASSES[i]: float(probas[i])
                 for i in range(min(len(ATTACK_CLASSES), len(probas)))
@@ -82,11 +132,11 @@ class AttackClassifier:
             "needs_review": confidence < settings.ML_CONFIDENCE_THRESHOLD,
             "probabilities": proba_map,
             "top_features": top_features,
-            "model_version": settings.ML_MODEL_VERSION,
+            "model_version": self._version,
         }
 
     def _heuristic_predict(self, features: dict) -> dict:
-        """Simple rule-based fallback when model is unavailable."""
+        """Simple rule-based fallback when model is unavailable or input is too sparse."""
         dst_port = features.get("destination_port", 0) or 0
         syn_flags = features.get("syn_flag_count", 0) or 0
         pkt_rate = features.get("flow_packets_per_sec", 0) or 0
@@ -134,3 +184,16 @@ class AttackClassifier:
 
 
 classifier = AttackClassifier()
+
+# LBROClassifier is the class; classifier is the singleton instance
+LBROClassifier = AttackClassifier
+
+
+def get_classifier() -> AttackClassifier:
+    """Return the singleton classifier instance.
+
+    Used by events.py and platform.py via:
+        from app.ml.classifier import get_classifier
+        clf = get_classifier()
+    """
+    return classifier

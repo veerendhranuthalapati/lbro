@@ -1,12 +1,26 @@
-"""Role-Based Access Control -- 3-role model (admin / analyst / viewer).
+"""Role-Based Access Control — two-level model.
+
+Level 1 – Platform roles  (apply to the LBRO deployment itself)
+  super_admin  — manages the entire platform; bypasses project restrictions
+
+Level 2 – Project roles  (apply within a single Project)
+  admin   > analyst > viewer
 
 Role hierarchy:
-  admin > analyst > viewer
+  super_admin (platform)
+      ↓
+  admin (project)
+      ↓
+  analyst (project)
+      ↓
+  viewer (project)
 
 Rules:
   - Permission checks are the single source of truth; never compare role strings.
-  - `ROLE_PERMISSIONS` is the only place where role->permission mapping lives.
-  - `has_permission()` / `has_any_permission()` are consumed by dependencies.py.
+  - ROLE_PERMISSIONS is the only place where role->permission mapping lives.
+  - Super Admin holds every permission AND every platform permission.
+  - has_permission() / has_any_permission() are consumed by dependencies.py.
+  - is_super_admin() is used for platform-level bypass; every bypass is audit-logged.
 """
 from __future__ import annotations
 
@@ -15,57 +29,68 @@ from typing import Set
 
 
 class Role(str, Enum):
+    # Platform level
+    SUPER_ADMIN = "super_admin"
+    # Project level
     ADMIN   = "admin"
     ANALYST = "analyst"
     VIEWER  = "viewer"
 
 
 class Permission(str, Enum):
-    # Incidents
+    # ── Incidents ──────────────────────────────────────────────────────────
     CREATE_INCIDENT = "incident:create"
     READ_INCIDENT   = "incident:read"
     UPDATE_INCIDENT = "incident:update"
     DELETE_INCIDENT = "incident:delete"
     ASSIGN_INCIDENT = "incident:assign"
 
-    # Evidence
+    # ── Evidence ───────────────────────────────────────────────────────────
     UPLOAD_EVIDENCE   = "evidence:upload"
     DOWNLOAD_EVIDENCE = "evidence:download"
     DELETE_EVIDENCE   = "evidence:delete"
 
-    # Reports
+    # ── Reports ────────────────────────────────────────────────────────────
     GENERATE_REPORT = "report:generate"
     VIEW_REPORT     = "report:view"
     APPROVE_REPORT  = "report:approve"
 
-    # Audit
+    # ── Audit ──────────────────────────────────────────────────────────────
     VIEW_AUDIT   = "audit:read"
     EXPORT_AUDIT = "audit:export"
 
-    # Users & Roles
+    # ── Users & Roles ──────────────────────────────────────────────────────
     MANAGE_USERS    = "user:manage"
     MANAGE_ROLES    = "role:manage"
     ROTATE_API_KEYS = "apikey:rotate"
 
-    # Infrastructure
+    # ── Infrastructure ─────────────────────────────────────────────────────
     VIEW_INFRASTRUCTURE = "infra:read"
 
-    # ML
+    # ── ML ────────────────────────────────────────────────────────────────
     VIEW_ML   = "ml:read"
     MANAGE_ML = "ml:manage"
 
-    # Notifications
+    # ── Notifications ──────────────────────────────────────────────────────
     READ_NOTIFICATION     = "notification:read"
     APPROVE_NOTIFICATION  = "notification:approve"
     DISPATCH_NOTIFICATION = "notification:dispatch"
 
-    # Compliance
+    # ── Compliance ─────────────────────────────────────────────────────────
     VIEW_COMPLIANCE   = "compliance:read"
     MANAGE_COMPLIANCE = "compliance:manage"
 
-    # System
+    # ── System ────────────────────────────────────────────────────────────
     SYSTEM_SETTINGS = "system:settings"
     VIEW_DASHBOARD  = "dashboard:read"
+
+    # ── Platform-level (SUPER_ADMIN only) ─────────────────────────────────
+    PLATFORM_VIEW_ALL       = "platform:view_all"    # read across all projects
+    PLATFORM_MANAGE_USERS   = "platform:manage_users"  # create/disable/delete any user
+    PLATFORM_MANAGE_PROJECTS = "platform:manage_projects"  # create/archive/delete any project
+    PLATFORM_VIEW_AUDIT     = "platform:view_audit"  # view audit logs across all projects
+    PLATFORM_SYSTEM_HEALTH  = "platform:system_health"  # Docker / API / ML health endpoints
+    PLATFORM_ASSIGN_ROLES   = "platform:assign_roles"  # assign project admins
 
 
 # ---------------------------------------------------------------------------
@@ -99,10 +124,22 @@ _ANALYST_PERMISSIONS: Set[Permission] = _VIEWER_PERMISSIONS | {
 }
 
 ROLE_PERMISSIONS: dict[Role, Set[Permission]] = {
-    Role.VIEWER:  _VIEWER_PERMISSIONS,
-    Role.ANALYST: _ANALYST_PERMISSIONS,
-    Role.ADMIN:   set(Permission),  # every permission
+    Role.VIEWER:      _VIEWER_PERMISSIONS,
+    Role.ANALYST:     _ANALYST_PERMISSIONS,
+    Role.ADMIN:       set(Permission),      # every permission (project scope)
+    Role.SUPER_ADMIN: set(Permission),      # every permission (platform + project)
 }
+
+
+def is_super_admin(role: str | Role) -> bool:
+    """Return True iff *role* is the platform-level SUPER_ADMIN.
+
+    Use this to gate platform-only routes.  Every call site must log the bypass.
+    """
+    try:
+        return Role(role) == Role.SUPER_ADMIN
+    except ValueError:
+        return False
 
 
 def has_permission(role: Role, permission: Permission) -> bool:

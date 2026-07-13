@@ -383,3 +383,57 @@ export interface AuditLogEntry {
 export const asISO = (s: string): ISODateString => s as unknown as ISODateString
 export const asUUID = (s: string): UUID => (s as unknown) as UUID
 export const asHash = (s: string): SHA256Hash => (s as unknown) as SHA256Hash
+
+// ---- Projects -----------------------------------------------------------------------------------------------------------------------------------
+
+export type ProjectEnvironment = 'development' | 'staging' | 'production'
+export type ProjectStatus = 'active' | 'archived'
+
+export interface Project {
+  readonly id: UUID
+  readonly name: string
+  readonly slug: string
+  readonly description: string | null
+  readonly environment: ProjectEnvironment
+  readonly status: ProjectStatus
+  readonly owner_id: UUID | null
+  readonly api_key: string
+  readonly created_at: ISODateString
+  readonly updated_at: ISODateString
+}
+
+export interface ProjectListResponse {
+  readonly items: Project[]
+  readonly total: number
+}
+
+export interface ProjectCreate {
+  name: string
+  description?: string
+  environment: ProjectEnvironment
+}
+
+export interface ProjectUpdate {
+  name?: string
+  description?: string
+  environment?: ProjectEnvironment
+  status?: ProjectStatus
+}
+
+export interface ProjectDashboard {
+  readonly project_id: UUID
+  readonly project_name: string
+  readonly environment: ProjectEnvironment
+  readonly status: ProjectStatus
+  readonly api_key: string
+  readonly security_score: number
+  readonly security_grade: string
+  readonly open_incidents: number
+  readonly critical_incidents: number
+  readonly evidence_count: number
+  readonly overdue_compliance: number
+  readonly last_activity: ISODateString | null
+  readonly most_common_attack: string | null
+  readonly most_targeted_port: number | null
+  readonly top_recommendations: Array<{ priority: string; title: string; link: string }>
+}

@@ -8,11 +8,12 @@ sqlalchemy==2.0.36
 asyncpg==0.30.0
 aiosqlite==0.20.0
 alembic==1.14.0
-psycopg2-binary==2.9.10
+# psycopg2-binary removed: app uses asyncpg exclusively (postgresql+asyncpg:// driver)
 
 # Auth / Security
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
+bcrypt==3.2.2          # passlib 1.7.4 detect_wrap_bug() passes >72-byte passwords to hashpw(); bcrypt 4.x raises ValueError on this, bcrypt 3.x silently truncates (expected behaviour)
 cryptography==43.0.3
 
 # Settings
@@ -39,10 +40,4 @@ reportlab==4.2.5
 # (smtplib is stdlib)
 
 # Observability
-structlog==24.4.0
-
-# Dev / test
-pytest==8.3.4
-pytest-asyncio==0.24.0
-pytest-cov==6.0.0
-factory-boy==3.3.1
+structlog==26.1.0

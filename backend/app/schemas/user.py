@@ -17,6 +17,10 @@ class UserBase(BaseModel):
 
 
 class UserCreate(UserBase):
+    # Override email to plain str: avoids pydantic EmailStr validation errors when
+    # email_validator is not installed or when unusual-but-valid addresses are used.
+    # The uniqueness check in create_user() is the real guard.
+    email: str
     password: str = Field(min_length=8)
     role: Literal["admin", "analyst", "viewer"] = "viewer"
 

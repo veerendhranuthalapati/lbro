@@ -1,9 +1,10 @@
 """
-DEPRECATED -- This file is a legacy duplicate.
-The live application uses app.config (backend/app/config.py).
-This file is only referenced by dead-code directories (app/worker/, app/api/, app/core/logging.py).
-Do not add new imports from this module.
-TODO: Delete once app/worker/ and app/api/ directories are cleaned up.
+app/core/config.py — compatibility shim.
+
+All files have been updated to import directly from app.config.
+This shim is retained in case any third-party or legacy code still
+imports from app.core.config.
 """
-# Re-export from the canonical config so any accidental imports still work.
-from app.config import settings, Settings, get_settings  # noqa: F401
+from app.config import Settings, get_settings, settings  # noqa: F401
+
+__all__ = ["settings", "Settings", "get_settings"]

@@ -44,6 +44,12 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
+    # ── Trusted hosts (TrustedHostMiddleware) ────────────────────────────────
+    # Comma-separated list of allowed Host header values.
+    # Must include your EC2 IP or domain in production.
+    # Example: ALLOWED_HOSTS=13.203.164.225,lbro.yourdomain.com
+    ALLOWED_HOSTS: str = "lbro.local,api"
+
     # ── Login lockout ─────────────────────────────────────────────────────────
     MAX_LOGIN_ATTEMPTS: int = 5          # consecutive failures before lockout
     LOCKOUT_DURATION_MINUTES: int = 15   # how long the account stays locked

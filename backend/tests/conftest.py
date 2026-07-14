@@ -8,6 +8,12 @@ Design:
 """
 from __future__ import annotations
 
+# tests/integration/test_incidents.py requires a real Postgres connection and
+# uses app.core.database (the production engine with pool args).  It must not
+# be collected when running against SQLite in CI — exclude it here so that
+# `pytest tests/` works without a --ignore flag on the command line.
+collect_ignore = ["integration/test_incidents.py"]
+
 import asyncio
 import os
 from typing import AsyncGenerator

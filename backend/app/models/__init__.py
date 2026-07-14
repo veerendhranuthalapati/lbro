@@ -6,6 +6,7 @@ from app.models.notification import Notification, NotificationRecipient
 from app.models.audit import AuditLog
 from app.models.compliance import ComplianceRecord, ComplianceObligation, ComplianceAssessment
 from app.models.revoked_token import RevokedToken
+from app.models.investigation_note import InvestigationNote
 
 __all__ = [
     "User",
@@ -21,4 +22,5 @@ __all__ = [
     "ComplianceObligation",
     "ComplianceAssessment",
     "RevokedToken",
+    "InvestigationNote",
 ]

@@ -132,6 +132,11 @@ class Incident(Base):
         cascade="all, delete-orphan", lazy="selectin"
     )
     compliance_records: Mapped[list] = relationship("ComplianceRecord", back_populates="incident")
+    notes: Mapped[list] = relationship(
+        "InvestigationNote", back_populates="incident",
+        cascade="all, delete-orphan", lazy="select",
+        order_by="InvestigationNote.created_at",
+    )
 
     def __repr__(self) -> str:
         return f"<Incident {self.id} [{self.severity}]>"

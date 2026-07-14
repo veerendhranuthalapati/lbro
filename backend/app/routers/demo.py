@@ -220,6 +220,7 @@ async def generate_demo_data(
             compliance_created += 1
 
     await db.flush()
+    await db.commit()
 
     return GenerateResponse(
         incidents_created=incidents_created,
@@ -319,6 +320,8 @@ async def generate_demo_events(
             pass
 
         injected += 1
+
+    await db.commit()
 
     return DemoEventsResponse(
         injected=injected,

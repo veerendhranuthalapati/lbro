@@ -119,7 +119,7 @@ class DemoEventsResponse(BaseModel):
 
 @router.post("/generate", response_model=GenerateResponse, status_code=status.HTTP_201_CREATED)
 async def generate_demo_data(
-    current_user: Annotated[User, Depends(get_current_active_user)],
+    current_user: Annotated[User, Depends(require_permission(Permission.CREATE_INCIDENT))],
     db: Annotated[AsyncSession, Depends(get_db)],
     body: GenerateRequest = None,
 ):

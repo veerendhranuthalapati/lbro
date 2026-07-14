@@ -583,8 +583,9 @@ async def platform_system_health(
     try:
         from app.ml.classifier import get_classifier
         clf = get_classifier()
-        ml_status = "loaded" if clf._model_loaded else "heuristic_fallback"
-        ml_model_version = getattr(clf, "_model_version", "unknown")
+        clf._load()  # trigger lazy initialisation if not yet done
+        ml_status = "loaded" if clf._model is not None else "heuristic_fallback"
+        ml_model_version = getattr(clf, "_version", "unknown")
     except Exception as e:
         ml_status = "error"
         ml_model_version = None

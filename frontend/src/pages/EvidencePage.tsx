@@ -86,7 +86,7 @@ export default function EvidencePage() {
         <StatCard label="Evidence files"     value={isLoading ? '...' : totalCount}        icon={Database}     accent="orange" />
         <StatCard label="Total size"        value={isLoading ? '...' : formatBytes(totalSize)} icon={Lock}     accent="purple" />
         <StatCard label="Custody steps"     value={isLoading ? '...' : custodySteps}      icon={CheckCircle}  accent="green"  sub="verified actions" />
-        <StatCard label="Integrity"         value={evidenceList.length > 0 ? '100%' : '--'} icon={CheckCircle} accent="green" sub="all hashes verified" />
+        <StatCard label="Integrity"         value={evidenceList.length > 0 ? '100%' : '--'} icon={CheckCircle} accent="green" sub="SHA-256 stored on upload" />
       </div>
 
       {/* Storage banner */}

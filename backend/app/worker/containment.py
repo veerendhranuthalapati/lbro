@@ -17,8 +17,8 @@ from app.core.aws_clients import get_sqs
 from app.config import settings
 from app.models.incident import (
     Incident,
+    IncidentAction,
     IncidentStatus,
-    IncidentTimelineEvent,
 )
 
 log = structlog.get_logger(__name__)
@@ -64,12 +64,12 @@ class ContainmentPipeline:
 
         if failed:
             incident.status = IncidentStatus.ESCALATED
-            self.session.add(IncidentTimelineEvent(
+            self.session.add(IncidentAction(
                 incident_id=incident.id,
-                event_type="containment.partial_failure",
-                actor="system:worker",
+                action_type="containment.partial_failure",
                 description=f"Containment completed with failures: {', '.join(failed)}",
-                event_metadata={"failed_actions": failed},
+                action_metadata={"failed_actions": failed},
+                automated=True,
             ))
             log.error(
                 "containment.partial_failure",
@@ -79,12 +79,12 @@ class ContainmentPipeline:
         else:
             incident.status = IncidentStatus.CONTAINED
             incident.contained_at = now
-            self.session.add(IncidentTimelineEvent(
+            self.session.add(IncidentAction(
                 incident_id=incident.id,
-                event_type="containment.completed",
-                actor="system:worker",
+                action_type="containment.completed",
                 description=f"All {len(actions)} containment actions completed successfully",
-                event_metadata={"actions": [a["name"] for a in actions]},
+                action_metadata={"actions": [a["name"] for a in actions]},
+                automated=True,
             ))
             log.info(
                 "containment.completed",
@@ -127,11 +127,11 @@ class ContainmentPipeline:
         name = action["name"]
         started = datetime.now(timezone.utc)
 
-        self.session.add(IncidentTimelineEvent(
+        self.session.add(IncidentAction(
             incident_id=incident.id,
-            event_type="containment.action.started",
-            actor="system:worker",
+            action_type="containment.action.started",
             description=f"Started: {name}",
+            automated=True,
         ))
 
         try:
@@ -139,22 +139,22 @@ class ContainmentPipeline:
             handler = getattr(self, f"_action_{name}", self._action_stub)
             await handler(incident)
 
-            self.session.add(IncidentTimelineEvent(
+            self.session.add(IncidentAction(
                 incident_id=incident.id,
-                event_type="containment.action.completed",
-                actor="system:worker",
+                action_type="containment.action.completed",
                 description=f"Completed: {name}",
-                event_metadata={"action": name, "started_at": started.isoformat()},
+                action_metadata={"action": name, "started_at": started.isoformat()},
+                automated=True,
             ))
             log.info("containment.action_ok", incident_id=str(incident.id), action=name)
 
         except Exception as e:
-            self.session.add(IncidentTimelineEvent(
+            self.session.add(IncidentAction(
                 incident_id=incident.id,
-                event_type="containment.action.failed",
-                actor="system:worker",
+                action_type="containment.action.failed",
                 description=f"Failed: {name} — {type(e).__name__}",
-                event_metadata={"action": name, "error": str(e)},
+                action_metadata={"action": name, "error": str(e)},
+                automated=True,
             ))
             log.error(
                 "containment.action_failed",

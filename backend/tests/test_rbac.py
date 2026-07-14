@@ -458,7 +458,7 @@ class TestLegacyRoleHandling:
             username="legacy_rbac",
             full_name="Legacy Role",
             hashed_password=hash_password("Legacy123!"),
-            role="super_admin",   # dead legacy role
+            role="old_security_analyst",   # dead legacy role (never valid in LBRO v2)
             is_active=True,
             is_verified=True,
         )

@@ -15,6 +15,7 @@ x-common-env: &common-env
   SQS_INCIDENT_QUEUE_URL: http://localstack:4566/000000000000/lbro-incidents
   SQS_NOTIFICATION_QUEUE_URL: http://localstack:4566/000000000000/lbro-notifications
   SQS_DLQ_URL: http://localstack:4566/000000000000/lbro-dlq
+  # WARNING: Override SECRET_KEY in production — set SECRET_KEY env var to the output of: python -c "import secrets; print(secrets.token_urlsafe(32))"
   SECRET_KEY: "${SECRET_KEY:-change-me-generate-with-secrets-token-urlsafe-32}"
   ENVIRONMENT: ${ENVIRONMENT:-development}
   DEBUG: ${DEBUG:-false}

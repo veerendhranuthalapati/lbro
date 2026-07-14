@@ -31,7 +31,7 @@ from app.core.logging import configure_logging
 from app.models.incident import (
     Incident,
     IncidentStatus,
-    IncidentTimelineEvent,
+    IncidentAction,
 )
 from app.worker.containment import ContainmentPipeline
 from app.worker.metrics import WorkerMetrics
@@ -229,11 +229,11 @@ class Worker:
             # Mark as containing
             incident.status = IncidentStatus.CONTAINING
             session.add(
-                IncidentTimelineEvent(
+                IncidentAction(
                     incident_id=incident.id,
-                    event_type="containment.started",
-                    actor="system:worker",
+                    action_type="containment.started",
                     description="Worker began containment pipeline",
+                    automated=True,
                 )
             )
             await session.commit()

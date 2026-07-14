@@ -116,7 +116,7 @@ async def ml_stats(
             version=m.get("version", "0.0.0"),
             trained_at=m.get("registered_at") or m.get("trained_at") or datetime.now(timezone.utc).isoformat(),
             accuracy=float(metrics.get("accuracy", m.get("accuracy", 0.0))),
-            f1_score=float(metrics.get("f1", m.get("f1_score", 0.0))),
+            f1_score=float(metrics.get("f1", metrics.get("f1_macro", m.get("f1_score", 0.0)))),
             is_active=is_active,
             feature_count=m.get("feature_count", 78),
             class_count=m.get("class_count", 15),

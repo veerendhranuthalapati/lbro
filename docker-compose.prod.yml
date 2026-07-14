@@ -18,7 +18,7 @@
 #   - No migrate/seed services — migrations run manually (see step 3 above)
 #   - Worker reuses the api image (single build, zero duplicate layers)
 #   - Frontend exposed on port 80; api is internal only
-#   - ALLOW_PUBLIC_REGISTRATION is explicitly false
+#   - ALLOW_PUBLIC_REGISTRATION defaults to true (set to false to lock down registration)
 # ─────────────────────────────────────────────────────────────────────────────
 
 x-common-env: &common-env
@@ -34,7 +34,7 @@ x-common-env: &common-env
   DEBUG: "false"
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
   CORS_ORIGINS: ${CORS_ORIGINS}
-  ALLOW_PUBLIC_REGISTRATION: "false"
+  ALLOW_PUBLIC_REGISTRATION: "${ALLOW_PUBLIC_REGISTRATION:-true}"
 
 services:
 

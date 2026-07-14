@@ -467,3 +467,81 @@ export function useWeeklyReport() {
     retry: 1,
   })
 }
+
+// ---- Investigation workspace hooks ------------------------------------------
+
+import { investigationApi } from '@/api/client'
+import type { InvestigationNote } from '@/api/client'
+
+export function useIncidentTimeline(incidentId: string) {
+  return useQuery({
+    queryKey: ['incidents', 'timeline', incidentId],
+    queryFn:  () => investigationApi.timeline(incidentId),
+    enabled:  !!incidentId,
+    staleTime: 2 * 60_000,
+    retry: 1,
+  })
+}
+
+export function useRelatedIncidents(incidentId: string) {
+  return useQuery({
+    queryKey: ['incidents', 'related', incidentId],
+    queryFn:  () => investigationApi.related(incidentId),
+    enabled:  !!incidentId,
+    staleTime: 2 * 60_000,
+    retry: 1,
+  })
+}
+
+export function useIncidentIOC(incidentId: string) {
+  return useQuery({
+    queryKey: ['incidents', 'ioc', incidentId],
+    queryFn:  () => investigationApi.ioc(incidentId),
+    enabled:  !!incidentId,
+    staleTime: 5 * 60_000,
+    retry: 1,
+  })
+}
+
+export function useInvestigationNotes(incidentId: string) {
+  return useQuery({
+    queryKey: ['incidents', 'notes', incidentId],
+    queryFn:  () => investigationApi.listNotes(incidentId),
+    enabled:  !!incidentId,
+    staleTime: 30_000,
+    retry: 1,
+  })
+}
+
+export function useAddNote() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ incidentId, content }: { incidentId: string; content: string }) =>
+      investigationApi.addNote(incidentId, content),
+    onSuccess: (_, { incidentId }) => {
+      qc.invalidateQueries({ queryKey: ['incidents', 'notes', incidentId] })
+    },
+  })
+}
+
+export function useUpdateNote() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ incidentId, noteId, content }: { incidentId: string; noteId: string; content: string }) =>
+      investigationApi.updateNote(incidentId, noteId, content),
+    onSuccess: (_, { incidentId }) => {
+      qc.invalidateQueries({ queryKey: ['incidents', 'notes', incidentId] })
+    },
+  })
+}
+
+export function useDeleteNote() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ incidentId, noteId }: { incidentId: string; noteId: string }) =>
+      investigationApi.deleteNote(incidentId, noteId),
+    onSuccess: (_, { incidentId }) => {
+      qc.invalidateQueries({ queryKey: ['incidents', 'notes', incidentId] })
+    },
+  })
+}

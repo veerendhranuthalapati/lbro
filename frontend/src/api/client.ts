@@ -652,3 +652,80 @@ export const demoApi = {
   injectEvents: (project_id: string, count = 5): Promise<DemoEventsResponse> =>
     apiClient.post<DemoEventsResponse>('/api/v1/demo/events', { project_id, count }).then(r => r.data),
 }
+
+
+// ---- Investigation Workspace types ------------------------------------------
+
+export interface TimelineEvent {
+  event_type: string
+  actor: string
+  description: string
+  occurred_at: string
+  color: string
+  icon: string
+}
+
+export interface InvestigationNote {
+  id: string
+  incident_id: string
+  author_id: string | null
+  author_email: string | null
+  author_name: string | null
+  content: string
+  created_at: string
+  updated_at: string
+}
+
+export interface RelatedIncident {
+  id: string
+  title: string
+  severity: string
+  status: string
+  attack_category: string | null
+  source_ip: string | null
+  destination_ip: string | null
+  detected_at: string
+  relations: string[]
+}
+
+export interface IncidentIOC {
+  incident_id: string
+  ips: { ip: string; role: string; type: string }[]
+  ports: { port: number; role: string; protocol: string }[]
+  hashes: { hash: string; type: string; filename: string }[]
+  protocols: string[]
+  attack_category: string | null
+  mitre_techniques: string[]
+  owasp_category: string | null
+  domains: string[]
+  urls: string[]
+  user_agents: string[]
+}
+
+// ---- Investigation workspace API methods ------------------------------------
+
+export const investigationApi = {
+  timeline: (incidentId: string): Promise<{ incident_id: string; events: TimelineEvent[] }> =>
+    apiClient.get(`/api/v1/incidents/${incidentId}/timeline`).then(r => r.data),
+
+  related: (incidentId: string): Promise<{ incident_id: string; related: RelatedIncident[] }> =>
+    apiClient.get(`/api/v1/incidents/${incidentId}/related`).then(r => r.data),
+
+  ioc: (incidentId: string): Promise<IncidentIOC> =>
+    apiClient.get(`/api/v1/incidents/${incidentId}/ioc`).then(r => r.data),
+
+  listNotes: (incidentId: string): Promise<{ incident_id: string; notes: InvestigationNote[] }> =>
+    apiClient.get(`/api/v1/incidents/${incidentId}/notes`).then(r => r.data),
+
+  addNote: (incidentId: string, content: string): Promise<InvestigationNote> =>
+    apiClient.post<InvestigationNote>(`/api/v1/incidents/${incidentId}/notes`, { content }).then(r => r.data),
+
+  updateNote: (incidentId: string, noteId: string, content: string): Promise<InvestigationNote> =>
+    apiClient.patch<InvestigationNote>(`/api/v1/incidents/${incidentId}/notes/${noteId}`, { content }).then(r => r.data),
+
+  deleteNote: (incidentId: string, noteId: string): Promise<void> =>
+    apiClient.delete(`/api/v1/incidents/${incidentId}/notes/${noteId}`).then(() => undefined),
+
+  reportUrl: (incidentId: string): string =>
+    `/api/v1/incidents/${incidentId}/report`,
+}

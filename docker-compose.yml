@@ -21,7 +21,7 @@ x-common-env: &common-env
   DEBUG: ${DEBUG:-false}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
   CORS_ORIGINS: '["http://localhost:5173","http://localhost:3000","http://localhost:80","http://frontend:80"]'
-  ALLOW_PUBLIC_REGISTRATION: "false"
+  ALLOW_PUBLIC_REGISTRATION: "${ALLOW_PUBLIC_REGISTRATION:-true}"
 
 services:
 

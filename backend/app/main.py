@@ -97,8 +97,11 @@ elif settings.ENVIRONMENT in ("development", "dev"):
     # Local dev: browsers hit localhost; also allow container name "api"
     _allowed_hosts = ["localhost", "127.0.0.1", "api", "lbro.local", "0.0.0.0"]
 else:
-    # Production: restrict to explicitly configured hostnames
-    _allowed_hosts = ["lbro.local", "api"]
+    # Production: read from ALLOWED_HOSTS env var (comma-separated)
+    # Always include "api" so internal health checks from Docker work
+    _allowed_hosts = [h.strip() for h in settings.ALLOWED_HOSTS.split(",") if h.strip()]
+    if "api" not in _allowed_hosts:
+        _allowed_hosts.append("api")
 
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=_allowed_hosts)
 app.add_middleware(

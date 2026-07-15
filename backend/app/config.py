@@ -148,4 +148,18 @@ class Settings(BaseSettings):
 
     # ── Registration control ──────────────────────────────────────────────────
     # Set to True only in controlled dev/staging environments.
-    # In production, all users shoul
+    # In production, all users should be created by an admin via POST /users.
+    ALLOW_PUBLIC_REGISTRATION: bool = True
+
+    # ── Logging ────────────────────────────────────────
+    LOG_LEVEL: str = "INFO"
+    LOG_FORMAT: str = "json"
+
+
+
+@lru_cache()
+def get_settings() -> Settings:
+    return Settings()
+
+
+settings = get_settings()

@@ -33,7 +33,7 @@ x-common-env: &common-env
   ENVIRONMENT: production
   DEBUG: "false"
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
-  CORS_ORIGINS: ${CORS_ORIGINS}
+  CORS_ORIGINS: ${CORS_ORIGINS:-http://13.203.164.225}
   ALLOW_PUBLIC_REGISTRATION: "${ALLOW_PUBLIC_REGISTRATION:-true}"
 
 services:
@@ -123,11 +123,3 @@ services:
       timeout: 5s
       retries: 5
     restart: unless-stopped
-
-volumes:
-  postgres_data:
-  ml_models:
-
-networks:
-  default:
-    name: lbro-prod-network

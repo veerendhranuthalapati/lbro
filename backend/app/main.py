@@ -106,7 +106,7 @@ else:
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=_allowed_hosts)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=[
@@ -163,9 +163,4 @@ app.include_router(reports.router,        prefix="/api/v1")
 app.include_router(projects.router,       prefix="/api/v1")
 app.include_router(demo.router,           prefix="/api/v1")
 app.include_router(platform_router.router, prefix="/api/v1")
-app.include_router(events_router.router,   prefix="/api/v1")
-
-
-@app.get("/health", tags=["health"])
-async def health_check():
-    return {"status": "ok", "version": settings.APP_VERSION, "env": settings.ENVIRONMENT}
+app.include_rout

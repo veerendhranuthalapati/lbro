@@ -112,29 +112,27 @@ class Settings(BaseSettings):
     ML_MODEL_VERSION: str = "1.0.0"
 
     # ── CORS ─────────────────────────────────────────────────────────────────
-    CORS_ORIGINS: List[str] = [
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://localhost:80",
-        "http://frontend:80",
-    ]
+    # Stored as a plain string so pydantic-settings v2 does not attempt to
+    # JSON-parse it before our validator runs.  Accepts three formats:
+    #   • Comma-separated:  http://a.com,http://b.com
+    #   • JSON array:       ["http://a.com","http://b.com"]
+    #   • Single origin:    http://13.203.164.225
+    CORS_ORIGINS: str = (
+        "http://localhost:3000,http://localhost:5173,"
+        "http://localhost:80,http://frontend:80"
+    )
 
-    @field_validator("CORS_ORIGINS", mode="before")
-    @classmethod
-    def parse_cors(cls, v):
-        if isinstance(v, str):
-            v = v.strip()
-            # Handle JSON array format: ["http://a","http://b"]
-            if v.startswith("["):
-                import json
-                try:
-                    parsed = json.loads(v)
-                    return [o.strip() for o in parsed if o.strip()]
-                except json.JSONDecodeError:
-                    pass
-            # Plain comma-separated format
-            return [origin.strip() for origin in v.split(",") if origin.strip()]
-        return v
+    @property
+    def cors_origins_list(self) -> List[str]:
+        """Return CORS_ORIGINS as a parsed list."""
+        import json
+        v = self.CORS_ORIGINS.strip()
+        if v.startswith("["):
+            try:
+                return [o.strip() for o in json.loads(v) if str(o).strip()]
+            except json.JSONDecodeError:
+                pass
+        return [o.strip() for o in v.split(",") if o.strip()]
 
     # ── Email / Notifications ─────────────────────────────────────────────────
     SMTP_HOST: Optional[str] = None
@@ -150,18 +148,4 @@ class Settings(BaseSettings):
 
     # ── Registration control ──────────────────────────────────────────────────
     # Set to True only in controlled dev/staging environments.
-    # In production, all users should be created by an admin via POST /users.
-    ALLOW_PUBLIC_REGISTRATION: bool = False
-
-    # ── Logging ──────────────────────────────────────────────────────────────
-    LOG_LEVEL: str = "INFO"
-    LOG_FORMAT: str = "json"
-
-
-
-@lru_cache()
-def get_settings() -> Settings:
-    return Settings()
-
-
-settings = get_settings()
+    # In production, all users shoul

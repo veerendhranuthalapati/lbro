@@ -21,18 +21,18 @@ const PAGE_TITLES: Record<string, string> = {
 
 function getPageTitle(pathname: string): string {
   if (PAGE_TITLES[pathname]) return PAGE_TITLES[pathname]
-  if (pathname.startsWith('/incidents/')) return 'Incident Detail'
-  return 'LBRO'
+  if (pathname.startsWith("/incidents/")) return "Incident Detail"
+  return "LBRO"
 }
 
 function getUserInitials(name: string | undefined, email: string | undefined): string {
   if (name && name.trim()) {
-    const parts = name.trim().split(' ')
+    const parts = name.trim().split(" ")
     if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
     return parts[0].slice(0, 2).toUpperCase()
   }
   if (email) return email.slice(0, 2).toUpperCase()
-  return 'U'
+  return "U"
 }
 
 interface Props { alertCount?: number }
@@ -52,94 +52,94 @@ export function Navbar({ alertCount = 0 }: Props) {
     window.location.reload()
   }
 
+  const openSearch = () =>
+    window.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true, bubbles: true }))
+
   return (
     <header
       className="sticky top-0 z-20 flex items-center gap-4 px-6 h-14 border-b"
-      style={{ background: '#f9f5ef', borderColor: '#c8c2b8' }}
+      style={{ background: "#f9f5ef", borderColor: "#c8c2b8" }}
     >
       {/* Page title */}
       <div className="flex-1 flex items-baseline gap-3">
         <h1
           className="font-display text-2xl leading-none"
-          style={{ color: '#111111', letterSpacing: '0.04em' }}
+          style={{ color: "#111111", letterSpacing: "0.04em" }}
         >
           {title.toUpperCase()}
         </h1>
         <div
           className="text-[10px] font-mono flex items-center gap-1.5"
-          style={{ color: '#6b6560' }}
+          style={{ color: "#6b6560" }}
         >
           <span
             className="w-1.5 h-1.5 rounded-full animate-pulse"
-            style={{ background: '#4ade80' }}
+            style={{ background: "#4ade80" }}
             aria-hidden="true"
           />
           Live
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative hidden md:block">
-        <Search
-          className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5"
-          style={{ color: '#6b6560' }}
-          aria-hidden="true"
-        />
-        <input
-          placeholder="Search incidents..."
-          className="w-44 pl-8 pr-3 py-1.5 text-xs border"
-          style={{
-            background: '#f0ebe2',
-            borderColor: '#c8c2b8',
-            borderRadius: 4,
-            color: '#111111',
-            outline: 'none',
-          }}
-          onFocus={e => (e.target.style.borderColor = '#e54e1b')}
-          onBlur={e => (e.target.style.borderColor = '#c8c2b8')}
-          onKeyDown={e => {
-            if (e.key === 'Enter') {
-              const q = (e.target as HTMLInputElement).value.trim()
-              if (q) navigate(`/incidents?search=${encodeURIComponent(q)}`)
-            }
-          }}
-        />
-      </div>
+      {/* Global Search trigger */}
+      <button
+        className="hidden md:flex items-center gap-2 px-3 py-1.5 text-xs border"
+        style={{
+          background: "#f0ebe2",
+          borderColor: "#c8c2b8",
+          borderRadius: 4,
+          color: "#6b6560",
+          cursor: "pointer",
+          width: 176,
+        }}
+        onClick={openSearch}
+        aria-label="Open global search (Cmd+K)"
+      >
+        <Search className="w-3.5 h-3.5 flex-shrink-0" aria-hidden="true" />
+        <span style={{ flex: 1, textAlign: "left" }}>Search incidents</span>
+        <kbd style={{
+          fontSize: 9, background: "#e8e2d9", border: "1px solid #c8c2b8",
+          borderRadius: 3, padding: "1px 5px", fontFamily: "JetBrains Mono, monospace",
+          lineHeight: 1.6, letterSpacing: "0.04em",
+        }}>
+          ⌘K
+        </kbd>
+      </button>
 
       {/* Refresh */}
       <button
         onClick={handleRefresh}
         className="p-1.5 rounded transition-colors"
-        style={{ color: '#6b6560' }}
+        style={{ color: "#6b6560" }}
         aria-label="Refresh page"
       >
-        <RefreshCw className={cn('w-4 h-4', refreshing && 'animate-spin')} />
+        <RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />
       </button>
 
       {/* Alerts bell */}
       <button
-        onClick={() => navigate('/notifications')}
+        onClick={() => navigate("/notifications")}
         className="relative p-1.5 rounded transition-colors"
-        style={{ color: '#6b6560' }}
-        aria-label={`${alertCount} active alert${alertCount !== 1 ? 's' : ''}`}
+        style={{ color: "#6b6560" }}
+        aria-label={alertCount + " active alert" + (alertCount !== 1 ? "s" : "")}
       >
         <Bell className="w-4 h-4" aria-hidden="true" />
         {alertCount > 0 && (
           <span
             className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full text-[9px] font-bold text-white flex items-center justify-center"
-            style={{ background: '#e54e1b' }}
+            style={{ background: "#e54e1b" }}
           >
-            {alertCount > 9 ? '9+' : alertCount}
+            {alertCount > 9 ? "9+" : alertCount}
           </span>
         )}
       </button>
 
-      {/* Avatar — shows user's real initials */}
+      {/* Avatar */}
       <button
-        onClick={() => navigate('/settings')}
+        onClick={() => navigate("/settings")}
         className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white"
-        style={{ background: '#e54e1b' }}
-        title={user?.name ?? user?.email ?? 'Settings'}
+        style={{ background: "#e54e1b" }}
+        title={user?.name ?? user?.email ?? "Settings"}
         aria-label="Go to settings"
       >
         {initials}

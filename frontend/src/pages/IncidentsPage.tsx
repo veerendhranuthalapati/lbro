@@ -4,7 +4,7 @@ import { SeverityBadge } from '@/components/ui/SeverityBadge'
 import { StatusBadge } from '@/components/ui/StatusBadge'
 import { useIncidents } from '@/hooks/useApi'
 import { timeAgo } from '@/utils'
-import type { IncidentSeverity, IncidentStatus } from '@/types'
+import type { Incident, IncidentSeverity, IncidentStatus } from '@/types'
 
 const ORANGE = '#e54e1b'
 const BLACK  = '#111111'
@@ -19,6 +19,39 @@ const SEV_DOT: Record<string, string> = {
   medium:   '#6b6560',
   low:      '#4ade80',
   info:     '#3b82f6',
+}
+
+function exportToCSV(incidents: readonly Incident[]) {
+  const headers = [
+    'ID', 'Title', 'Severity', 'Status', 'Source IP', 'Destination IP',
+    'Attack Category', 'Confidence', 'Personal Data', 'Health Data',
+    'Regulations', 'Detected At',
+  ]
+  const escape = (v: string) => '"' + v.replace(/"/g, '""') + '"'
+  const rows = incidents.map(inc => [
+    inc.external_id ?? inc.id.slice(0, 8),
+    escape(inc.title),
+    inc.severity,
+    inc.status,
+    inc.source_ip ?? '',
+    inc.destination_ip ?? '',
+    inc.attack_category ?? '',
+    inc.confidence_score != null ? Math.round(inc.confidence_score * 100) + '%' : '',
+    inc.personal_data_involved ? 'Yes' : 'No',
+    inc.health_data_involved ? 'Yes' : 'No',
+    (inc.affected_jurisdictions ?? []).join(';'),
+    inc.detected_at,
+  ])
+  const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'lbro-incidents-' + new Date().toISOString().slice(0, 10) + '.csv'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }
 
 export default function IncidentsPage() {
@@ -36,7 +69,9 @@ export default function IncidentsPage() {
   const totalCount = data?.total ?? 0
 
   const severities: (IncidentSeverity | 'all')[] = ['all', 'critical', 'high', 'medium', 'low', 'info']
-  const statuses: (IncidentStatus | 'all')[] = ['all', 'new', 'triaging', 'contained', 'eradicating', 'recovering', 'closed', 'reopened']
+  const statuses: (IncidentStatus | 'all')[] = [
+    'all', 'new', 'triaging', 'contained', 'eradicating', 'recovering', 'closed', 'reopened',
+  ]
 
   const filterBtn = (active: boolean) => ({
     padding: '5px 12px',
@@ -44,7 +79,7 @@ export default function IncidentsPage() {
     textTransform: 'uppercase' as const,
     letterSpacing: '0.08em',
     fontWeight: 500,
-    border: `1px solid ${active ? ORANGE : BORDER}`,
+    border: '1px solid ' + (active ? ORANGE : BORDER),
     borderRadius: 2,
     background: active ? 'rgba(229,78,27,0.08)' : 'transparent',
     color: active ? ORANGE : GRAY,
@@ -62,30 +97,57 @@ export default function IncidentsPage() {
             All Incidents
           </h2>
           <p style={{ fontSize: 11, color: GRAY, marginTop: 4 }}>
-            {isLoading ? 'Loading…' : `${totalCount} incident${totalCount !== 1 ? 's' : ''} · automatically detected and classified`}
+            {isLoading ? 'Loading...' : totalCount + ' incident' + (totalCount !== 1 ? 's' : '') + ' · automatically detected and classified'}
           </p>
         </div>
-        <button
-          onClick={() => navigate('/incidents/new')}
-          style={{
-            padding: '9px 20px',
-            background: ORANGE,
-            color: '#fff',
-            border: 'none',
-            borderRadius: 2,
-            fontSize: 11,
-            fontWeight: 500,
-            textTransform: 'uppercase',
-            letterSpacing: '0.1em',
-            cursor: 'pointer',
-          }}
-        >
-          + New incident
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => exportToCSV(incidents)}
+            disabled={incidents.length === 0}
+            title="Export current results to CSV"
+            style={{
+              padding: '9px 16px',
+              background: 'transparent',
+              color: incidents.length === 0 ? BORDER : GRAY,
+              border: '1px solid ' + BORDER,
+              borderRadius: 2,
+              fontSize: 11,
+              fontWeight: 500,
+              textTransform: 'uppercase',
+              letterSpacing: '0.1em',
+              cursor: incidents.length === 0 ? 'not-allowed' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+              <path d="M6 1v7M3 6l3 3 3-3M1 10h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            Export CSV
+          </button>
+          <button
+            onClick={() => navigate('/incidents/new')}
+            style={{
+              padding: '9px 20px',
+              background: ORANGE,
+              color: '#fff',
+              border: 'none',
+              borderRadius: 2,
+              fontSize: 11,
+              fontWeight: 500,
+              textTransform: 'uppercase',
+              letterSpacing: '0.1em',
+              cursor: 'pointer',
+            }}
+          >
+            + New incident
+          </button>
+        </div>
       </div>
 
       {/* ---- Filters ---- */}
-      <div style={{ background: CREAM, border: `1px solid ${BORDER}`, borderRadius: 4, padding: '12px 16px', display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center' }}>
+      <div style={{ background: CREAM, border: '1px solid ' + BORDER, borderRadius: 4, padding: '12px 16px', display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center' }}>
         <span style={{ fontSize: 10, color: GRAY, textTransform: 'uppercase', letterSpacing: '0.1em', marginRight: 4 }}>Severity</span>
         <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
           {severities.map(s => (
@@ -107,18 +169,18 @@ export default function IncidentsPage() {
 
       {/* ---- Error state ---- */}
       {isError && (
-        <div style={{ background: 'rgba(229,78,27,0.06)', border: `1px solid rgba(229,78,27,0.3)`, borderLeft: `3px solid ${ORANGE}`, borderRadius: 4, padding: '12px 16px', fontSize: 12, color: BLACK }}>
+        <div style={{ background: 'rgba(229,78,27,0.06)', border: '1px solid rgba(229,78,27,0.3)', borderLeft: '3px solid ' + ORANGE, borderRadius: 4, padding: '12px 16px', fontSize: 12, color: BLACK }}>
           Unable to load incidents. Ensure the backend is running and you are signed in with the correct account.
         </div>
       )}
 
       {/* ---- Table ---- */}
-      <div style={{ background: CREAM, border: `1px solid ${BORDER}`, borderRadius: 4, overflow: 'hidden' }}>
+      <div style={{ background: CREAM, border: '1px solid ' + BORDER, borderRadius: 4, overflow: 'hidden' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: PARCH }}>
               {['#', 'Title', 'Severity', 'Status', 'Source IP', 'Regulations', 'Confidence', 'Age'].map(h => (
-                <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 10, color: GRAY, textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500, borderBottom: `1px solid ${BORDER}`, whiteSpace: 'nowrap' }}>
+                <th key={h} style={{ padding: '10px 14px', textAlign: 'left', fontSize: 10, color: GRAY, textTransform: 'uppercase', letterSpacing: '0.1em', fontWeight: 500, borderBottom: '1px solid ' + BORDER, whiteSpace: 'nowrap' }}>
                   {h}
                 </th>
               ))}
@@ -127,10 +189,10 @@ export default function IncidentsPage() {
           <tbody>
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
-                <tr key={i} style={{ borderBottom: `1px solid ${BORDER}` }}>
+                <tr key={i} style={{ borderBottom: '1px solid ' + BORDER }}>
                   {Array.from({ length: 8 }).map((_, j) => (
                     <td key={j} style={{ padding: '11px 14px' }}>
-                      <div style={{ height: 12, background: PARCH, borderRadius: 2, width: j === 1 ? '80%' : '60%', animation: 'pulse 1.5s ease-in-out infinite' }} />
+                      <div style={{ height: 12, background: PARCH, borderRadius: 2, width: j === 1 ? '80%' : '60%' }} />
                     </td>
                   ))}
                 </tr>
@@ -138,8 +200,8 @@ export default function IncidentsPage() {
             ) : incidents.map((inc, idx) => (
               <tr
                 key={inc.id}
-                onClick={() => navigate(`/incidents/${inc.id}`)}
-                style={{ cursor: 'pointer', transition: 'background 0.1s', borderBottom: `1px solid ${BORDER}` }}
+                onClick={() => navigate('/incidents/' + inc.id)}
+                style={{ cursor: 'pointer', transition: 'background 0.1s', borderBottom: '1px solid ' + BORDER }}
                 onMouseEnter={e => (e.currentTarget.style.background = PARCH)}
                 onMouseLeave={e => (e.currentTarget.style.background = '')}
               >
@@ -175,7 +237,7 @@ export default function IncidentsPage() {
                   {inc.affected_jurisdictions?.length ? (
                     <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
                       {inc.affected_jurisdictions.map(j => (
-                        <span key={j} style={{ fontSize: 9, padding: '1px 6px', border: `1px solid ${BORDER}`, borderRadius: 2, color: GRAY, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                        <span key={j} style={{ fontSize: 9, padding: '1px 6px', border: '1px solid ' + BORDER, borderRadius: 2, color: GRAY, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
                           {j}
                         </span>
                       ))}
@@ -185,7 +247,7 @@ export default function IncidentsPage() {
                   )}
                 </td>
                 <td style={{ padding: '11px 14px', fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: GRAY, whiteSpace: 'nowrap' }}>
-                  {inc.confidence_score != null ? `${Math.round(inc.confidence_score * 100)}%` : '--'}
+                  {inc.confidence_score != null ? Math.round(inc.confidence_score * 100) + '%' : '--'}
                 </td>
                 <td style={{ padding: '11px 14px', fontSize: 10, color: GRAY, whiteSpace: 'nowrap' }}>
                   {timeAgo(inc.detected_at)}

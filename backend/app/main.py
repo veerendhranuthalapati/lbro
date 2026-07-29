@@ -163,4 +163,9 @@ app.include_router(reports.router,        prefix="/api/v1")
 app.include_router(projects.router,       prefix="/api/v1")
 app.include_router(demo.router,           prefix="/api/v1")
 app.include_router(platform_router.router, prefix="/api/v1")
-app.include_rout
+app.include_router(events_router.router,   prefix="/api/v1")
+
+
+@app.get("/health", tags=["health"])
+async def health_check():
+    return {"status": "ok", "version": settings.APP_VERSION, "env": settings.ENVIRONMENT}

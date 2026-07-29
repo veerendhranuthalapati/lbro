@@ -12,7 +12,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.rbac import Permission, Role
+from app.core.rbac import Permission, Role, is_super_admin
 from app.database import get_db
 from app.dependencies import require_permission
 from app.models.user import User
@@ -28,8 +28,12 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 
 
 def _assert_owner_or_admin(project_owner_id, current_user: User) -> None:
-    """Raise 403 if the user is not the owner and not an admin."""
-    if current_user.role != Role.ADMIN and project_owner_id != current_user.id:
+    """Raise 403 if the user is not the owner, not an admin, and not a super_admin."""
+    if (
+        current_user.role != Role.ADMIN
+        and not is_super_admin(current_user.role)
+        and project_owner_id != current_user.id
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the project owner or an admin can perform this action.",
@@ -44,9 +48,10 @@ async def list_projects(
     current_user: Annotated[User, Depends(require_permission(Permission.VIEW_DASHBOARD))],
     include_archived: bool = False,
 ):
-    """Return projects owned by the current user (admin sees all)."""
+    """Return projects owned by the current user (admin/super_admin sees all)."""
     svc = ProjectService(db)
-    owner_filter = None if current_user.role == Role.ADMIN else current_user.id
+    is_privileged = current_user.role == Role.ADMIN or is_super_admin(current_user.role)
+    owner_filter = None if is_privileged else current_user.id
     items, total = await svc.list_for_user(
         owner_id=owner_filter, include_archived=include_archived
     )

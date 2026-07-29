@@ -1,4 +1,5 @@
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import {
   LayoutDashboard, ShieldAlert, FileText, Lock,
   Cloud, Settings, LogOut, Brain, Bell, Users,
@@ -44,11 +45,13 @@ export function Sidebar() {
   const navigate = useNavigate()
   const location = useLocation()
   const currentProject = useProjectStore(s => s.currentProject)
+  const queryClient = useQueryClient()
 
   const handleLogout = () => {
     auditAction('auth:logout', 'session', 'current')
     logger.info('User logged out')
     logout()
+    queryClient.clear()
     navigate('/login', { replace: true })
   }
 

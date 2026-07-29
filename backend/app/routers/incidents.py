@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select, or_, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.rbac import Permission
+from app.core.rbac import Permission, Role, is_super_admin
 from app.database import get_db
 from app.dependencies import require_permission, get_current_active_user
 from app.models.user import User
@@ -35,6 +35,18 @@ router = APIRouter(prefix="/incidents", tags=["incidents"])
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _owner_id_for(user: User) -> Optional[uuid.UUID]:
+    """Return owner_id for project-scoping when the user is not privileged.
+
+    Admins and super_admins pass owner_id=None → they see all incidents.
+    All other roles receive their own user ID so the service scopes results
+    to incidents in their projects.
+    """
+    if user.role == Role.ADMIN.value or is_super_admin(user.role):
+        return None
+    return user.id
+
 
 async def _resolve_project_id(
     db: AsyncSession,
@@ -97,6 +109,7 @@ async def list_incidents(
         needs_review=needs_review,
         search=search,
         project_id=project_id,
+        owner_id=_owner_id_for(current_user),
     )
     return IncidentListResponse(items=items, total=total, page=page, page_size=page_size)
 
@@ -119,7 +132,7 @@ async def get_incident(
     project_id: Optional[uuid.UUID] = Query(None),
 ):
     svc = IncidentService(db)
-    return await svc.get(incident_id, project_id=project_id)
+    return await svc.get(incident_id, project_id=project_id, owner_id=_owner_id_for(current_user))
 
 
 @router.patch("/{incident_id}", response_model=IncidentResponse)
@@ -131,7 +144,7 @@ async def update_incident(
     project_id: Optional[uuid.UUID] = Query(None),
 ):
     svc = IncidentService(db)
-    await svc.get(incident_id, project_id=project_id)
+    await svc.get(incident_id, project_id=project_id, owner_id=_owner_id_for(current_user))
     return await svc.update(incident_id, data, current_user)
 
 
@@ -144,7 +157,7 @@ async def change_status(
     project_id: Optional[uuid.UUID] = Query(None),
 ):
     svc = IncidentService(db)
-    await svc.get(incident_id, project_id=project_id)
+    await svc.get(incident_id, project_id=project_id, owner_id=_owner_id_for(current_user))
     incident = await svc.transition_status(incident_id, body.status, current_user, body.notes or "")
     return {"id": incident.id, "status": incident.status}
 
@@ -159,7 +172,7 @@ async def reopen_incident(
 ):
     from app.models.incident import IncidentStatus
     svc = IncidentService(db)
-    await svc.get(incident_id, project_id=project_id)
+    await svc.get(incident_id, project_id=project_id, owner_id=_owner_id_for(current_user))
     incident = await svc.transition_status(
         incident_id, IncidentStatus.REOPENED.value, current_user, body.reason or ""
     )
@@ -174,7 +187,7 @@ async def delete_incident(
     project_id: Optional[uuid.UUID] = Query(None),
 ):
     svc = IncidentService(db)
-    await svc.get(incident_id, project_id=project_id)
+    await svc.get(incident_id, project_id=project_id, owner_id=_owner_id_for(current_user))
     await svc.delete(incident_id)
 
 
@@ -193,7 +206,7 @@ async def explain_incident(
     from app.services.incident_explainer import explain_incident as _explain
 
     svc = IncidentService(db)
-    incident = await svc.get(incident_id, project_id=project_id)
+    incident = await svc.get(incident_id, project_id=project_id, owner_id=_owner_id_for(current_user))
     if incident is None:
         raise HTTPException(status_code=404, detail="Incident not found")
 
@@ -237,7 +250,7 @@ async def get_investigation_timeline(
     from sqlalchemy.orm import selectinload
 
     svc = IncidentService(db)
-    incident = await svc.get(incident_id, project_id=project_id)
+    incident = await svc.get(incident_id, project_id=project_id, owner_id=_owner_id_for(current_user))
 
     events: list[dict] = []
 
@@ -363,7 +376,7 @@ async def get_related_incidents(
     from app.models.incident import Incident
 
     svc = IncidentService(db)
-    incident = await svc.get(incident_id, project_id=project_id)
+    incident = await svc.get(incident_id, project_id=project_id, owner_id=_owner_id_for(current_user))
 
     clauses = [Incident.id != incident_id]
     if project_id:
@@ -443,7 +456,7 @@ async def get_incident_ioc(
     from app.models.evidence import Evidence
 
     svc = IncidentService(db)
-    incident = await svc.get(incident_id, project_id=project_id)
+    incident = await svc.get(incident_id, project_id=project_id, owner_id=_owner_id_for(current_user))
 
     # Evidence hashes
     ev_result = await db.execute(
@@ -530,7 +543,7 @@ async def list_investigation_notes(
     from sqlalchemy.orm import aliased
 
     svc = IncidentService(db)
-    await svc.get(incident_id, project_id=project_id)
+    await svc.get(incident_id, project_id=project_id, owner_id=_owner_id_for(current_user))
 
     AuthorAlias = aliased(UserModel)
     result = await db.execute(
@@ -561,7 +574,7 @@ async def add_investigation_note(
     from app.models.investigation_note import InvestigationNote
 
     svc = IncidentService(db)
-    await svc.get(incident_id, project_id=project_id)
+    await svc.get(incident_id, project_id=project_id, owner_id=_owner_id_for(current_user))
 
     note = InvestigationNote(
         incident_id=incident_id,
@@ -587,7 +600,7 @@ async def update_investigation_note(
     from app.models.investigation_note import InvestigationNote
 
     svc = IncidentService(db)
-    await svc.get(incident_id, project_id=project_id)
+    await svc.get(incident_id, project_id=project_id, owner_id=_owner_id_for(current_user))
 
     result = await db.execute(
         select(InvestigationNote).where(
@@ -618,7 +631,7 @@ async def delete_investigation_note(
     from app.models.investigation_note import InvestigationNote
 
     svc = IncidentService(db)
-    await svc.get(incident_id, project_id=project_id)
+    await svc.get(incident_id, project_id=project_id, owner_id=_owner_id_for(current_user))
 
     result = await db.execute(
         select(InvestigationNote).where(
@@ -651,7 +664,7 @@ async def generate_incident_report(
     from app.services.incident_explainer import explain_incident as _explain
 
     svc = IncidentService(db)
-    incident = await svc.get(incident_id, project_id=project_id)
+    incident = await svc.get(incident_id, project_id=project_id, owner_id=_owner_id_for(current_user))
 
     # Evidence
     ev_result = await db.execute(

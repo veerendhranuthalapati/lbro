@@ -9,6 +9,7 @@
  */
 import { useState, useEffect, useRef, type FormEvent } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { ShieldCheck, AlertCircle, Loader2, Eye, EyeOff, CheckCircle2, XCircle, Lock } from 'lucide-react'
 import { authApi } from '@/api/client'
 import { useAuthStore } from '@/store/authStore'
@@ -135,7 +136,8 @@ function PwChecklist({ pw }: { pw: string }) {
 }
 
 export default function RegisterPage() {
-  const navigate = useNavigate()
+  const navigate     = useNavigate()
+  const queryClient  = useQueryClient()
   const { login, isAuthenticated } = useAuthStore()
 
   useEffect(() => {
@@ -243,7 +245,7 @@ export default function RegisterPage() {
       } catch { /* fallback */ }
 
       const userRecord = await authApi.me(access_token)
-      const role = ((jwtPayload.role as Role) ?? userRecord.role ?? 'admin') as Role
+      const role = ((jwtPayload.role as Role) ?? userRecord.role ?? 'viewer') as Role
       const jwtPerms = Array.isArray(jwtPayload.permissions) ? jwtPayload.permissions : null
       const authUser: AuthUser = {
         id:          userRecord.id,
@@ -254,6 +256,7 @@ export default function RegisterPage() {
         last_login:  userRecord.last_login,
       }
       login(access_token, tokenResponse.refresh_token ?? null, authUser)
+      queryClient.clear()
       navigate('/welcome', { replace: true })
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status

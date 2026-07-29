@@ -179,6 +179,17 @@ async def test_register_weak_password_no_digit_422(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_register_weak_password_no_symbol_422(client: AsyncClient):
+    """Password without a symbol is rejected (422) — backend must match frontend rule."""
+    resp = await client.post("/api/v1/auth/register", json={
+        "email": "nosymbol@example.com",
+        "full_name": "No Symbol User",
+        "password": "NoSymbol123",
+    })
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_register_too_short_password_422(client: AsyncClient):
     """Password under 8 characters is rejected (422)."""
     resp = await client.post("/api/v1/auth/register", json={

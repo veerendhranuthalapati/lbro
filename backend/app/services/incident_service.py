@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -71,7 +71,32 @@ class IncidentService:
 
         return incident
 
-    async def get(self, incident_id: uuid.UUID, project_id: Optional[uuid.UUID] = None) -> Incident:
+    def _ownership_scope(self, owner_id: uuid.UUID):
+        """Return a SQLAlchemy clause that scopes to incidents accessible to owner_id.
+
+        An incident is accessible when:
+          - its project_id belongs to a project owned by owner_id, OR
+          - it has no project and was created_by owner_id
+        """
+        from app.models.project import Project
+        project_subq = select(Project.id).where(Project.owner_id == owner_id).scalar_subquery()
+        return or_(
+            Incident.project_id.in_(project_subq),
+            and_(Incident.project_id.is_(None), Incident.created_by == owner_id),
+        )
+
+    async def get(
+        self,
+        incident_id: uuid.UUID,
+        project_id: Optional[uuid.UUID] = None,
+        owner_id: Optional[uuid.UUID] = None,
+    ) -> Incident:
+        """Fetch a single incident.
+
+        Security: when owner_id is supplied (non-privileged user), the result is
+        scoped to incidents in that user's projects.  project_id takes precedence
+        when both are supplied.
+        """
         query = (
             select(Incident)
             .where(Incident.id == incident_id)
@@ -79,6 +104,8 @@ class IncidentService:
         )
         if project_id is not None:
             query = query.where(Incident.project_id == project_id)
+        elif owner_id is not None:
+            query = query.where(self._ownership_scope(owner_id))
         result = await self.db.execute(query)
         incident = result.scalar_one_or_none()
         if not incident:
@@ -95,13 +122,23 @@ class IncidentService:
         needs_review: Optional[bool] = None,
         search: Optional[str] = None,
         project_id: Optional[uuid.UUID] = None,
+        owner_id: Optional[uuid.UUID] = None,
     ) -> tuple[list[Incident], int]:
+        """List incidents, optionally scoped to a project or owner.
+
+        Security: when owner_id is supplied (non-privileged user) and no
+        explicit project_id is given, results are scoped to that user's projects.
+        """
         query = select(Incident).options(selectinload(Incident.actions))
         count_query = select(func.count(Incident.id))
 
         if project_id is not None:
             query = query.where(Incident.project_id == project_id)
             count_query = count_query.where(Incident.project_id == project_id)
+        elif owner_id is not None:
+            scope = self._ownership_scope(owner_id)
+            query = query.where(scope)
+            count_query = count_query.where(scope)
         if status:
             query = query.where(Incident.status == status)
             count_query = count_query.where(Incident.status == status)

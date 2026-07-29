@@ -7,6 +7,7 @@
  */
 import { useState, type FormEvent, useEffect } from 'react'
 import { useNavigate, Link, useLocation } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { Eye, EyeOff, ShieldCheck, AlertCircle, Loader2, Lock } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
 import { authApi } from '@/api/client'
@@ -85,6 +86,7 @@ export default function LoginPage() {
           isLocked, loginAttempts, lockedUntil } = useAuthStore()
   const navigate = useNavigate()
   const location = useLocation()
+  const queryClient = useQueryClient()
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -138,6 +140,7 @@ export default function LoginPage() {
       }
       resetLoginAttempts()
       login(access_token, tokenResponse.refresh_token ?? null, authUser)
+      queryClient.clear()
       auditAction('auth:login', 'session', 'current', { source: 'login-page' })
       logger.info('User authenticated successfully', { userId: authUser.id, role: authUser.role })
 
@@ -292,7 +295,7 @@ export default function LoginPage() {
           </form>
 
           <div style={{ marginTop: 20, paddingTop: 16, borderTop: `1px solid ${BORDER}`, textAlign: 'center', display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <Link to="/forgot-password-password" style={{ fontSize: 11, color: GRAY, textDecoration: 'none' }}>
+            <Link to="/forgot-password" style={{ fontSize: 11, color: GRAY, textDecoration: 'none' }}>
               Forgot password? Contact your administrator
             </Link>
             <div style={{ fontSize: 11, color: GRAY }}>

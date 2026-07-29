@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Resp
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.rbac import Permission
+from app.core.rbac import Permission, Role, is_super_admin
 from app.database import get_db
 from app.dependencies import require_permission
 from app.models.user import User
@@ -91,6 +91,12 @@ async def list_evidence(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_permission(Permission.DOWNLOAD_EVIDENCE))],
 ):
+    # Verify incident is accessible to this user before listing its evidence (BUG-10)
+    from app.services.incident_service import IncidentService
+    inc_svc = IncidentService(db)
+    is_privileged = current_user.role == Role.ADMIN.value or is_super_admin(current_user.role)
+    owner_id = None if is_privileged else current_user.id
+    await inc_svc.get(incident_id, owner_id=owner_id)
     svc = EvidenceService(db)
     items = await svc.list_for_incident(incident_id)
     result = []
@@ -260,6 +266,25 @@ async def get_evidence_by_id(
     current_user: Annotated[User, Depends(require_permission(Permission.DOWNLOAD_EVIDENCE))],
 ):
     ip = request.client.host if request.client else None
+    # Derive project_id from user's ownership scope when not privileged (BUG-11)
+    is_privileged = current_user.role == Role.ADMIN.value or is_super_admin(current_user.role)
+    if not is_privileged:
+        from sqlalchemy import select, or_, and_
+        from app.models.evidence import Evidence
+        from app.models.incident import Incident
+        from app.models.project import Project
+        project_subq = select(Project.id).where(Project.owner_id == current_user.id).scalar_subquery()
+        scope = or_(
+            Incident.project_id.in_(project_subq),
+            and_(Incident.project_id.is_(None), Incident.created_by == current_user.id),
+        )
+        check = await db.execute(
+            select(Evidence.id)
+            .join(Incident, Evidence.incident_id == Incident.id)
+            .where(Evidence.id == evidence_id, scope)
+        )
+        if not check.scalar_one_or_none():
+            raise HTTPException(status_code=404, detail="Evidence not found")
     svc = EvidenceService(db)
     ev = await svc.get(evidence_id, current_user, ip)
     try:

@@ -25,8 +25,8 @@ function _effectivePermissions(
   jwtPermissions: readonly string[] | undefined,
   role: string | undefined,
 ): Set<PermissionValue> {
-  // Super-admin always gets every permission — no JWT needed.
-  if (role === 'admin') {
+  // Admin and super_admin always get every permission — no JWT parsing needed.
+  if (role === 'admin' || role === 'super_admin') {
     return new Set(Object.values(Permission) as PermissionValue[])
   }
   // If the JWT carries permissions, use them as the ground truth.

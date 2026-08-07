@@ -126,9 +126,16 @@ async def test_ml_requires_auth(client: AsyncClient):
 # DEMO
 # ═══════════════════════════════════════════════════════════════════
 
-async def test_demo_generate_analyst(client: AsyncClient, analyst_headers: dict):
+async def test_demo_generate_analyst_forbidden(client: AsyncClient, analyst_headers: dict):
+    """Demo generation is admin-only — analysts must receive 403."""
     resp = await client.post("/api/v1/demo/generate", headers=analyst_headers)
-    assert resp.status_code in (200, 201, 429)
+    assert resp.status_code == 403
+
+
+async def test_demo_generate_admin(client: AsyncClient, admin_headers: dict):
+    """Admins can generate demo data."""
+    resp = await client.post("/api/v1/demo/generate", headers=admin_headers)
+    assert resp.status_code in (201, 429)
 
 
 async def test_demo_generate_viewer_forbidden(client: AsyncClient, viewer_headers: dict):
@@ -136,12 +143,12 @@ async def test_demo_generate_viewer_forbidden(client: AsyncClient, viewer_header
     assert resp.status_code == 403
 
 
-async def test_demo_rate_limit(client: AsyncClient, analyst_headers: dict):
+async def test_demo_rate_limit(client: AsyncClient, admin_headers: dict):
     """Second call within 60s should be rate-limited."""
-    await client.post("/api/v1/demo/generate", headers=analyst_headers)
-    resp2 = await client.post("/api/v1/demo/generate", headers=analyst_headers)
-    # Either 429 (rate limited) or 200 (if rate limit state reset between tests)
-    assert resp2.status_code in (200, 201, 429)
+    await client.post("/api/v1/demo/generate", headers=admin_headers)
+    resp2 = await client.post("/api/v1/demo/generate", headers=admin_headers)
+    # Either 429 (rate limited) or 201 (if rate limit state reset between tests)
+    assert resp2.status_code in (201, 429)
 
 
 async def test_demo_unauthenticated(client: AsyncClient):

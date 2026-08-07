@@ -2,7 +2,7 @@
  * Application Security Dashboard
  *
  * Displays a personalised greeting, overall security health, key metrics,
- * recent activity timeline, top threat, and recommended actions.
+ * recent activity timeline, and recommended actions.
  * All data sourced from real backend APIs — no mock data.
  */
 import { useMemo, useState } from 'react'
@@ -10,9 +10,10 @@ import { useNavigate } from 'react-router-dom'
 import {
   ShieldCheck, AlertTriangle, ArrowRight,
   Activity, Clock, Zap, Shield, ChevronRight, Sparkles, Loader2,
+  TrendingUp, TrendingDown, Minus,
 } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useIncidents, useDashboardSummary, useSecurityScore } from '@/hooks/useApi'
+import { useIncidents, useDashboardSummary, useSecurityScore, useWeeklyReport } from '@/hooks/useApi'
 import { useAuthStore } from '@/store/authStore'
 import { SeverityBadge } from '@/components/ui/SeverityBadge'
 import { StatusBadge } from '@/components/ui/StatusBadge'
@@ -106,7 +107,184 @@ function InfoCard({ icon, label, value, sub, empty }: {
   )
 }
 
-function EmptyTimeline() {
+// ── Security Overview Widget (merges Security Score + Weekly Report) ─────────
+function SecurityOverviewWidget({
+  scoreData,
+  reportData,
+}: {
+  scoreData: any
+  reportData: any
+}) {
+  const navigate = useNavigate()
+
+  const TrendIcon =
+    reportData?.trend === 'improving' ? TrendingUp :
+    reportData?.trend === 'worsening' ? TrendingDown : Minus
+  const trendColor =
+    reportData?.trend === 'improving' ? GREEN :
+    reportData?.trend === 'worsening' ? RED : GRAY
+  const trendLabel =
+    reportData?.trend === 'improving' ? 'Improving' :
+    reportData?.trend === 'worsening' ? 'Worsening' : 'Stable'
+
+  const score = scoreData?.score
+  const grade = scoreData?.grade
+  const scoreColor = scoreData?.color ?? ORANGE
+  const statusLabel = scoreData?.status
+
+  const inc = reportData?.incidents
+
+  return (
+    <div style={{
+      background: CREAM,
+      border: `1px solid ${BORDER}`,
+      borderTop: `3px solid ${scoreColor}`,
+      borderRadius: 6,
+      overflow: 'hidden',
+    }}>
+      {/* Header */}
+      <div style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        padding: '12px 20px', borderBottom: `1px solid ${BORDER}`,
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <Shield style={{ width: 14, height: 14, color: ORANGE }} />
+          <span style={{ fontSize: 12, fontWeight: 600, color: BLACK }}>Security Overview</span>
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={() => navigate('/security-score')}
+            style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: ORANGE, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+          >
+            Score <ChevronRight style={{ width: 11, height: 11 }} />
+          </button>
+          <button
+            onClick={() => navigate('/weekly-report')}
+            style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: GRAY, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+          >
+            Weekly Report <ChevronRight style={{ width: 11, height: 11 }} />
+          </button>
+        </div>
+      </div>
+
+      {/* Body */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'auto 1px 1fr 1px 1fr 1px 1fr', alignItems: 'stretch' }}>
+
+        {/* Score block */}
+        <div style={{ padding: '20px 28px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+          {score != null ? (
+            <>
+              <div style={{
+                fontFamily: "'Bebas Neue', sans-serif",
+                fontSize: 52, lineHeight: 1, color: scoreColor,
+              }}>
+                {score}
+              </div>
+              <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, color: scoreColor, letterSpacing: '0.1em' }}>
+                Grade {grade}
+              </div>
+              <div style={{ fontSize: 10, color: GRAY, textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: 2 }}>
+                {statusLabel}
+              </div>
+            </>
+          ) : (
+            <div style={{ fontSize: 11, color: GRAY, fontStyle: 'italic' }}>Loading…</div>
+          )}
+        </div>
+
+        <div style={{ background: BORDER, width: 1 }} />
+
+        {/* Trend block */}
+        <div style={{ padding: '20px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 8 }}>
+          <div style={{ fontSize: 10, color: GRAY, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>
+            Weekly Trend
+          </div>
+          {reportData ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+              <TrendIcon style={{ width: 16, height: 16, color: trendColor }} />
+              <span style={{
+                fontSize: 13, fontWeight: 600, color: trendColor,
+              }}>
+                {trendLabel}
+              </span>
+            </div>
+          ) : (
+            <div style={{ fontSize: 11, color: GRAY, fontStyle: 'italic' }}>No report data</div>
+          )}
+          {reportData?.trend_reason && (
+            <div style={{ fontSize: 11, color: GRAY, lineHeight: 1.5, maxWidth: 240 }}>
+              {reportData.trend_reason.length > 80
+                ? reportData.trend_reason.slice(0, 80) + '…'
+                : reportData.trend_reason}
+            </div>
+          )}
+        </div>
+
+        <div style={{ background: BORDER, width: 1 }} />
+
+        {/* Weekly stats block */}
+        <div style={{ padding: '20px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 10 }}>
+          <div style={{ fontSize: 10, color: GRAY, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            This Week
+          </div>
+          {inc ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {[
+                { label: 'New',           value: inc.new_this_week,    color: BLACK },
+                { label: 'Resolved',      value: inc.closed_this_week, color: GREEN },
+                { label: 'Open Critical', value: inc.open_critical,    color: inc.open_critical > 0 ? RED : BLACK },
+              ].map(({ label, value, color }) => (
+                <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 11, color: GRAY }}>{label}</span>
+                  <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, lineHeight: 1, color }}>{value}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ fontSize: 11, color: GRAY, fontStyle: 'italic' }}>No data</div>
+          )}
+        </div>
+
+        <div style={{ background: BORDER, width: 1 }} />
+
+        {/* Compliance + evidence block */}
+        <div style={{ padding: '20px 20px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 10 }}>
+          <div style={{ fontSize: 10, color: GRAY, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            Compliance
+          </div>
+          {reportData ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 11, color: GRAY }}>Requirements met</span>
+                <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, lineHeight: 1, color: reportData.compliance_total > 0 && reportData.compliance_met === reportData.compliance_total ? GREEN : AMBER }}>
+                  {reportData.compliance_total > 0
+                    ? `${reportData.compliance_met}/${reportData.compliance_total}`
+                    : '—'}
+                </span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 11, color: GRAY }}>Evidence files</span>
+                <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, lineHeight: 1, color: BLACK }}>{reportData.evidence_count ?? '—'}</span>
+              </div>
+              {scoreData && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 11, color: GRAY }}>Overdue rules</span>
+                  <span style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 18, lineHeight: 1, color: (scoreData.data_snapshot?.overdue_compliance ?? 0) > 0 ? ORANGE : BLACK }}>
+                    {scoreData.data_snapshot?.overdue_compliance ?? '—'}
+                  </span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ fontSize: 11, color: GRAY, fontStyle: 'italic' }}>No data</div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function EmptyTimeline({ isAdmin }: { isAdmin: boolean }) {
   const qc = useQueryClient()
   const currentProject = useProjectStore(s => s.currentProject)
   const [done, setDone] = useState(false)
@@ -141,7 +319,7 @@ function EmptyTimeline() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: GREEN }}>
           <ShieldCheck style={{ width: 14, height: 14 }} /> Demo data generated — refreshing…
         </div>
-      ) : (
+      ) : isAdmin ? (
         <>
           <button
             onClick={() => mutation.mutate()}
@@ -159,6 +337,10 @@ function EmptyTimeline() {
             </div>
           )}
         </>
+      ) : (
+        <div style={{ fontSize: 11, color: GRAY, fontStyle: 'italic' }}>
+          Contact your administrator to generate demo data.
+        </div>
       )}
     </div>
   )
@@ -189,10 +371,12 @@ export default function DashboardPage() {
   const navigate  = useNavigate()
   const user      = useAuthStore(s => s.user)
   const firstName = user?.name?.split(' ')[0] ?? 'there'
+  const isAdmin   = (user?.role as string) === 'admin' || (user?.role as string) === 'super_admin'
 
   const { data: summary, isLoading: sumLoading } = useDashboardSummary()
   const { data: incidentsData, isLoading: incLoading } = useIncidents({ page_size: 12 })
   const { data: scoreData } = useSecurityScore()
+  const { data: reportData } = useWeeklyReport()
 
   const incidents   = incidentsData?.items ?? []
   const critical    = summary?.critical_incidents ?? 0
@@ -242,15 +426,6 @@ export default function DashboardPage() {
               <span style={{ fontSize: 12, color: GRAY }}>Checking status…</span>
             </>
           )}
-          {scoreData && (
-            <button
-              onClick={() => navigate('/security-score')}
-              style={{ marginLeft: 8, fontSize: 11, color: ORANGE, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 3, padding: 0 }}
-            >
-              Score: {scoreData.score}
-              <ChevronRight style={{ width: 12, height: 12 }} />
-            </button>
-          )}
         </div>
       </div>
 
@@ -278,6 +453,9 @@ export default function DashboardPage() {
         <StatCard label="Open Issues"     value={sumLoading ? '—' : openCount}   sub="across all severity levels" onClick={() => navigate('/incidents')} />
         <StatCard label="Needs Attention" value={sumLoading ? '—' : needsReview} sub="flagged for your review"    onClick={() => navigate('/incidents')} />
       </div>
+
+      {/* Security Overview — merged Security Score + Weekly Report */}
+      <SecurityOverviewWidget scoreData={scoreData} reportData={reportData} />
 
       {/* Insight cards */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
@@ -307,7 +485,7 @@ export default function DashboardPage() {
           {incLoading
             ? <TimelineSkeleton />
             : incidents.length === 0
-              ? <EmptyTimeline />
+              ? <EmptyTimeline isAdmin={isAdmin} />
               : (
                 <div>
                   {incidents.slice(0, 8).map((inc, idx, arr) => (
@@ -395,6 +573,9 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Spin animation for Loader2 */}
+      <style>{`@keyframes spin { from { transform: rotate(0deg) } to { transform: rotate(360deg) } }`}</style>
     </div>
   )
 }

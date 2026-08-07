@@ -227,3 +227,8 @@ def viewer_headers(viewer_token: str) -> dict:
 @pytest.fixture
 def analyst_headers(analyst_token: str) -> dict:
     return {"Authorization": f"Bearer {analyst_token}"}
+
+
+@pytest.fixture
+def admin_headers(admin_token: str) -> dict:
+    return {"Authorization": f"Bearer {admin_token}"}

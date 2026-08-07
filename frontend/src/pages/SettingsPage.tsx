@@ -169,6 +169,8 @@ function ProfileSection() {
 
 function DemoModeSection() {
   const qc = useQueryClient()
+  const user = useAuthStore(s => s.user)
+  const isAdmin = (user?.role as string) === 'admin' || (user?.role as string) === 'super_admin'
   const [enabled, setEnabled] = useState(false)
   const [generated, setGenerated] = useState(false)
 
@@ -183,13 +185,15 @@ function DemoModeSection() {
     },
   })
 
+  if (!isAdmin) return null
+
   return (
-    <Section title="Demo Mode" description="Populate the platform with sample data to explore its features.">
+    <Section title="Demo Mode" description="Admin only — populate the platform with simulated sample data to explore features. Never overwrites real data.">
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16 }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 12, fontWeight: 500, color: BLACK, marginBottom: 4 }}>Enable demo data</div>
+          <div style={{ fontSize: 12, fontWeight: 500, color: BLACK, marginBottom: 4 }}>Generate demo data</div>
           <div style={{ fontSize: 11, color: GRAY, lineHeight: 1.5 }}>
-            Generates sample incidents, evidence, and compliance records so you can explore all features immediately.
+            Creates sample incidents, evidence, and compliance records marked as simulated. Existing real data is never modified.
           </div>
         </div>
         <Toggle enabled={enabled} onChange={setEnabled} />

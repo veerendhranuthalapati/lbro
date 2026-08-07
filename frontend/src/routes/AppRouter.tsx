@@ -36,7 +36,6 @@ const AuditLogsPage       = lazy(() => import('@/pages/AuditLogsPage'))
 const SecurityScorePage   = lazy(() => import('@/pages/SecurityScorePage'))
 const WeeklyReportPage    = lazy(() => import('@/pages/WeeklyReportPage'))
 const PrivacyPage         = lazy(() => import('@/pages/PrivacyPage'))
-const RoadmapPage         = lazy(() => import('@/pages/RoadmapPage'))
 const ComplianceAuditPage = lazy(() => import('@/pages/ComplianceAuditPage'))
 const WelcomePage            = lazy(() => import('@/pages/WelcomePage'))
 const ProjectsPage           = lazy(() => import('@/pages/ProjectsPage'))
@@ -109,7 +108,6 @@ export function AppRouter() {
           <Route path="/notifications"  element={<SuspenseRoute><NotificationsPage /></SuspenseRoute>} />
           <Route path="/settings"       element={<SuspenseRoute><SettingsPage /></SuspenseRoute>} />
           <Route path="/privacy"        element={<SuspenseRoute><PrivacyPage /></SuspenseRoute>} />
-          <Route path="/roadmap"        element={<SuspenseRoute><RoadmapPage /></SuspenseRoute>} />
           <Route path="/security-score" element={<SuspenseRoute><SecurityScorePage /></SuspenseRoute>} />
           <Route path="/weekly-report"  element={<SuspenseRoute><WeeklyReportPage /></SuspenseRoute>} />
 

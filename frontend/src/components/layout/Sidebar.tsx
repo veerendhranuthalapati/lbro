@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import {
   LayoutDashboard, ShieldAlert, FileText, Lock,
   Cloud, Settings, LogOut, Brain, Bell, Users,
-  Target, ClipboardList, ShieldCheck, BarChart2, Map, ClipboardCheck,
+  Target, ClipboardList, ShieldCheck, BarChart2, ClipboardCheck,
   Layers, BookOpen, Plug2,
 } from 'lucide-react'
 import type { LucideProps } from 'lucide-react'
@@ -35,7 +35,6 @@ const NAV: NavItem[] = [
   { to: '/infrastructure', icon: Cloud,           label: 'Infrastructure' },
   { to: '/audit-logs',     icon: ClipboardList,   label: 'Security History' },
   { to: '/users',          icon: Users,           label: 'Users' },
-  { to: '/roadmap',        icon: Map,             label: 'Roadmap' },
   { to: '/docs',           icon: BookOpen,        label: 'API Docs' },
   { to: '/settings',       icon: Settings,        label: 'Settings' },
 ]

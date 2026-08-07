@@ -10,7 +10,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   ShieldCheck, AlertTriangle, ArrowRight,
   Activity, Clock, Zap, Shield, ChevronRight, Sparkles, Loader2,
-  TrendingUp, TrendingDown, Minus,
+  TrendingUp, TrendingDown, Minus, Layers,
 } from 'lucide-react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useIncidents, useDashboardSummary, useSecurityScore, useWeeklyReport } from '@/hooks/useApi'
@@ -367,11 +367,47 @@ const SEVERITY_DOT: Record<string, string> = {
   critical: RED, high: ORANGE, medium: AMBER, low: GREEN, info: '#94a3b8',
 }
 
+function NoProjectBanner() {
+  const navigate = useNavigate()
+  return (
+    <div
+      role="status"
+      style={{
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
+        background: 'rgba(229,78,27,0.05)', border: `1px solid rgba(229,78,27,0.3)`,
+        borderLeft: `3px solid ${ORANGE}`, borderRadius: 6, padding: '14px 20px',
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <Layers style={{ width: 15, height: 15, color: ORANGE, flexShrink: 0 }} />
+        <div>
+          <div style={{ fontSize: 13, fontWeight: 600, color: BLACK }}>No project selected</div>
+          <div style={{ fontSize: 11, color: GRAY, marginTop: 2 }}>
+            Select a project to access Integrations and project-scoped features. Click the orange icon at the top of the sidebar, or use the button below.
+          </div>
+        </div>
+      </div>
+      <button
+        onClick={() => navigate('/projects')}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 6, padding: '9px 16px',
+          background: ORANGE, color: '#fff', border: 'none', borderRadius: 4,
+          fontSize: 11, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
+        }}
+      >
+        Select Project <ArrowRight style={{ width: 12, height: 12 }} />
+      </button>
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const navigate  = useNavigate()
   const user      = useAuthStore(s => s.user)
   const firstName = user?.name?.split(' ')[0] ?? 'there'
   const isAdmin   = (user?.role as string) === 'admin' || (user?.role as string) === 'super_admin'
+
+  const currentProject = useProjectStore(s => s.currentProject)
 
   const { data: summary, isLoading: sumLoading } = useDashboardSummary()
   const { data: incidentsData, isLoading: incLoading } = useIncidents({ page_size: 12 })
@@ -428,6 +464,9 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* No project selected — guide user to pick one */}
+      {!currentProject && <NoProjectBanner />}
 
       {/* Critical banner */}
       {!sumLoading && critical > 0 && (

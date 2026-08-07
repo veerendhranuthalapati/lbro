@@ -81,23 +81,33 @@ export function Sidebar() {
 
       {/* Project switcher */}
       <div
-        className="flex items-center justify-center py-2 border-b"
+        className="flex flex-col items-center justify-center py-2 border-b gap-1"
         style={{ borderColor: '#1e1e1e' }}
       >
         <button
           onClick={() => navigate('/projects')}
-          title={currentProject ? `Project: ${currentProject.name}` : 'Select project'}
-          aria-label={currentProject ? `Switch project (current: ${currentProject.name})` : 'Select a project'}
+          title={currentProject ? `Project: ${currentProject.name} — click to switch` : 'Select a project'}
+          aria-label={currentProject ? `Switch project (current: ${currentProject.name})` : 'Select a project — click to choose project'}
           className={cn(
             'flex items-center justify-center w-9 h-9 rounded text-xs font-bold transition-all focus:outline-none focus:ring-2',
-            currentProject
-              ? 'text-white'
-              : 'text-zinc-600 hover:text-zinc-400 border border-dashed border-zinc-700 hover:border-zinc-500',
+            currentProject ? 'text-white' : 'text-white',
           )}
-          style={currentProject ? { background: '#2a2a2a', color: '#e54e1b', border: '1px solid #3a3a3a' } : {}}
+          style={
+            currentProject
+              ? { background: '#2a2a2a', color: '#e54e1b', border: '1px solid #3a3a3a' }
+              : { background: '#e54e1b', color: '#fff', border: '1px solid #e54e1b', animation: 'lbro-pulse 2s ease-in-out infinite' }
+          }
         >
           {projectInitials ?? <Layers className="w-3.5 h-3.5" aria-hidden="true" />}
         </button>
+        {!currentProject && (
+          <span
+            style={{ fontSize: 8, color: '#e54e1b', textTransform: 'uppercase', letterSpacing: '0.05em', lineHeight: 1, textAlign: 'center' }}
+            aria-hidden="true"
+          >
+            Select
+          </span>
+        )}
       </div>
 
       <nav

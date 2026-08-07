@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import Sequence, Union
 
+import sqlalchemy as sa
 from alembic import op
 
 revision: str = "009_add_missing_indexes"
@@ -21,22 +22,26 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def _index_exists(bind: sa.engine.Connection, table: str, index_name: str) -> bool:
+    indexes = sa.inspect(bind).get_indexes(table)
+    return any(ix["name"] == index_name for ix in indexes)
+
+
 def upgrade() -> None:
-    op.create_index(
-        "ix_incidents_assigned_to",
-        "incidents",
-        ["assigned_to"],
-    )
-    op.create_index(
-        "ix_incidents_created_by",
-        "incidents",
-        ["created_by"],
-    )
-    op.create_index(
-        "ix_notification_recipients_notification_id",
-        "notification_recipients",
-        ["notification_id"],
-    )
+    bind = op.get_bind()
+
+    if not _index_exists(bind, "incidents", "ix_incidents_assigned_to"):
+        op.create_index("ix_incidents_assigned_to", "incidents", ["assigned_to"])
+
+    if not _index_exists(bind, "incidents", "ix_incidents_created_by"):
+        op.create_index("ix_incidents_created_by", "incidents", ["created_by"])
+
+    if not _index_exists(bind, "notification_recipients", "ix_notification_recipients_notification_id"):
+        op.create_index(
+            "ix_notification_recipients_notification_id",
+            "notification_recipients",
+            ["notification_id"],
+        )
 
 
 def downgrade() -> None:

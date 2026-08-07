@@ -612,6 +612,15 @@ async def update_investigation_note(
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")
 
+    # Only the note author or an admin/super_admin may edit a note.
+    can_edit = (
+        note.author_id == current_user.id
+        or current_user.role == Role.ADMIN.value
+        or is_super_admin(current_user.role)
+    )
+    if not can_edit:
+        raise HTTPException(status_code=403, detail="You can only edit your own notes")
+
     note.content = body.content.strip()
     note.updated_at = datetime.now(timezone.utc)
     await db.commit()
@@ -642,6 +651,15 @@ async def delete_investigation_note(
     note = result.scalar_one_or_none()
     if not note:
         raise HTTPException(status_code=404, detail="Note not found")
+
+    # Only the note author or an admin/super_admin may delete a note.
+    can_delete = (
+        note.author_id == current_user.id
+        or current_user.role == Role.ADMIN.value
+        or is_super_admin(current_user.role)
+    )
+    if not can_delete:
+        raise HTTPException(status_code=403, detail="You can only delete your own notes")
 
     await db.delete(note)
     await db.commit()

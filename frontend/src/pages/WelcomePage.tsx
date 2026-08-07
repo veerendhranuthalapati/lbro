@@ -12,8 +12,9 @@ import { useNavigate } from 'react-router-dom'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   ShieldCheck, ArrowRight, Copy, Check, Download, RefreshCw,
-  Loader2, Globe, Box, Layers,
+  Loader2, Globe, Layers, Plug2, Terminal, LayoutDashboard,
 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { projectsApi } from '@/api/client'
 import { useProjectStore } from '@/store/projectStore'
 import { useAuthStore } from '@/store/authStore'
@@ -224,18 +225,17 @@ function StepApiKey({ projectId, apiKey, projectName, onNext }: {
 }
 
 // ── Step 4: Connect App ──────────────────────────────────────────────────────
-function StepConnectApp({ apiKey, onNext }: { apiKey: string; onNext: () => void }) {
+function StepConnectApp({ apiKey, projectId, onNext }: { apiKey: string; projectId: string; onNext: () => void }) {
   const [copied, setCopied] = useState(false)
-  const snippet = `curl -X POST https://your-lbro-host/api/v1/ingest \\
+  const BASE    = typeof window !== 'undefined' ? window.location.origin : 'https://your-lbro-instance.com'
+  const snippet = `curl -X POST ${BASE}/api/v1/events \\
+  -H "Authorization: Bearer ${apiKey || 'proj_your_api_key_here'}" \\
   -H "Content-Type: application/json" \\
-  -H "X-Project-Key: ${apiKey}" \\
   -d '{
-    "source_ip": "1.2.3.4",
-    "destination_ip": "10.0.0.5",
-    "destination_port": 443,
-    "protocol": "TCP",
-    "event_type": "SUSPICIOUS_REQUEST",
-    "raw_log": "GET /admin HTTP/1.1 - 401 Unauthorized"
+    "event_type": "sql_injection",
+    "severity":   "critical",
+    "message":    "SQLi probe on /api/users",
+    "source_ip":  "185.220.101.42"
   }'`
 
   const copy = () => {
@@ -251,13 +251,13 @@ function StepConnectApp({ apiKey, onNext }: { apiKey: string; onNext: () => void
           <Globe style={{ width: 22, height: 22, color: ORANGE }} />
         </div>
         <h2 style={{ fontSize: 28, fontWeight: 700, color: '#fff', marginBottom: 8 }}>Connect your application</h2>
-        <p style={{ fontSize: 13, color: GRAY }}>Send log events from your application to LBRO using a simple HTTP POST. LBRO will classify each event and create incidents automatically.</p>
+        <p style={{ fontSize: 13, color: GRAY }}>Send events from your application via a simple HTTP POST. LBRO classifies each event and creates incidents automatically.</p>
       </div>
 
-      {/* Code example */}
-      <div style={{ position: 'relative', marginBottom: 24 }}>
+      {/* cURL quick-test */}
+      <div style={{ position: 'relative', marginBottom: 20 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: '#161616', border: `1px solid ${BORDER}`, borderBottom: 'none', borderRadius: '6px 6px 0 0' }}>
-          <span style={{ fontSize: 11, color: GRAY }}>curl</span>
+          <span style={{ fontSize: 11, color: GRAY }}>cURL quick test</span>
           <button onClick={copy} style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '4px 10px', background: copied ? 'rgba(34,197,94,0.1)' : '#222', border: `1px solid ${copied ? '#22c55e' : '#333'}`, borderRadius: 4, color: copied ? GREEN : GRAY, fontSize: 11, cursor: 'pointer' }}>
             {copied ? <Check style={{ width: 11, height: 11 }} /> : <Copy style={{ width: 11, height: 11 }} />}
             {copied ? 'Copied' : 'Copy'}
@@ -268,20 +268,22 @@ function StepConnectApp({ apiKey, onNext }: { apiKey: string; onNext: () => void
         </pre>
       </div>
 
-      {/* Coming soon integrations */}
+      {/* Integrations page CTA */}
       <div style={{ background: '#111', border: `1px solid ${BORDER}`, borderRadius: 8, padding: 20, marginBottom: 28 }}>
-        <p style={{ fontSize: 11, color: '#555', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 16 }}>Integrations coming soon</p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10 }}>
-          {[
-            { icon: <Box style={{ width: 14, height: 14 }} />, label: 'One-line installer' },
-            { icon: <Box style={{ width: 14, height: 14 }} />, label: 'Docker Agent' },
-            { icon: <Globe style={{ width: 14, height: 14 }} />, label: 'Nginx integration' },
-          ].map(i => (
-            <div key={i.label} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', background: '#0d0d0d', border: '1px solid #1e1e1e', borderRadius: 6 }}>
-              <span style={{ color: '#444' }}>{i.icon}</span>
-              <span style={{ fontSize: 11, color: '#444' }}>{i.label}</span>
-            </div>
-          ))}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+          <Plug2 style={{ width: 18, height: 18, color: ORANGE, flexShrink: 0, marginTop: 2 }} />
+          <div>
+            <p style={{ fontSize: 13, color: '#fff', fontWeight: 500, marginBottom: 6 }}>Need Python, Node.js, Java, Go, or a log agent?</p>
+            <p style={{ fontSize: 12, color: '#666', lineHeight: 1.6, marginBottom: 12 }}>
+              The Integrations page has ready-to-paste code for 17 environments — SDKs, framework middleware, Docker agents, Nginx, Windows Events, and more. Your API key is pre-filled.
+            </p>
+            <Link
+              to={`/projects/${projectId}/integrations`}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, color: ORANGE, textDecoration: 'none' }}
+            >
+              <Plug2 style={{ width: 12, height: 12 }} /> Browse all integrations →
+            </Link>
+          </div>
         </div>
       </div>
 
@@ -293,19 +295,57 @@ function StepConnectApp({ apiKey, onNext }: { apiKey: string; onNext: () => void
 }
 
 // ── Step 5: Ready ────────────────────────────────────────────────────────────
-function StepReady({ onDone }: { onDone: () => void }) {
+function StepReady({ projectId, onDone }: { projectId: string; onDone: () => void }) {
   return (
     <div style={{ textAlign: 'center', maxWidth: 480, margin: '0 auto' }}>
       <div style={{ fontSize: 64, marginBottom: 16 }}>🎉</div>
       <h2 style={{ fontSize: 36, fontWeight: 700, color: '#fff', marginBottom: 12 }}>You're all set!</h2>
-      <p style={{ fontSize: 14, color: GRAY, lineHeight: 1.7, marginBottom: 12 }}>
-        Your project is ready. As soon as your application sends its first log event, you'll see incidents appear on the dashboard.
+      <p style={{ fontSize: 14, color: GRAY, lineHeight: 1.7, marginBottom: 28 }}>
+        Your project is ready. As soon as your application sends its first event, incidents appear on the dashboard automatically.
       </p>
-      <p style={{ fontSize: 13, color: '#555', lineHeight: 1.7, marginBottom: 40 }}>
-        Need some data to explore the UI right now? Click "Go to Dashboard" and use the <strong style={{ color: '#888' }}>Generate Demo Data</strong> button.
-      </p>
-      <button onClick={onDone} style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: '14px 36px', background: ORANGE, color: '#fff', border: 'none', borderRadius: 6, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-        Go to Dashboard <ArrowRight style={{ width: 16, height: 16 }} />
+
+      {/* Next steps */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 36, textAlign: 'left' }}>
+        {[
+          {
+            icon: <Plug2 style={{ width: 15, height: 15 }} />,
+            label: 'View Integrations',
+            sub:   'Python, Node.js, Java, Docker, Nginx and more',
+            to:    `/projects/${projectId}/integrations`,
+            color: ORANGE,
+          },
+          {
+            icon: <Terminal style={{ width: 15, height: 15 }} />,
+            label: 'Watch the live event stream',
+            sub:   'See events as they arrive in real time',
+            to:    `/projects/${projectId}/events`,
+            color: '#22c55e',
+          },
+          {
+            icon: <LayoutDashboard style={{ width: 15, height: 15 }} />,
+            label: 'Go to Dashboard',
+            sub:   'Generate demo data to explore the UI',
+            to:    '/dashboard',
+            color: '#3b82f6',
+          },
+        ].map(item => (
+          <Link
+            key={item.label}
+            to={item.to}
+            style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '14px 16px', background: '#111', border: '1px solid #222', borderRadius: 8, textDecoration: 'none', transition: 'border-color 0.15s' }}
+          >
+            <span style={{ color: item.color, flexShrink: 0, marginTop: 1 }}>{item.icon}</span>
+            <div>
+              <p style={{ fontSize: 13, color: '#fff', fontWeight: 500, marginBottom: 2 }}>{item.label}</p>
+              <p style={{ fontSize: 11, color: '#666' }}>{item.sub}</p>
+            </div>
+            <ArrowRight style={{ width: 13, height: 13, color: '#444', marginLeft: 'auto', marginTop: 2, flexShrink: 0 }} />
+          </Link>
+        ))}
+      </div>
+
+      <button onClick={onDone} style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: '12px 28px', background: '#1a1a1a', color: '#888', border: '1px solid #2a2a2a', borderRadius: 6, fontSize: 13, cursor: 'pointer' }}>
+        Skip to Dashboard
       </button>
     </div>
   )
@@ -363,11 +403,11 @@ export default function WelcomePage() {
               onNext={handleApiKeyNext}
             />
           )}
-          {step === 3 && (
-            <StepConnectApp apiKey={apiKey} onNext={() => setStep(4)} />
+          {step === 3 && project && (
+            <StepConnectApp apiKey={apiKey} projectId={project.id} onNext={() => setStep(4)} />
           )}
-          {step === 4 && (
-            <StepReady onDone={() => navigate('/dashboard', { replace: true })} />
+          {step === 4 && project && (
+            <StepReady projectId={project.id} onDone={() => navigate('/dashboard', { replace: true })} />
           )}
         </div>
       </div>

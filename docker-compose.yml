@@ -9,7 +9,7 @@ x-common-env: &common-env
   AWS_ENDPOINT_URL: http://localstack:4566
   AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-test}
   AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-test}
-  AWS_REGION: ${AWS_REGION:-us-east-1}
+  AWS_REGION: ${AWS_REGION:-ap-south-1}
   S3_BUCKET_EVIDENCE: ${S3_BUCKET_EVIDENCE:-lbro-evidence}
   S3_BUCKET_REPORTS: ${S3_BUCKET_REPORTS:-lbro-reports}
   SQS_INCIDENT_QUEUE_URL: http://localstack:4566/000000000000/lbro-incidents
@@ -21,7 +21,7 @@ x-common-env: &common-env
   DEBUG: ${DEBUG:-false}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
   CORS_ORIGINS: '["http://localhost:5173","http://localhost:3000","http://localhost:80","http://frontend:80"]'
-  ALLOW_PUBLIC_REGISTRATION: "${ALLOW_PUBLIC_REGISTRATION:-true}"
+  ALLOW_PUBLIC_REGISTRATION: "true"
 
 services:
 
@@ -51,7 +51,7 @@ services:
     container_name: lbro-localstack
     environment:
       SERVICES: s3,sqs,secretsmanager
-      DEFAULT_REGION: us-east-1
+      DEFAULT_REGION: ${AWS_REGION:-ap-south-1}
       PERSIST_ALL: "1"
       LOCALSTACK_AUTH_TOKEN: ""
     ports:

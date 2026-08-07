@@ -4,7 +4,7 @@ import {
   LayoutDashboard, ShieldAlert, FileText, Lock,
   Cloud, Settings, LogOut, Brain, Bell, Users,
   Target, ClipboardList, ShieldCheck, BarChart2, Map, ClipboardCheck,
-  Layers, BookOpen,
+  Layers, BookOpen, Plug2,
 } from 'lucide-react'
 import type { LucideProps } from 'lucide-react'
 import { cn } from '@/utils'
@@ -126,6 +126,30 @@ export function Sidebar() {
             </NavLink>
           )
         })}
+
+        {/* Integrations — project-scoped, only visible when a project is active */}
+        {currentProject && (() => {
+          const intTo = `/projects/${currentProject.id}/integrations`
+          const isActive = location.pathname === intTo || location.pathname.startsWith(intTo)
+          return (
+            <>
+              <div className="w-6 border-t my-1" style={{ borderColor: '#2a2a2a' }} />
+              <NavLink
+                to={intTo}
+                title="Integrations"
+                aria-label="Integrations"
+                aria-current={isActive ? 'page' : undefined}
+                className={cn(
+                  'flex items-center justify-center w-9 h-9 rounded transition-all focus:outline-none focus:ring-2',
+                  isActive ? 'text-white' : 'text-zinc-500 hover:text-zinc-300',
+                )}
+                style={isActive ? { background: '#e54e1b', color: '#fff' } : {}}
+              >
+                <Plug2 className="w-4 h-4" aria-hidden="true" />
+              </NavLink>
+            </>
+          )
+        })()}
       </nav>
 
       <div

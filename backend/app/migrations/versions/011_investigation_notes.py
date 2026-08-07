@@ -16,20 +16,24 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        'investigation_notes',
-        sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column('incident_id', postgresql.UUID(as_uuid=True), nullable=False),
-        sa.Column('author_id', postgresql.UUID(as_uuid=True), nullable=True),
-        sa.Column('content', sa.Text(), nullable=False),
-        sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
-        sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(['author_id'], ['users.id'], ondelete='SET NULL'),
-        sa.ForeignKeyConstraint(['incident_id'], ['incidents.id'], ondelete='CASCADE'),
-        sa.PrimaryKeyConstraint('id'),
-    )
-    op.create_index('ix_investigation_notes_incident_id', 'investigation_notes', ['incident_id'])
-    op.create_index('ix_investigation_notes_author_id', 'investigation_notes', ['author_id'])
+    bind = op.get_bind()
+    existing_tables = sa.inspect(bind).get_table_names()
+
+    if 'investigation_notes' not in existing_tables:
+        op.create_table(
+            'investigation_notes',
+            sa.Column('id', postgresql.UUID(as_uuid=True), nullable=False),
+            sa.Column('incident_id', postgresql.UUID(as_uuid=True), nullable=False),
+            sa.Column('author_id', postgresql.UUID(as_uuid=True), nullable=True),
+            sa.Column('content', sa.Text(), nullable=False),
+            sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
+            sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
+            sa.ForeignKeyConstraint(['author_id'], ['users.id'], ondelete='SET NULL'),
+            sa.ForeignKeyConstraint(['incident_id'], ['incidents.id'], ondelete='CASCADE'),
+            sa.PrimaryKeyConstraint('id'),
+        )
+        op.create_index('ix_investigation_notes_incident_id', 'investigation_notes', ['incident_id'])
+        op.create_index('ix_investigation_notes_author_id', 'investigation_notes', ['author_id'])
 
 
 def downgrade() -> None:

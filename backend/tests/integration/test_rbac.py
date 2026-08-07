@@ -21,17 +21,20 @@ class TestViewerPermissions:
     """Viewer role — read-only access."""
 
     async def test_viewer_can_list_incidents(
-        self, client: AsyncClient, carol_h: dict, sql_injection_incident: dict  # noqa: ARG002
+        self, client: AsyncClient, carol_h: dict, carol_viewable_incident: dict  # noqa: ARG002
     ):
+        # carol_viewable_incident is in carol's own project — she must see it.
+        # Project isolation: viewers only see incidents in projects THEY own.
         resp = await client.get("/api/v1/incidents", headers=carol_h)
         assert resp.status_code == 200
         assert resp.json()["total"] >= 1
 
     async def test_viewer_can_get_single_incident(
-        self, client: AsyncClient, carol_h: dict, sql_injection_incident: dict
+        self, client: AsyncClient, carol_h: dict, carol_viewable_incident: dict
     ):
+        # Carol owns the project this incident belongs to, so she can access it.
         resp = await client.get(
-            f"/api/v1/incidents/{sql_injection_incident['id']}",
+            f"/api/v1/incidents/{carol_viewable_incident['id']}",
             headers=carol_h,
         )
         assert resp.status_code == 200

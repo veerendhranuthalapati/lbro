@@ -18,6 +18,12 @@ from app.models.user import User
 from app.schemas.auth import LoginRequest, ProfileUpdateRequest, RegisterRequest, TokenResponse
 from app.core.exceptions import ConflictError, LBROException, NotFoundError
 
+# Pre-computed bcrypt hash used as a constant-time dummy when the login email
+# is not found in the database.  Without this, the missing bcrypt work creates
+# a measurable latency difference that allows user enumeration by timing.
+# Computed once at module load — not derived from any real password.
+_DUMMY_HASH: str = hash_password("lbro-dummy-constant-time-sentinel-value")
+
 
 class AuthService:
     def __init__(self, db: AsyncSession) -> None:
@@ -97,7 +103,13 @@ class AuthService:
         if user and user.locked_until and user.locked_until > datetime.now(timezone.utc):
             raise LBROException("Account temporarily locked. Try again later.", 403)
 
-        password_ok = verify_password(data.password, user.hashed_password) if user else False
+        # Always call verify_password even when the user doesn't exist.
+        # Skipping the bcrypt work when the user is absent creates a measurable
+        # timing difference that allows user enumeration via response latency.
+        password_ok = verify_password(
+            data.password,
+            user.hashed_password if user else _DUMMY_HASH,
+        )
 
         if not user or not password_ok:
             if user:

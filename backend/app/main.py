@@ -129,11 +129,30 @@ app.add_exception_handler(Exception, generic_exception_handler)
 # ── Request ID + timing middleware ────────────────────────────────────────────
 @app.middleware("http")
 async def request_context_middleware(request: Request, call_next):
+    from fastapi.responses import JSONResponse as _JSONResponse
     request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
     structlog.contextvars.clear_contextvars()
     structlog.contextvars.bind_contextvars(request_id=request_id)
     start = time.perf_counter()
-    response = await call_next(request)
+    try:
+        response = await call_next(request)
+    except Exception as exc:  # noqa: BLE001
+        # Catch any exception that escapes the exception-handler middleware
+        # (e.g. asyncpg connection errors during dependency resolution) so the
+        # client always receives a proper JSON 500 instead of a socket hang-up.
+        duration_ms = round((time.perf_counter() - start) * 1000, 1)
+        logger.error(
+            "unhandled_middleware_exception",
+            method=request.method,
+            path=request.url.path,
+            error=str(exc),
+            duration_ms=duration_ms,
+        )
+        return _JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error"},
+            headers={"X-Request-ID": request_id, "X-Process-Time": f"{duration_ms}ms"},
+        )
     duration_ms = round((time.perf_counter() - start) * 1000, 1)
     response.headers["X-Request-ID"] = request_id
     response.headers["X-Process-Time"] = f"{duration_ms}ms"

@@ -4,11 +4,12 @@
  * Route: /projects/:projectId/integrations
  */
 import { useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  ArrowLeft, Copy, Check, Terminal, ChevronRight,
-  Search, ExternalLink,
+  Copy, Check, Terminal, ChevronRight,
+  Search, ExternalLink, Key, RefreshCw,
+  Plug2, AlertTriangle, Loader2, FolderOpen,
 } from 'lucide-react'
 import { projectsApi } from '@/api/client'
 
@@ -23,28 +24,42 @@ interface Integration {
   name:     string
   icon:     string
   color:    string
-  category: string
+  category: 'SDK' | 'Log Agent' | 'REST API' | 'Webhooks' | 'SIEM' | 'Coming Soon'
   tags:     string[]
+  comingSoon?: boolean
 }
 
 const CATALOG: Integration[] = [
-  { id:'python',   name:'Python',         icon:'🐍', color:'#3b82f6', category:'SDK',    tags:['backend','script'] },
-  { id:'nodejs',   name:'Node.js',        icon:'⬢',  color:'#22c55e', category:'SDK',    tags:['backend','javascript'] },
-  { id:'java',     name:'Java',           icon:'☕', color:'#f59e0b', category:'SDK',    tags:['backend','jvm'] },
-  { id:'go',       name:'Go',             icon:'🐹', color:'#06b6d4', category:'SDK',    tags:['backend','compiled'] },
-  { id:'express',  name:'Express',        icon:'🚂', color:'#6b7280', category:'SDK',    tags:['nodejs','web'] },
-  { id:'fastapi',  name:'FastAPI',        icon:'⚡', color:'#22c55e', category:'SDK',    tags:['python','web','async'] },
-  { id:'flask',    name:'Flask',          icon:'🧪', color:'#a855f7', category:'SDK',    tags:['python','web'] },
-  { id:'django',   name:'Django',         icon:'🎸', color:'#22c55e', category:'SDK',    tags:['python','web'] },
-  { id:'spring',   name:'Spring Boot',    icon:'🍃', color:'#22c55e', category:'SDK',    tags:['java','web'] },
-  { id:'aspnet',   name:'ASP.NET',        icon:'🟣', color:'#a855f7', category:'SDK',    tags:['dotnet','web'] },
-  { id:'laravel',  name:'Laravel',        icon:'🎨', color:'#ef4444', category:'SDK',    tags:['php','web'] },
-  { id:'php',      name:'PHP',            icon:'🐘', color:'#6366f1', category:'SDK',    tags:['web','scripting'] },
-  { id:'docker',   name:'Docker',         icon:'🐳', color:'#3b82f6', category:'Agent',  tags:['container','infra'] },
-  { id:'nginx',    name:'Nginx',          icon:'⚡', color:'#22c55e', category:'Agent',  tags:['web server','proxy'] },
-  { id:'apache',   name:'Apache',         icon:'🪶', color:'#ef4444', category:'Agent',  tags:['web server'] },
-  { id:'windows',  name:'Windows Events', icon:'🪟', color:'#3b82f6', category:'Agent',  tags:['windows','siem'] },
-  { id:'syslog',   name:'Linux Syslog',   icon:'🐧', color:'#f59e0b', category:'Agent',  tags:['linux','siem'] },
+  // REST API
+  { id:'curl',     name:'REST API / cURL',  icon:'🔌', color:'#e54e1b', category:'REST API',    tags:['http','curl','direct'] },
+  // SDKs
+  { id:'python',   name:'Python',           icon:'🐍', color:'#3b82f6', category:'SDK',         tags:['backend','script'] },
+  { id:'nodejs',   name:'Node.js',          icon:'⬢',  color:'#22c55e', category:'SDK',         tags:['backend','javascript'] },
+  { id:'java',     name:'Java',             icon:'☕', color:'#f59e0b', category:'SDK',         tags:['backend','jvm'] },
+  { id:'go',       name:'Go',               icon:'🐹', color:'#06b6d4', category:'SDK',         tags:['backend','compiled'] },
+  { id:'express',  name:'Express',          icon:'🚂', color:'#6b7280', category:'SDK',         tags:['nodejs','web'] },
+  { id:'fastapi',  name:'FastAPI',          icon:'⚡', color:'#22c55e', category:'SDK',         tags:['python','web','async'] },
+  { id:'flask',    name:'Flask',            icon:'🧪', color:'#a855f7', category:'SDK',         tags:['python','web'] },
+  { id:'django',   name:'Django',           icon:'🎸', color:'#22c55e', category:'SDK',         tags:['python','web'] },
+  { id:'spring',   name:'Spring Boot',      icon:'🍃', color:'#22c55e', category:'SDK',         tags:['java','web'] },
+  { id:'aspnet',   name:'ASP.NET',          icon:'🟣', color:'#a855f7', category:'SDK',         tags:['dotnet','web'] },
+  { id:'laravel',  name:'Laravel',          icon:'🎨', color:'#ef4444', category:'SDK',         tags:['php','web'] },
+  { id:'php',      name:'PHP',              icon:'🐘', color:'#6366f1', category:'SDK',         tags:['web','scripting'] },
+  // Log Agents
+  { id:'docker',   name:'Docker',           icon:'🐳', color:'#3b82f6', category:'Log Agent',   tags:['container','infra'] },
+  { id:'nginx',    name:'Nginx',            icon:'⚡', color:'#22c55e', category:'Log Agent',   tags:['web server','proxy'] },
+  { id:'apache',   name:'Apache',           icon:'🪶', color:'#ef4444', category:'Log Agent',   tags:['web server'] },
+  { id:'windows',  name:'Windows Events',   icon:'🪟', color:'#3b82f6', category:'Log Agent',   tags:['windows','siem'] },
+  { id:'syslog',   name:'Linux Syslog',     icon:'🐧', color:'#f59e0b', category:'Log Agent',   tags:['linux','siem'] },
+  // Webhooks
+  { id:'webhook',  name:'Outbound Webhooks',icon:'📡', color:'#8b5cf6', category:'Webhooks',    tags:['push','notify'], comingSoon: true },
+  // SIEM
+  { id:'splunk',   name:'Splunk',           icon:'📊', color:'#22d3ee', category:'SIEM',        tags:['siem','enterprise'], comingSoon: true },
+  { id:'elastic',  name:'Elastic SIEM',     icon:'🔍', color:'#f59e0b', category:'SIEM',        tags:['siem','elk'], comingSoon: true },
+]
+
+const CATEGORIES: Array<Integration['category'] | 'All'> = [
+  'All', 'REST API', 'SDK', 'Log Agent', 'Webhooks', 'SIEM',
 ]
 
 // ── Snippets (same as Wizard — inlined for standalone page) ───────────────
@@ -53,6 +68,28 @@ function buildSnippet(id: string, apiKey: string): { install: string; code: stri
   const BASE = typeof window !== 'undefined' ? window.location.origin : 'https://your-lbro-instance.com'
 
   const MAP: Record<string, { install: string; code: string }> = {
+    curl: {
+      install: '# No installation required — cURL is available on every platform',
+      code:
+`# Send a security event directly via REST API
+curl -X POST ${BASE}/api/v1/events \\
+  -H "Authorization: Bearer ${k}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "event_type": "sql_injection",
+    "severity":   "critical",
+    "message":    "SQLi probe detected on /api/users",
+    "source_ip":  "185.220.101.42",
+    "payload":    { "endpoint": "/api/users", "method": "GET" }
+  }'
+
+# Supported event_type values:
+# sql_injection | brute_force | port_scan | xss
+# auth_failure  | system_log  | suspicious_request
+
+# Supported severity values:
+# critical | high | medium | low | info`,
+    },
     python: {
       install: 'pip install requests',
       code:
@@ -561,57 +598,192 @@ function CodeBlock({ code, lang }: { code: string; lang?: string }) {
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────
-const CATEGORIES = ['All', 'SDK', 'Agent']
+
+function maskKey(key: string): string {
+  if (!key) return '••••••••••••••••••••••••••••••••'
+  return key.slice(0, 12) + '••••••••••••••••••••' + key.slice(-4)
+}
+
+function langFor(id: string): string {
+  if (['nodejs', 'express'].includes(id)) return 'javascript'
+  if (['java', 'spring'].includes(id))   return 'java'
+  if (id === 'go')                        return 'go'
+  if (id === 'aspnet')                    return 'csharp'
+  if (['php', 'laravel'].includes(id))   return 'php'
+  return 'python'
+}
 
 export default function IntegrationsPage() {
   const { projectId } = useParams<{ projectId: string }>()
-  const [selected, setSelected] = useState('python')
-  const [category, setCategory] = useState('All')
-  const [search,   setSearch]   = useState('')
-  const [curlIdx,  setCurlIdx]  = useState(0)
+  const navigate      = useNavigate()
+  const queryClient   = useQueryClient()
 
-  const { data: project } = useQuery({
+  const [selected,     setSelected]     = useState('curl')
+  const [category,     setCategory]     = useState<typeof CATEGORIES[number]>('All')
+  const [search,       setSearch]       = useState('')
+  const [curlIdx,      setCurlIdx]      = useState(0)
+  const [keyVisible,   setKeyVisible]   = useState(false)
+  const [regenConfirm, setRegenConfirm] = useState(false)
+
+  const { data: project, isLoading } = useQuery({
     queryKey: ['project', projectId],
     queryFn:  () => projectsApi.get(projectId!),
     enabled:  !!projectId,
   })
 
-  const apiKey = project?.api_key ?? ''
-  const sel    = CATALOG.find(c => c.id === selected)!
-  const snip   = buildSnippet(selected, apiKey)
-  const curl   = CURL_EVENTS[curlIdx]
+  const regenMutation = useMutation({
+    mutationFn: () => projectsApi.regenerateKey(projectId!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project', projectId] })
+      setRegenConfirm(false)
+      setKeyVisible(true)
+    },
+  })
+
+  const apiKey  = project?.api_key ?? ''
+  const sel     = CATALOG.find(c => c.id === selected) ?? CATALOG[0]
+  const snip    = buildSnippet(selected, apiKey)
+  const curl    = CURL_EVENTS[curlIdx]
   const curlCmd = `curl -X POST ${typeof window !== 'undefined' ? window.location.origin : ''}/api/v1/events \\
   -H "Authorization: Bearer ${apiKey || 'proj_your_key'}" \\
   -H "Content-Type: application/json" \\
   -d '{"event_type":"${curl.type}","severity":"${curl.sev}","message":"${curl.msg}","source_ip":"${curl.ip}"}'`
 
   const filtered = CATALOG.filter(c => {
-    const matchCat = category === 'All' || c.category === category
-    const matchSearch = !search || c.name.toLowerCase().includes(search.toLowerCase()) ||
+    if (c.comingSoon) return false  // hide coming-soon from main list unless category selected
+    const matchCat    = category === 'All' || c.category === category
+    const matchSearch = !search ||
+      c.name.toLowerCase().includes(search.toLowerCase()) ||
       c.tags.some(t => t.toLowerCase().includes(search.toLowerCase()))
     return matchCat && matchSearch
   })
+
+  // ── No project selected ────────────────────────────────────────────────
+  if (!projectId) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center" style={{ background: BG }}>
+        <div className="text-center max-w-sm">
+          <Plug2 className="w-12 h-12 mx-auto mb-4 text-zinc-700" />
+          <h2 className="font-display text-xl text-white mb-2">No project selected</h2>
+          <p className="text-sm text-zinc-500 mb-6">Select a project to manage its integrations.</p>
+          <button
+            onClick={() => navigate('/projects')}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded text-sm font-medium transition-all"
+            style={{ background: ORANGE, color: '#fff' }}
+          >
+            <FolderOpen className="w-4 h-4" /> Go to Projects
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Loading ────────────────────────────────────────────────────────────
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center" style={{ background: BG }}>
+        <Loader2 className="w-6 h-6 animate-spin text-zinc-600" />
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen" style={{ background: BG }}>
       <div className="max-w-6xl mx-auto px-6 py-10">
 
-        {/* Header */}
-        <div className="mb-8">
-          <Link to={`/projects/${projectId}`}
-            className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 mb-4 transition-colors">
-            <ArrowLeft className="w-3.5 h-3.5" /> Back to project
+        {/* Breadcrumbs */}
+        <nav className="flex items-center gap-1.5 text-xs text-zinc-600 mb-6" aria-label="Breadcrumb">
+          <Link to="/projects" className="hover:text-zinc-400 transition-colors">Projects</Link>
+          <ChevronRight className="w-3 h-3" />
+          <Link to={`/projects/${projectId}`} className="hover:text-zinc-400 transition-colors truncate max-w-[160px]">
+            {project?.name ?? projectId}
           </Link>
-          <h1 className="font-display text-3xl text-white">Integrations</h1>
-          <p className="text-sm text-zinc-500 mt-1">Connect your application to LBRO in under 5 minutes</p>
+          <ChevronRight className="w-3 h-3" />
+          <span className="text-zinc-400">Integrations</span>
+        </nav>
+
+        {/* Page header */}
+        <div className="mb-8">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="font-display text-3xl text-white">Integrations</h1>
+              <p className="text-sm text-zinc-500 mt-1">Connect your application to LBRO in under 5 minutes</p>
+            </div>
+            <Link
+              to={`/projects/${projectId}/events`}
+              className="flex items-center gap-1.5 text-xs px-3 py-2 rounded transition-all shrink-0"
+              style={{ background: '#1a1a1a', color: '#888', border: '1px solid #2a2a2a' }}
+            >
+              <Terminal className="w-3.5 h-3.5" /> Live stream
+            </Link>
+          </div>
+        </div>
+
+        {/* API Key panel */}
+        <div className="rounded-xl p-5 mb-8" style={{ background: CARD, border: '1px solid ' + BORDER }}>
+          <div className="flex items-center gap-2 mb-3">
+            <Key className="w-4 h-4" style={{ color: ORANGE }} />
+            <span className="text-sm font-medium text-white">Project API Key</span>
+            <span className="ml-auto text-xs text-zinc-600">Used in every code snippet below</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <code
+              className="flex-1 text-xs rounded px-3 py-2.5 font-mono truncate"
+              style={{ background: '#080808', border: '1px solid #2a2a2a', color: keyVisible ? '#d4d4d4' : '#666' }}
+            >
+              {keyVisible ? (apiKey || 'No key generated') : maskKey(apiKey)}
+            </code>
+            <button
+              onClick={() => setKeyVisible(v => !v)}
+              className="text-xs px-3 py-2.5 rounded transition-all shrink-0"
+              style={{ background: '#1a1a1a', color: '#888', border: '1px solid #2a2a2a' }}
+              title={keyVisible ? 'Hide key' : 'Reveal key'}
+            >
+              {keyVisible ? 'Hide' : 'Reveal'}
+            </button>
+            <CopyBtn text={apiKey} />
+            {!regenConfirm ? (
+              <button
+                onClick={() => setRegenConfirm(true)}
+                className="flex items-center gap-1.5 text-xs px-3 py-2.5 rounded transition-all shrink-0"
+                style={{ background: '#1a1a1a', color: '#888', border: '1px solid #2a2a2a' }}
+                title="Regenerate API key — existing key will be revoked"
+              >
+                <RefreshCw className="w-3.5 h-3.5" /> Regenerate
+              </button>
+            ) : (
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                <span className="text-xs text-amber-500">Old key stops working.</span>
+                <button
+                  onClick={() => regenMutation.mutate()}
+                  disabled={regenMutation.isPending}
+                  className="text-xs px-3 py-2 rounded transition-all"
+                  style={{ background: '#7f1d1d', color: '#fca5a5', border: '1px solid #991b1b' }}
+                >
+                  {regenMutation.isPending ? 'Rotating…' : 'Confirm'}
+                </button>
+                <button
+                  onClick={() => setRegenConfirm(false)}
+                  className="text-xs px-3 py-2 rounded transition-all"
+                  style={{ background: '#1a1a1a', color: '#888', border: '1px solid #2a2a2a' }}
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
+          </div>
+          {regenMutation.isError && (
+            <p className="text-xs text-red-400 mt-2">Failed to regenerate key. Please try again.</p>
+          )}
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
           {/* Left: integration picker */}
           <div>
-            {/* Search + filter */}
-            <div className="mb-4 space-y-3">
+            {/* Search */}
+            <div className="mb-3">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-zinc-600" />
                 <input
@@ -619,33 +791,41 @@ export default function IntegrationsPage() {
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Search integrations..."
                   className="w-full pl-8 pr-3 py-2 rounded-lg text-xs text-white outline-none"
-                  style={{ background: CARD, border: '1px solid ' + BORDER, fontSize: 12 }}
+                  style={{ background: '#0f0f0f', border: '1px solid ' + BORDER, fontSize: 12 }}
                 />
-              </div>
-              <div className="flex gap-2">
-                {CATEGORIES.map(c => (
-                  <button key={c} onClick={() => setCategory(c)}
-                    className="px-3 py-1 rounded text-xs transition-all"
-                    style={{
-                      background: category === c ? ORANGE + '22' : '#1a1a1a',
-                      color:      category === c ? ORANGE : '#666',
-                      border:     '1px solid ' + (category === c ? ORANGE + '44' : '#222'),
-                    }}
-                  >{c}</button>
-                ))}
               </div>
             </div>
 
-            {/* List */}
+            {/* Category filter */}
+            <div className="flex flex-wrap gap-1.5 mb-4">
+              {CATEGORIES.map(c => (
+                <button key={c} onClick={() => setCategory(c)}
+                  className="px-2.5 py-1 rounded text-xs transition-all"
+                  style={{
+                    background: category === c ? ORANGE + '22' : '#1a1a1a',
+                    color:      category === c ? ORANGE : '#666',
+                    border:     '1px solid ' + (category === c ? ORANGE + '44' : '#222'),
+                  }}
+                >{c}</button>
+              ))}
+            </div>
+
+            {/* Integration list */}
             <div className="space-y-1">
+              {filtered.length === 0 && (
+                <p className="text-xs text-zinc-600 px-3 py-4 text-center">No integrations match your search.</p>
+              )}
               {filtered.map(int => (
                 <button
                   key={int.id}
-                  onClick={() => setSelected(int.id)}
+                  onClick={() => !int.comingSoon && setSelected(int.id)}
+                  disabled={int.comingSoon}
                   className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-left transition-all"
                   style={{
                     background:  selected === int.id ? int.color + '15' : 'transparent',
                     border:      '1px solid ' + (selected === int.id ? int.color + '40' : 'transparent'),
+                    opacity:     int.comingSoon ? 0.5 : 1,
+                    cursor:      int.comingSoon ? 'not-allowed' : 'pointer',
                   }}
                 >
                   <span className="text-lg w-6 text-center shrink-0">{int.icon}</span>
@@ -653,7 +833,10 @@ export default function IntegrationsPage() {
                     <p className="text-sm text-white truncate">{int.name}</p>
                     <p className="text-xs" style={{ color: int.color + 'aa' }}>{int.category}</p>
                   </div>
-                  {selected === int.id && <ChevronRight className="w-3.5 h-3.5" style={{ color: int.color }} />}
+                  {int.comingSoon
+                    ? <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: '#1e1e1e', color: '#555', border: '1px solid #2a2a2a' }}>Soon</span>
+                    : selected === int.id && <ChevronRight className="w-3.5 h-3.5" style={{ color: int.color }} />
+                  }
                 </button>
               ))}
             </div>
@@ -661,16 +844,20 @@ export default function IntegrationsPage() {
 
           {/* Right: code panel */}
           <div className="lg:col-span-2 space-y-5">
-            {/* Title */}
+
+            {/* Integration header */}
             <div className="flex items-center gap-3 pb-4" style={{ borderBottom: '1px solid ' + BORDER }}>
               <span className="text-2xl">{sel.icon}</span>
               <div>
                 <h2 className="font-display text-xl text-white">{sel.name}</h2>
                 <p className="text-xs text-zinc-500">
-                  {sel.category === 'SDK' ? 'Add to your application code' : 'Run alongside your infrastructure'}
+                  {sel.category === 'SDK'       ? 'Add to your application code' :
+                   sel.category === 'Log Agent' ? 'Run alongside your infrastructure' :
+                   sel.category === 'REST API'  ? 'Send events via HTTP from any language' :
+                   'Connect your platform to LBRO'}
                 </p>
               </div>
-              <span className="ml-auto text-xs px-2 py-0.5 rounded" style={{ background: sel.color + '22', color: sel.color }}>
+              <span className="ml-auto text-xs px-2 py-0.5 rounded shrink-0" style={{ background: sel.color + '22', color: sel.color }}>
                 {sel.category}
               </span>
             </div>
@@ -684,43 +871,43 @@ export default function IntegrationsPage() {
 
             <div>
               <p className="text-xs text-zinc-500 mb-2 font-medium uppercase tracking-wide">Code</p>
-              <CodeBlock code={snip.code} lang={
-                ['nodejs','express'].includes(selected) ? 'javascript' :
-                ['java','spring'].includes(selected) ? 'java' :
-                selected === 'go' ? 'go' :
-                ['aspnet'].includes(selected) ? 'csharp' :
-                ['php','laravel'].includes(selected) ? 'php' : 'python'
-              } />
+              <CodeBlock code={snip.code} lang={langFor(selected)} />
             </div>
 
-            {/* curl section */}
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-xs text-zinc-500 font-medium uppercase tracking-wide">cURL Examples</p>
-                <Terminal className="w-3.5 h-3.5 text-zinc-600" />
+            {/* cURL quick-test section (skip for the REST API entry itself) */}
+            {selected !== 'curl' && (
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs text-zinc-500 font-medium uppercase tracking-wide">cURL Quick Test</p>
+                  <Terminal className="w-3.5 h-3.5 text-zinc-600" />
+                </div>
+                <div className="flex flex-wrap gap-1.5 mb-3">
+                  {CURL_EVENTS.map((ev, i) => (
+                    <button key={i} onClick={() => setCurlIdx(i)}
+                      className="text-xs px-2 py-1 rounded transition-all"
+                      style={{
+                        background: curlIdx === i ? ORANGE + '22' : '#161616',
+                        color:      curlIdx === i ? ORANGE : '#555',
+                        border:     '1px solid ' + (curlIdx === i ? ORANGE + '40' : '#1e1e1e'),
+                      }}
+                    >{ev.label}</button>
+                  ))}
+                </div>
+                <CodeBlock code={curlCmd} lang="bash" />
               </div>
-              <div className="flex flex-wrap gap-1.5 mb-3">
-                {CURL_EVENTS.map((ev, i) => (
-                  <button key={i} onClick={() => setCurlIdx(i)}
-                    className="text-xs px-2 py-1 rounded transition-all"
-                    style={{
-                      background: curlIdx === i ? ORANGE + '22' : '#161616',
-                      color:      curlIdx === i ? ORANGE : '#555',
-                      border:     '1px solid ' + (curlIdx === i ? ORANGE + '40' : '#1e1e1e'),
-                    }}
-                  >{ev.label}</button>
-                ))}
-              </div>
-              <CodeBlock code={curlCmd} lang="bash" />
-            </div>
+            )}
 
-            {/* Docs link */}
-            <div className="flex items-center gap-2 pt-2">
+            {/* Footer links */}
+            <div className="flex items-center gap-3 pt-2">
               <Link to="/docs" className="text-xs text-zinc-500 hover:text-zinc-300 flex items-center gap-1 transition-colors">
-                <ExternalLink className="w-3 h-3" /> Full API documentation
+                <ExternalLink className="w-3 h-3" /> Full API docs
               </Link>
               <span className="text-zinc-700">·</span>
-              <Link to={`/projects/${projectId}/events`} className="text-xs flex items-center gap-1 transition-colors" style={{ color: ORANGE }}>
+              <Link
+                to={`/projects/${projectId}/events`}
+                className="text-xs flex items-center gap-1 transition-colors"
+                style={{ color: ORANGE }}
+              >
                 <Terminal className="w-3 h-3" /> Live event stream
               </Link>
             </div>

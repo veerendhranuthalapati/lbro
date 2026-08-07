@@ -261,12 +261,34 @@ export default function RegisterPage() {
     } catch (err: unknown) {
       const status = (err as { response?: { status?: number } })?.response?.status
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-      const nextAttempts = attempts + 1
-      setAttempts(nextAttempts)
-      if (nextAttempts >= MAX_ATTEMPTS) setLockedUntil(Date.now() + COOLDOWN_MS)
-      if (status === 409)      setApiError(detail ?? 'Email already registered.')
-      else if (status === 403) setApiError('Registration is currently disabled.')
-      else                     setApiError('Could not create account. Is the backend running?')
+      // Only count attempts against the rate-limit for errors caused by the user
+      // (wrong/duplicate data). Config errors (403) and server errors should not
+      // lock the user out — they cannot fix those by trying different inputs.
+      if (status !== 403) {
+        const nextAttempts = attempts + 1
+        setAttempts(nextAttempts)
+        if (nextAttempts >= MAX_ATTEMPTS) setLockedUntil(Date.now() + COOLDOWN_MS)
+      }
+      if (status === 409) {
+        setApiError(detail ?? 'Email already registered.')
+      } else if (status === 403) {
+        setApiError('Registration is currently disabled. Contact your administrator.')
+      } else if (status === 422) {
+        // Pydantic validation error — detail is an array of {msg, loc} objects
+        const raw = (err as { response?: { data?: { detail?: unknown } } })?.response?.data?.detail
+        let msg = 'Invalid input — check your details and try again.'
+        if (Array.isArray(raw) && raw.length > 0) {
+          const first = raw[0] as { msg?: string }
+          if (first?.msg) msg = first.msg.replace(/^Value error, /i, '')
+        } else if (typeof raw === 'string' && raw) {
+          msg = raw
+        }
+        setApiError(msg)
+      } else if (!status) {
+        setApiError('Cannot reach the server — make sure the backend is running on port 8000.')
+      } else {
+        setApiError(`Registration failed (${status}). Please try again.`)
+      }
       // Refresh captcha on API error too
       captchaRef.current = makeCapcha()
       setCaptchaInput('')

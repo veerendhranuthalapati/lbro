@@ -7,7 +7,7 @@ Adds Alice / Bob / Carol user fixtures and seeded project / incident / evidence 
 Role assignments:
   alice  — admin     (owns Portfolio + Ecommerce projects)
   bob    — analyst   (owns Hospital project)
-  carol  — viewer    (no owned projects)
+  carol  — viewer    (owns Carol's Project via DB fixture; has no CREATE_INCIDENT permission)
 
 The root conftest's `db` fixture wraps every test in an outer transaction that is
 rolled back on teardown, so no data leaks between tests.
@@ -131,6 +131,46 @@ async def carol_h(carol_token: str) -> dict:
 
 
 # ── Projects ──────────────────────────────────────────────────────────────────
+
+@pytest_asyncio.fixture
+async def carol_project(db: AsyncSession, carol: User) -> dict:
+    """Project owned by carol, inserted directly into the DB.
+
+    Carol (viewer) lacks CREATE_INCIDENT permission, so she cannot create incidents.
+    But she CAN read incidents in projects she owns — this fixture proves that.
+    An admin (alice) creates the incident in this project via the API.
+    """
+    from app.models.project import Project
+    project = Project(
+        id=uuid.uuid4(),
+        name="Carol's Project",
+        slug="carols-project",
+        owner_id=carol.id,
+        status="active",
+    )
+    db.add(project)
+    await db.flush()
+    return {"id": str(project.id), "name": project.name}
+
+
+@pytest_asyncio.fixture
+async def carol_viewable_incident(
+    client: AsyncClient, alice_h: dict, carol_project: dict
+) -> dict:
+    """Incident in carol's project, created by alice (admin).
+
+    This proves viewers CAN read incidents that belong to their own projects.
+    Alice (admin) can create incidents in any project, so she targets carol's.
+    """
+    resp = await client.post("/api/v1/incidents", json={
+        "title": "SQL Injection in Carol's App",
+        "severity": "high",
+        "attack_category": "injection",
+        "project_id": carol_project["id"],
+    }, headers=alice_h)
+    assert resp.status_code == 201, resp.text
+    return resp.json()
+
 
 @pytest_asyncio.fixture
 async def portfolio_project(client: AsyncClient, alice_h: dict) -> dict:

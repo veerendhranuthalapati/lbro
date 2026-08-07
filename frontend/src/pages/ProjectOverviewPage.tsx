@@ -9,7 +9,7 @@ import { useQuery } from '@tanstack/react-query'
 import {
   ShieldCheck, ShieldAlert, Lock, FileText, Clock,
   AlertTriangle, Target, Key, Settings, ArrowLeft,
-  Globe, Layers, Code2, Loader2, Zap, Activity, Terminal,
+  Globe, Layers, Code2, Loader2, Zap, Activity, Terminal, Plug2, ArrowRight,
 } from 'lucide-react'
 import { projectsApi } from '@/api/client'
 import { useProjectStore } from '@/store/projectStore'
@@ -131,7 +131,7 @@ export default function ProjectOverviewPage() {
                 className="px-3 py-1.5 rounded text-sm border flex items-center gap-1.5 text-zinc-400 hover:text-white transition-colors"
                 style={{ borderColor: '#333' }}
               >
-                <Terminal className="w-3.5 h-3.5" /> Integrations
+                <Plug2 className="w-3.5 h-3.5" /> Integrations
               </Link>
               <Link
                 to={`/projects/${projectId}/settings`}
@@ -226,6 +226,50 @@ export default function ProjectOverviewPage() {
           </p>
           <p className="font-mono text-sm text-zinc-300 break-all">{dashboard.api_key}</p>
         </div>
+
+        {/* Connect your app — shown when no incidents yet */}
+        {dashboard.open_incidents === 0 && dashboard.critical_incidents === 0 && (
+          <div
+            className="rounded-lg border p-5 mb-6 flex items-start gap-4"
+            style={{ background: '#0a0f0a', borderColor: '#1e3a1e' }}
+          >
+            <div
+              className="w-10 h-10 rounded-lg flex items-center justify-center shrink-0"
+              style={{ background: 'rgba(229,78,27,0.12)', border: '1px solid rgba(229,78,27,0.25)' }}
+            >
+              <Plug2 className="w-5 h-5" style={{ color: '#e54e1b' }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-white mb-1">No events yet — connect your application</p>
+              <p className="text-xs text-zinc-500 leading-relaxed mb-3">
+                Your project is ready. Add the LBRO SDK or agent to start sending security events.
+                Python, Node.js, Java, Go, Docker, Nginx, and more are available.
+              </p>
+              <div className="flex items-center gap-3">
+                <Link
+                  to={`/projects/${projectId}/integrations`}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded text-xs font-medium transition-all hover:opacity-90"
+                  style={{ background: '#e54e1b', color: '#fff' }}
+                >
+                  <Plug2 className="w-3.5 h-3.5" /> Browse integrations
+                </Link>
+                <Link
+                  to={`/projects/${projectId}/events`}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded text-xs transition-all"
+                  style={{ background: '#1a1a1a', color: '#888', border: '1px solid #2a2a2a' }}
+                >
+                  <Terminal className="w-3.5 h-3.5" /> Live stream
+                </Link>
+              </div>
+            </div>
+            <Link
+              to={`/projects/${projectId}/integrations`}
+              className="shrink-0 text-zinc-600 hover:text-zinc-400 transition-colors"
+            >
+              <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        )}
 
         {/* Recommendations */}
         {dashboard.top_recommendations.length > 0 && (

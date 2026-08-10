@@ -152,7 +152,7 @@ export default function LoginPage() {
       const remaining = LOGIN_MAX_ATTEMPTS - loginAttempts - 1
       const status = (err as { response?: { status?: number } })?.response?.status
       const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail
-      if (status === 401 || status === 422) {
+      if (status === 400 || status === 401 || status === 422) {
         setError(remaining > 0
           ? `Invalid credentials. ${remaining} attempt${remaining !== 1 ? 's' : ''} remaining.`
           : 'Account locked due to too many failed attempts.')

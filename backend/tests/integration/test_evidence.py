@@ -127,15 +127,12 @@ class TestEvidenceList:
         body = resp.json()
         assert len(body["items"]) >= 1
 
-    async def test_list_all_evidence_filtered_by_project(
+    async def test_list_all_evidence_scoped_to_accessible_projects(
         self, client: AsyncClient, alice_h: dict,
         portfolio_evidence: dict, hospital_evidence: dict,
         portfolio_project: dict
     ):
-        """IDOR GAP (documented): GET /evidence?project_id=... does not enforce
-        project scoping — the endpoint returns all evidence regardless of
-        project_id param. Portfolio evidence is visible but so is hospital evidence.
-        This is a known gap; test documents observed behaviour."""
+        """Evidence list with project_id must not leak other projects' files."""
         resp = await client.get(
             "/api/v1/evidence",
             params={"project_id": portfolio_project["id"]},
@@ -143,10 +140,8 @@ class TestEvidenceList:
         )
         assert resp.status_code == 200
         ids = {e["id"] for e in resp.json().get("items", [])}
-        # The endpoint exists and returns the uploaded evidence
         assert portfolio_evidence["id"] in ids
-        # Documents gap: project_id filter is not enforced; hospital evidence
-        # may also appear (200 returned, not filtered)
+        assert hospital_evidence["id"] not in ids
 
 
 class TestEvidenceDownload:
@@ -161,32 +156,29 @@ class TestEvidenceDownload:
         )
         assert resp.status_code in (200, 302)
 
-    async def test_download_evidence_with_wrong_project_id_gap(
+    async def test_download_evidence_with_wrong_project_id_rejected(
         self, client: AsyncClient, alice_h: dict,
         portfolio_evidence: dict, hospital_project: dict
     ):
-        """IDOR GAP (documented): GET /evidence/{id}/download ignores project_id
-        — any authenticated user with DOWNLOAD_EVIDENCE permission can access
-        any evidence file by ID regardless of which project it belongs to.
-        Documents observed behaviour (200); enforcement is absent."""
+        """Cross-project download with mismatched project_id must be denied."""
         resp = await client.get(
             f"/api/v1/evidence/{portfolio_evidence['id']}/download",
             params={"project_id": hospital_project["id"]},
             headers=alice_h,
         )
-        # Gap: returns 200 even with wrong project_id (no project scope check)
-        assert resp.status_code in (200, 403, 404)
+        assert resp.status_code in (403, 404)
 
-    async def test_viewer_can_download_with_correct_project_id(
+    async def test_viewer_cannot_download_other_users_project_evidence(
         self, client: AsyncClient, carol_h: dict,
         portfolio_evidence: dict, portfolio_project: dict
     ):
+        """Viewer who does not own the project cannot download its evidence."""
         resp = await client.get(
             f"/api/v1/evidence/{portfolio_evidence['id']}/download",
             params={"project_id": portfolio_project["id"]},
             headers=carol_h,
         )
-        assert resp.status_code in (200, 302)
+        assert resp.status_code in (403, 404)
 
 
 class TestEvidenceIntegrity:

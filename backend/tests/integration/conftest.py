@@ -141,11 +141,15 @@ async def carol_project(db: AsyncSession, carol: User) -> dict:
     An admin (alice) creates the incident in this project via the API.
     """
     from app.models.project import Project
+    from app.core.api_keys import generate_project_api_key
+    _, prefix, key_hash = generate_project_api_key()
     project = Project(
         id=uuid.uuid4(),
         name="Carol's Project",
         slug="carols-project",
         owner_id=carol.id,
+        api_key_hash=key_hash,
+        api_key_prefix=prefix,
         status="active",
     )
     db.add(project)

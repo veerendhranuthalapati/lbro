@@ -5,6 +5,7 @@ import asyncio
 import json
 import logging
 import signal
+from pathlib import Path
 
 from app.config import settings
 from app.workers.incident_worker import process_incident_message
@@ -15,6 +16,20 @@ logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL, logging.INFO),
                     format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
 _shutdown = False
+HEARTBEAT_PATH = Path("/tmp/lbro-worker-heartbeat")
+HEARTBEAT_INTERVAL_SECONDS = 15
+
+
+def _touch_heartbeat() -> None:
+    """Update mtime for Docker/process health monitoring (no HTTP server)."""
+    HEARTBEAT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    HEARTBEAT_PATH.touch()
+
+
+async def _heartbeat_loop() -> None:
+    while not _shutdown:
+        _touch_heartbeat()
+        await asyncio.sleep(HEARTBEAT_INTERVAL_SECONDS)
 
 
 def _handle_signal(sig, frame):
@@ -48,8 +63,12 @@ async def poll_queue(queue_url: str, handler) -> None:
 
 
 async def main() -> None:
+    global _shutdown
     signal.signal(signal.SIGTERM, _handle_signal)
     signal.signal(signal.SIGINT, _handle_signal)
+
+    _touch_heartbeat()
+    heartbeat_task = asyncio.create_task(_heartbeat_loop())
 
     tasks = []
     if settings.SQS_INCIDENT_QUEUE_URL:
@@ -57,11 +76,21 @@ async def main() -> None:
     if settings.SQS_NOTIFICATION_QUEUE_URL:
         tasks.append(poll_queue(settings.SQS_NOTIFICATION_QUEUE_URL, process_notification_message))
 
-    if not tasks:
-        logger.warning("No SQS queues configured — worker has nothing to do")
-        return
+    try:
+        if not tasks:
+            logger.warning("No SQS queues configured — worker idle (waiting for shutdown signal)")
+            while not _shutdown:
+                await asyncio.sleep(30)
+            return
 
-    await asyncio.gather(*tasks)
+        await asyncio.gather(*tasks)
+    finally:
+        _shutdown = True
+        heartbeat_task.cancel()
+        try:
+            await heartbeat_task
+        except asyncio.CancelledError:
+            pass
 
 
 if __name__ == "__main__":

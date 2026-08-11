@@ -31,6 +31,7 @@ from pydantic import BaseModel, EmailStr
 from sqlalchemy import func, select, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.api_keys import generate_project_api_key, mask_api_key_prefix
 from app.core.rbac import Role
 from app.core.security import hash_password as get_password_hash
 from app.database import get_db
@@ -364,14 +365,15 @@ async def platform_regenerate_project_key(
     current_user: Annotated[User, _SA],
 ):
     """Regenerate project API key. Old key is immediately invalidated."""
-    import secrets
     project = await _get_project_or_404(db, project_id)
-    old_prefix = project.api_key[:10] if project.api_key else "none"
-    project.api_key = "proj_" + secrets.token_urlsafe(32)
+    old_prefix = mask_api_key_prefix(project.api_key_prefix)
+    full_key, prefix, key_hash = generate_project_api_key()
+    project.api_key_hash = key_hash
+    project.api_key_prefix = prefix
     await db.flush()
     await _platform_audit(db, current_user, "api_key_regenerated", str(project_id),
                           {"project_name": project.name, "old_prefix": old_prefix})
-    return {"id": str(project.id), "api_key": project.api_key}
+    return {"id": str(project.id), "api_key": full_key}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -660,8 +662,7 @@ def _project_to_dict(p: Project) -> dict:
         "environment": p.environment,
         "status": p.status,
         "owner_id": str(p.owner_id) if p.owner_id else None,
-        # Never return the actual API key in list views — only in regenerate response
-        "api_key_prefix": p.api_key[:10] + "..." if p.api_key else None,
+        "api_key_prefix": mask_api_key_prefix(p.api_key_prefix),
         "created_at": p.created_at.isoformat(),
         "updated_at": p.updated_at.isoformat(),
     }

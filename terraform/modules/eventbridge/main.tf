@@ -20,7 +20,7 @@ resource "aws_scheduler_schedule" "deadline_sweep" {
   group_name = "default"
 
   flexible_time_window {
-    mode = "OFF"  # Exact schedule — regulatory deadlines are time-critical
+    mode = "OFF" # Exact schedule — regulatory deadlines are time-critical
   }
 
   # Every 15 minutes
@@ -41,7 +41,7 @@ resource "aws_scheduler_schedule" "deadline_sweep" {
     }
 
     retry_policy {
-      maximum_event_age_in_seconds = 300  # Discard if >5 min late — sweep would be stale
+      maximum_event_age_in_seconds = 300 # Discard if >5 min late — sweep would be stale
       maximum_retry_attempts       = 2
     }
   }
@@ -57,10 +57,10 @@ resource "aws_scheduler_schedule" "evidence_integrity" {
 
   flexible_time_window {
     mode                      = "FLEXIBLE"
-    maximum_window_in_minutes = 60  # Can run anytime within the hour after midnight
+    maximum_window_in_minutes = 60 # Can run anytime within the hour after midnight
   }
 
-  schedule_expression = "cron(0 1 * * ? *)"  # Daily at 01:00 UTC
+  schedule_expression = "cron(0 1 * * ? *)" # Daily at 01:00 UTC
 
   target {
     arn      = var.alerts_sns_topic_arn
@@ -107,15 +107,15 @@ resource "aws_iam_role_policy" "scheduler" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "SendToNotificationQueue"
-        Effect = "Allow"
-        Action = ["sqs:SendMessage"]
+        Sid      = "SendToNotificationQueue"
+        Effect   = "Allow"
+        Action   = ["sqs:SendMessage"]
         Resource = [var.notification_queue_arn]
       },
       {
-        Sid    = "PublishToAlertsTopic"
-        Effect = "Allow"
-        Action = ["sns:Publish"]
+        Sid      = "PublishToAlertsTopic"
+        Effect   = "Allow"
+        Action   = ["sns:Publish"]
         Resource = [var.alerts_sns_topic_arn]
       }
     ]

@@ -68,7 +68,7 @@ class TestViewerPermissions:
         )
         assert resp.status_code == 403
 
-    async def test_viewer_can_download_evidence(
+    async def test_viewer_cannot_download_other_project_evidence(
         self, client: AsyncClient, carol_h: dict,
         portfolio_evidence: dict, portfolio_project: dict
     ):
@@ -77,8 +77,7 @@ class TestViewerPermissions:
             params={"project_id": portfolio_project["id"]},
             headers=carol_h,
         )
-        # 200 OK or 302 redirect — both indicate access was granted
-        assert resp.status_code in (200, 302)
+        assert resp.status_code in (403, 404)
 
     async def test_viewer_cannot_upload_evidence(
         self, client: AsyncClient, carol_h: dict, sql_injection_incident: dict
@@ -90,7 +89,7 @@ class TestViewerPermissions:
         )
         assert resp.status_code == 403
 
-    async def test_viewer_can_view_compliance(
+    async def test_viewer_cannot_view_other_project_compliance(
         self, client: AsyncClient, carol_h: dict,
         portfolio_obligation: dict, portfolio_project: dict  # noqa: ARG002
     ):
@@ -99,7 +98,7 @@ class TestViewerPermissions:
             params={"project_id": portfolio_project["id"]},
             headers=carol_h,
         )
-        assert resp.status_code == 200
+        assert resp.status_code == 403
 
     async def test_viewer_cannot_manage_compliance(
         self, client: AsyncClient, carol_h: dict, portfolio_project: dict

@@ -107,7 +107,7 @@ function TrendBadge({ trend }: { trend: WeeklyReport['trend'] }) {
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
-export default function WeeklyReportPage() {
+export default function WeeklyReportPage({ embedded = false }: { embedded?: boolean }) {
   const navigate = useNavigate()
   const { data, isLoading, isError, refetch, isFetching } = useWeeklyReport()
   const [downloading, setDownloading] = useState(false)
@@ -184,6 +184,7 @@ export default function WeeklyReportPage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
       {/* ── Page header ────────────────────────────────────────────────────── */}
+      {!embedded && (
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, color: BLACK, letterSpacing: '0.04em', lineHeight: 1 }}>
@@ -243,6 +244,63 @@ export default function WeeklyReportPage() {
           )}
         </div>
       </div>
+      )}
+      {embedded && (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+          <p style={{ fontSize: 11, color: GRAY, margin: 0 }}>
+            {fmtShort(data.period_start)} – {fmt(data.period_end)} · Generated {fmt(data.generated_at)}
+          </p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => refetch()}
+              disabled={isFetching}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                fontSize: 11, color: GRAY, border: `1px solid ${BORDER}`,
+                padding: '7px 12px', borderRadius: 2, background: 'transparent',
+                cursor: isFetching ? 'default' : 'pointer',
+                opacity: isFetching ? 0.5 : 1,
+                textTransform: 'uppercase', letterSpacing: '0.06em',
+              }}
+            >
+              <RefreshCw style={{ width: 12, height: 12, animation: isFetching ? 'spin 1s linear infinite' : 'none' }} />
+              Refresh
+            </button>
+            {isMock ? (
+              <button
+                onClick={() => downloadMockPdf(mockFilename)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  fontSize: 11, color: '#fff', border: 'none',
+                  padding: '7px 14px', borderRadius: 2,
+                  background: ORANGE, cursor: 'pointer',
+                  textTransform: 'uppercase', letterSpacing: '0.06em',
+                  fontWeight: 600,
+                }}
+              >
+                <Download style={{ width: 12, height: 12 }} />
+                Download PDF
+              </button>
+            ) : (
+              <button
+                onClick={handleDownload}
+                disabled={downloading}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  fontSize: 11, color: '#fff', border: 'none',
+                  padding: '7px 14px', borderRadius: 2,
+                  background: ORANGE, cursor: downloading ? 'wait' : 'pointer',
+                  textTransform: 'uppercase', letterSpacing: '0.06em',
+                  fontWeight: 600, opacity: downloading ? 0.7 : 1,
+                }}
+              >
+                <Download style={{ width: 12, height: 12 }} />
+                {downloading ? 'Generating…' : 'Download PDF'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Score + Executive Summary ───────────────────────────────────────── */}
       <div style={{

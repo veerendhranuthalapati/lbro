@@ -5,24 +5,29 @@ import { cn } from '@/utils'
 import { useAuthStore } from '@/store/authStore'
 
 const PAGE_TITLES: Record<string, string> = {
-  '/dashboard':      'Dashboard',
-  '/incidents':      'Incidents',
-  '/notifications':  'Notifications',
-  '/compliance':     'Compliance',
-  '/ml-insights':    'ML Insights',
-  '/threat-intel':   'Threat Intel',
-  '/evidence':       'Evidence',
-  '/infrastructure': 'Infrastructure',
-  '/audit-logs':     'Audit Logs',
-  '/users':          'Users',
-  '/settings':       'Settings',
-  '/incidents/new':  'New Incident',
+  '/dashboard':          'Dashboard',
+  '/security-overview':  'Security Overview',
+  '/incidents':          'Incidents',
+  '/notifications':      'Notifications',
+  '/compliance':         'Compliance',
+  '/compliance/audit':   'Compliance Audit',
+  '/ml-insights':        'ML Insights',
+  '/threat-intel':       'Threat Intel',
+  '/evidence':           'Evidence',
+  '/infrastructure':     'Infrastructure',
+  '/audit-logs':         'Audit Logs',
+  '/users':              'Users',
+  '/settings':           'Settings',
+  '/privacy':            'Privacy',
+  '/incidents/new':      'New Incident',
 }
 
 function getPageTitle(pathname: string): string {
   if (PAGE_TITLES[pathname]) return PAGE_TITLES[pathname]
-  if (pathname.startsWith("/incidents/")) return "Incident Detail"
-  return "LBRO"
+  if (pathname.startsWith('/incidents/')) return 'Incident Detail'
+  if (pathname.includes('/integrations')) return 'Integrations'
+  if (pathname.includes('/events')) return 'Live Events'
+  return 'LBRO'
 }
 
 function getUserInitials(name: string | undefined, email: string | undefined): string {

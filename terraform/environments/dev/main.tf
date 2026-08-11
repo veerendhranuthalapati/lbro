@@ -91,8 +91,8 @@ module "vpc" {
   name               = local.name
   vpc_cidr           = "10.0.0.0/16"
   aws_region         = var.aws_region
-  enable_nat_gateway      = true
-  single_nat_gateway      = true   # Dev only: 1 NAT GW saves $64/mo vs 3
+  enable_nat_gateway = true
+  single_nat_gateway = true # Dev only: 1 NAT GW saves $64/mo vs 3
   tags               = local.common_tags
 }
 
@@ -206,8 +206,8 @@ module "rds" {
   db_subnet_ids        = module.vpc.db_subnet_ids
   kms_key_arn          = module.secrets.kms_key_arn
   # RDS Proxy: disabled in dev to save $22/mo. Enable in prod.
-  enable_rds_proxy     = false
-  db_secret_arn        = module.secrets.secret_arn
+  enable_rds_proxy = false
+  db_secret_arn    = module.secrets.secret_arn
 
   allowed_sg_ids = [
     module.ecs.api_sg_id,
@@ -216,12 +216,12 @@ module "rds" {
     # to avoid a circular dependency (rds module creates the proxy SG itself)
   ]
 
-  db_password             = random_password.db.result
-  instance_class          = "db.t4g.micro"
-  allocated_storage       = 20
-  max_allocated_storage   = 50
-  max_connections         = "100"
-  create_read_replica     = false   # Enable for load testing or prod
+  db_password           = random_password.db.result
+  instance_class        = "db.t4g.micro"
+  allocated_storage     = 20
+  max_allocated_storage = 50
+  max_connections       = "100"
+  create_read_replica   = false # Enable for load testing or prod
 
   alarm_sns_topic_arns = [aws_sns_topic.alerts.arn]
   tags                 = local.common_tags
@@ -304,9 +304,9 @@ module "waf" {
   kms_key_arn = module.secrets.kms_key_arn
 
   # No geo-blocking in dev — add country codes in prod if needed
-  blocked_country_codes          = []
+  blocked_country_codes            = []
   blocked_requests_alarm_threshold = 200
-  alarm_sns_topic_arns           = [aws_sns_topic.alerts.arn]
+  alarm_sns_topic_arns             = [aws_sns_topic.alerts.arn]
 
   tags = local.common_tags
 }
@@ -333,7 +333,7 @@ module "backup" {
   rds_instance_arns = ["arn:aws:rds:${var.aws_region}:${data.aws_caller_identity.current.account_id}:db:${module.rds.db_instance_id}"]
 
   alarm_sns_topic_arns = [aws_sns_topic.alerts.arn]
-  backup_copy_region   = ""          # Set to "ap-southeast-1" in prod for DR
-  enable_vault_lock    = false       # Enable in prod once config is verified
+  backup_copy_region   = ""    # Set to "ap-southeast-1" in prod for DR
+  enable_vault_lock    = false # Enable in prod once config is verified
   tags                 = local.common_tags
 }

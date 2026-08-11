@@ -5,7 +5,8 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from jose import JWTError, jwt
+import jwt
+from jwt.exceptions import PyJWTError
 from passlib.context import CryptContext
 
 from app.config import settings
@@ -52,5 +53,5 @@ def decode_token(token: str) -> dict:
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
         )
         return payload
-    except JWTError as exc:
+    except PyJWTError as exc:
         raise ValueError("Invalid or expired token") from exc

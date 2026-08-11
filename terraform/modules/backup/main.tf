@@ -31,10 +31,10 @@ resource "aws_backup_vault" "this" {
 
 # Vault lock — COMPLIANCE mode: even root cannot delete backups within retention
 resource "aws_backup_vault_lock_configuration" "this" {
-  count             = var.enable_vault_lock ? 1 : 0
-  backup_vault_name = aws_backup_vault.this.name
+  count              = var.enable_vault_lock ? 1 : 0
+  backup_vault_name  = aws_backup_vault.this.name
   min_retention_days = 7
-  max_retention_days = 36500  # 100 years
+  max_retention_days = 36500 # 100 years
   # changeable_for_days: 0 = lock is permanent immediately
   # Set to 3 during initial setup to allow correction before lock becomes permanent
   changeable_for_days = var.vault_lock_changeable_days
@@ -68,14 +68,14 @@ resource "aws_backup_plan" "this" {
   rule {
     rule_name         = "daily-30d-retention"
     target_vault_name = aws_backup_vault.this.name
-    schedule          = "cron(0 2 * * ? *)"  # Daily at 02:00 UTC
+    schedule          = "cron(0 2 * * ? *)" # Daily at 02:00 UTC
 
     start_window_minutes      = 60
     completion_window_minutes = 180
 
     lifecycle {
-      cold_storage_after = 14   # Move to cold storage after 14 days
-      delete_after       = 30   # Delete after 30 days
+      cold_storage_after = 14 # Move to cold storage after 14 days
+      delete_after       = 30 # Delete after 30 days
     }
 
     # Cross-region copy for disaster recovery
@@ -93,7 +93,7 @@ resource "aws_backup_plan" "this" {
   rule {
     rule_name         = "weekly-90d-retention"
     target_vault_name = aws_backup_vault.this.name
-    schedule          = "cron(0 3 ? * SUN *)"  # Weekly on Sundays at 03:00 UTC
+    schedule          = "cron(0 3 ? * SUN *)" # Weekly on Sundays at 03:00 UTC
 
     start_window_minutes      = 60
     completion_window_minutes = 360
@@ -130,7 +130,7 @@ resource "aws_cloudwatch_metric_alarm" "backup_failed" {
   evaluation_periods  = 1
   metric_name         = "NumberOfBackupJobsFailed"
   namespace           = "AWS/Backup"
-  period              = 86400  # Check daily
+  period              = 86400 # Check daily
   statistic           = "Sum"
   threshold           = 0
 

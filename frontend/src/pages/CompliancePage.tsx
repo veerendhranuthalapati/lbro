@@ -93,11 +93,16 @@ function Ring({ pct, color, size = 64, stroke = 5 }: { pct: number; color: strin
   )
 }
 
-function getScore(metState: Record<string, Record<string, boolean>>, reg: string) {
-  const state = metState[reg] ?? {}
-  const all   = Object.keys(state)
-  const met   = Object.values(state).filter(Boolean).length
-  return all.length ? Math.round((met / all.length) * 100) : 0
+/** Per-framework score from persisted obligations only — null when none tracked. */
+function getRegulationScore(obligations: ObligationResponse[], framework: string): number | null {
+  const subset = obligations.filter(o => o.framework === framework)
+  if (subset.length === 0) return null
+  const compliant = subset.filter(o => o.status === 'compliant').length
+  return Math.round((compliant / subset.length) * 100)
+}
+
+function formatPctDisplay(pct: number | null): string {
+  return pct != null ? `${pct}%` : '—'
 }
 
 export default function CompliancePage() {
@@ -135,6 +140,18 @@ export default function CompliancePage() {
       .then(setObligations)
       .catch(() => { /* silently degrade — page remains usable with empty state */ })
   }, [projectId])
+
+  const [scoreData, setScoreData] = useState<{ overall_score: number | null; has_data: boolean } | null>(null)
+
+  useEffect(() => {
+    if (!projectId) {
+      setScoreData(null)
+      return
+    }
+    complianceApi.getScore(projectId)
+      .then(s => setScoreData({ overall_score: s.overall_score, has_data: s.has_data }))
+      .catch(() => setScoreData(null))
+  }, [projectId, obligations])
 
   const { data: notifResponse, isLoading: notifsLoading, isError: notifsError } = useNotifications()
   const { data: incidentsData } = useIncidents({ page_size: 100 })
@@ -225,10 +242,12 @@ export default function CompliancePage() {
   const overdueCount    = notifList.filter(n => new Date(n.deadline).getTime() < Date.now()).length
   const pendingCount    = notifList.filter(n => n.status === 'pending').length
   const sentCount       = notifList.filter(n => n.status === 'sent').length
-  const overall         = Math.round(
-    Object.keys(REGULATIONS).map(r => getScore(metState, r)).reduce((a, b) => a + b, 0) /
-    Object.keys(REGULATIONS).length
-  )
+  const overallDisplay = scoreData?.has_data && scoreData.overall_score != null
+    ? `${Math.round(scoreData.overall_score)}%`
+    : 'No compliance data available'
+  const overallColor = scoreData?.has_data && scoreData.overall_score != null
+    ? (scoreData.overall_score >= 80 ? '#3a7a50' : scoreData.overall_score >= 60 ? '#d97706' : ORANGE)
+    : GRAY
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, maxWidth: 1060 }}>
@@ -244,8 +263,8 @@ export default function CompliancePage() {
           </p>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 52, color: overall >= 80 ? '#3a7a50' : overall >= 60 ? '#d97706' : ORANGE, lineHeight: 1 }}>
-            {overall}%
+          <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: scoreData?.has_data ? 52 : 18, color: overallColor, lineHeight: 1 }}>
+            {overallDisplay}
           </div>
           <div style={{ fontSize: 10, color: GRAY, textTransform: 'uppercase', letterSpacing: '0.1em', marginTop: 2 }}>Overall score</div>
         </div>
@@ -293,12 +312,13 @@ export default function CompliancePage() {
       {/* ---- Regulation breakdown + obligation checklists ---- */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {(Object.entries(REGULATIONS) as [keyof typeof REGULATIONS, typeof REGULATIONS.GDPR][]).map(([key, reg]) => {
-          const score     = getScore(metState, key)
+          const score     = getRegulationScore(obligations, key)
           const isOpen    = expanded === key
           const state     = metState[key] ?? {}
-          const metCount  = Object.values(state).filter(Boolean).length
-          const totalObl  = reg.obligations.length
-          const r = 22, c = 2 * Math.PI * r, off = c * (1 - score / 100)
+          const regObls   = obligations.filter(o => o.framework === key)
+          const metCount  = regObls.filter(o => o.status === 'compliant').length
+          const totalObl  = regObls.length
+          const r = 22, c = 2 * Math.PI * r, off = score != null ? c * (1 - score / 100) : c
 
           return (
             <div key={key} style={{ background: CREAM, border: `1px solid ${BORDER}`, borderRadius: 4, overflow: 'hidden' }}>
@@ -314,8 +334,8 @@ export default function CompliancePage() {
                       strokeLinecap="round" transform="rotate(-90 24 24)"
                     />
                   </svg>
-                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: reg.color }}>
-                    {score}%
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 700, color: score != null ? reg.color : GRAY }}>
+                    {formatPctDisplay(score)}
                   </div>
                 </div>
 
@@ -332,13 +352,13 @@ export default function CompliancePage() {
                       {reg.deadline_h < 100 ? `${reg.deadline_h}h` : `${reg.deadline_h / 24} days`} deadline
                     </span>
                     <span>·</span>
-                    <span>{metCount}/{totalObl} obligations met</span>
+                    <span>{totalObl > 0 ? `${metCount}/${totalObl} obligations met` : 'No obligations tracked'}</span>
                   </div>
                 </div>
 
                 <div style={{ width: 120, flexShrink: 0 }}>
                   <div style={{ height: 4, background: PARCH, borderRadius: 2, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${score}%`, background: reg.color, borderRadius: 2, transition: 'width 0.5s ease' }} />
+                    <div style={{ height: '100%', width: score != null ? `${score}%` : '0%', background: reg.color, borderRadius: 2, transition: 'width 0.5s ease' }} />
                   </div>
                 </div>
 
@@ -410,14 +430,17 @@ export default function CompliancePage() {
         </div>
         <div style={{ display: 'flex', gap: 0, alignItems: 'center' }}>
           {[
-            ...Object.entries(REGULATIONS).map(([key, r]) => ({ label: key, pct: getScore(metState, key), color: r.color, sub: `${r.obligations.length} obligations` })),
-            { label: 'Overall', pct: overall, color: '#3a7a50', sub: 'weighted average' },
+            ...Object.entries(REGULATIONS).map(([key, r]) => {
+              const tracked = obligations.filter(o => o.framework === key).length
+              return { label: key, pct: getRegulationScore(obligations, key), color: r.color, sub: tracked > 0 ? `${tracked} tracked` : 'No data' }
+            }),
+            { label: 'Overall', pct: scoreData?.has_data && scoreData.overall_score != null ? Math.round(scoreData.overall_score) : null, color: '#3a7a50', sub: scoreData?.has_data ? 'from API' : 'No data' },
           ].map(({ label, pct, color, sub }, i, arr) => (
             <div key={label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '0 8px', borderRight: i < arr.length - 1 ? `1px solid ${BORDER}` : 'none' }}>
               <div style={{ position: 'relative', width: 72, height: 72 }}>
-                <Ring pct={pct} color={color} size={72} stroke={5} />
+                <Ring pct={pct ?? 0} color={color} size={72} stroke={5} />
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: pct >= 80 ? '#3a7a50' : pct >= 60 ? '#d97706' : ORANGE }}>{pct}%</span>
+                  <span style={{ fontSize: 14, fontWeight: 600, color: pct == null ? GRAY : pct >= 80 ? '#3a7a50' : pct >= 60 ? '#d97706' : ORANGE }}>{formatPctDisplay(pct)}</span>
                 </div>
               </div>
               <div style={{ fontSize: 11, fontWeight: 500, color: color, marginTop: 8, letterSpacing: '0.04em' }}>{label}</div>

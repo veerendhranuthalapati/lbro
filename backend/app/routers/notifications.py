@@ -28,7 +28,7 @@ async def list_notifications(
     incident_id: Optional[uuid.UUID] = None,
 ):
     svc = NotificationService(db)
-    items, total = await svc.list(page, page_size, status, regulation, incident_id)
+    items, total = await svc.list(page, page_size, status, regulation, incident_id, user=current_user)
     return NotificationListResponse(items=items, total=total, page=page, page_size=page_size)
 
 
@@ -39,7 +39,7 @@ async def get_notification(
     current_user: Annotated[User, Depends(require_permission(Permission.READ_NOTIFICATION))],
 ):
     svc = NotificationService(db)
-    return await svc.get(notification_id)
+    return await svc.get(notification_id, user=current_user)
 
 
 @router.post("/{notification_id}/approve", response_model=NotificationResponse)
@@ -61,10 +61,10 @@ async def dispatch_notification(
     """Alias for /send — used by frontend."""
     svc = NotificationService(db)
     # Auto-approve and send
-    n = await svc.get(notification_id)
+    n = await svc.get(notification_id, user=current_user)
     if n.status == "pending":
         await svc.approve(notification_id, current_user)
-    return await svc.send(notification_id)
+    return await svc.send(notification_id, user=current_user)
 
 
 @router.post("/{notification_id}/send", response_model=NotificationResponse)
@@ -74,4 +74,4 @@ async def send_notification(
     current_user: Annotated[User, Depends(require_permission(Permission.DISPATCH_NOTIFICATION))],
 ):
     svc = NotificationService(db)
-    return await svc.send(notification_id)
+    return await svc.send(notification_id, user=current_user)

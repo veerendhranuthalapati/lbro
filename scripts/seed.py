@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import asyncio
 import os
-import secrets
 import sys
 
 # ── Python path setup: works both locally and inside the Docker API image ─────
@@ -27,77 +26,72 @@ for _candidate in [
 
 from sqlalchemy import select
 
+from app.core.api_keys import generate_user_api_key, mask_api_key_prefix
 from app.database import AsyncSessionLocal
 from app.core.security import hash_password
 from app.models.user import User
 
 
+def _seed_user(email: str, username: str, full_name: str, password: str, role: str) -> tuple[User, str, str]:
+    full_key, prefix, key_hash = generate_user_api_key()
+    return User(
+        email=email,
+        username=username,
+        full_name=full_name,
+        hashed_password=hash_password(password),
+        role=role,
+        is_active=True,
+        is_verified=True,
+        api_key_hash=key_hash,
+        api_key_prefix=prefix,
+    ), full_key, prefix
+
+
 async def seed():
     async with AsyncSessionLocal() as db:
-        new_keys: list[str] = []
+        created: list[tuple[str, str, str]] = []
 
         # ── Admin ──────────────────────────────────────────────────────────────
         result = await db.execute(select(User).where(User.email == "admin@lbro.local"))
         if result.scalar_one_or_none():
             print("✓ Admin user already exists")
         else:
-            admin_api_key = "lbro-admin-" + secrets.token_urlsafe(32)
-            db.add(User(
-                email="admin@lbro.local",
-                username="admin",
-                full_name="LBRO Administrator",
-                hashed_password=hash_password("Admin123!"),
-                role="admin",
-                is_active=True,
-                is_verified=True,
-                api_key=admin_api_key,
-            ))
-            new_keys.append("  admin@lbro.local   / Admin123!   (API key: " + admin_api_key + ")")
+            user, full_key, prefix = _seed_user(
+                "admin@lbro.local", "admin", "LBRO Administrator", "Admin123!", "admin"
+            )
+            db.add(user)
+            created.append(("admin@lbro.local", "Admin123!", prefix))
 
         # ── Analyst ────────────────────────────────────────────────────────────
         result = await db.execute(select(User).where(User.email == "analyst@lbro.local"))
         if result.scalar_one_or_none():
             print("✓ Analyst user already exists")
         else:
-            analyst_api_key = "lbro-analyst-" + secrets.token_urlsafe(32)
-            db.add(User(
-                email="analyst@lbro.local",
-                username="analyst",
-                full_name="SOC Analyst",
-                hashed_password=hash_password("Analyst123!"),
-                role="analyst",
-                is_active=True,
-                is_verified=True,
-                api_key=analyst_api_key,
-            ))
-            new_keys.append("  analyst@lbro.local / Analyst123! (API key: " + analyst_api_key + ")")
+            user, full_key, prefix = _seed_user(
+                "analyst@lbro.local", "analyst", "SOC Analyst", "Analyst123!", "analyst"
+            )
+            db.add(user)
+            created.append(("analyst@lbro.local", "Analyst123!", prefix))
 
         # ── Viewer ─────────────────────────────────────────────────────────────
         result = await db.execute(select(User).where(User.email == "viewer@lbro.local"))
         if result.scalar_one_or_none():
             print("✓ Viewer user already exists")
         else:
-            viewer_api_key = "lbro-viewer-" + secrets.token_urlsafe(32)
-            db.add(User(
-                email="viewer@lbro.local",
-                username="viewer",
-                full_name="Demo Viewer",
-                hashed_password=hash_password("ViewerPass1"),
-                role="viewer",
-                is_active=True,
-                is_verified=True,
-                api_key=viewer_api_key,
-            ))
-            new_keys.append("  viewer@lbro.local  / ViewerPass1 (API key: " + viewer_api_key + ")")
+            user, full_key, prefix = _seed_user(
+                "viewer@lbro.local", "viewer", "Demo Viewer", "ViewerPass1", "viewer"
+            )
+            db.add(user)
+            created.append(("viewer@lbro.local", "ViewerPass1", prefix))
 
         await db.commit()
 
-        if new_keys:
+        if created:
             print("✓ Created users:")
-            for line in new_keys:
-                print(line)
+            for email, password, prefix in created:
+                print(f"  {email:<20} / {password:<12} (API key prefix: {mask_api_key_prefix(prefix)})")
             print()
-            print("⚠  Save these API keys — they will not be shown again.")
+            print("⚠  API keys were generated but not logged in full — rotate via POST /auth/api-key/rotate to obtain a key.")
 
 
 if __name__ == "__main__":

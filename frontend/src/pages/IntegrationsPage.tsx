@@ -12,6 +12,7 @@ import {
   Plug2, AlertTriangle, Loader2, FolderOpen,
 } from 'lucide-react'
 import { projectsApi } from '@/api/client'
+import { getProjectApiKey } from '@/lib/projectApiKeys'
 
 const BG     = '#080808'
 const CARD   = '#0f0f0f'
@@ -640,7 +641,9 @@ export default function IntegrationsPage() {
     },
   })
 
-  const apiKey  = project?.api_key ?? ''
+  const sessionKey = projectId ? getProjectApiKey(projectId) : null
+  const apiKey     = sessionKey ?? ''
+  const keyDisplay = sessionKey ?? (project?.api_key_prefix ? `${project.api_key_prefix}…` : '')
   const sel     = CATALOG.find(c => c.id === selected) ?? CATALOG[0]
   const snip    = buildSnippet(selected, apiKey)
   const curl    = CURL_EVENTS[curlIdx]
@@ -731,17 +734,18 @@ export default function IntegrationsPage() {
               className="flex-1 text-xs rounded px-3 py-2.5 font-mono truncate"
               style={{ background: '#080808', border: '1px solid #2a2a2a', color: keyVisible ? '#d4d4d4' : '#666' }}
             >
-              {keyVisible ? (apiKey || 'No key generated') : maskKey(apiKey)}
+              {keyVisible ? (sessionKey || 'Regenerate key to reveal full value') : (sessionKey ? maskKey(sessionKey) : keyDisplay || '••••••••••••••••••••••••••••••••')}
             </code>
             <button
               onClick={() => setKeyVisible(v => !v)}
-              className="text-xs px-3 py-2.5 rounded transition-all shrink-0"
+              disabled={!sessionKey}
+              className="text-xs px-3 py-2.5 rounded transition-all shrink-0 disabled:opacity-40"
               style={{ background: '#1a1a1a', color: '#888', border: '1px solid #2a2a2a' }}
-              title={keyVisible ? 'Hide key' : 'Reveal key'}
+              title={sessionKey ? (keyVisible ? 'Hide key' : 'Reveal key') : 'Regenerate key to reveal full value'}
             >
               {keyVisible ? 'Hide' : 'Reveal'}
             </button>
-            <CopyBtn text={apiKey} />
+            <CopyBtn text={sessionKey ?? ''} />
             {!regenConfirm ? (
               <button
                 onClick={() => setRegenConfirm(true)}

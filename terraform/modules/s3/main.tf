@@ -2,7 +2,7 @@
 resource "aws_s3_bucket" "evidence" {
   bucket        = "${var.name_prefix}-evidence"
   force_destroy = var.force_destroy
-  tags = { Name = "${var.name_prefix}-evidence", Environment = var.environment }
+  tags          = { Name = "${var.name_prefix}-evidence", Environment = var.environment }
 }
 
 resource "aws_s3_bucket_versioning" "evidence" {
@@ -56,7 +56,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "evidence" {
 resource "aws_s3_bucket" "reports" {
   bucket        = "${var.name_prefix}-reports"
   force_destroy = var.force_destroy
-  tags = { Name = "${var.name_prefix}-reports", Environment = var.environment }
+  tags          = { Name = "${var.name_prefix}-reports", Environment = var.environment }
 }
 
 resource "aws_s3_bucket_versioning" "reports" {
@@ -95,7 +95,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "reports" {
 resource "aws_s3_bucket" "ml_models" {
   bucket        = "${var.name_prefix}-ml-models"
   force_destroy = var.force_destroy
-  tags = { Name = "${var.name_prefix}-ml-models", Environment = var.environment }
+  tags          = { Name = "${var.name_prefix}-ml-models", Environment = var.environment }
 }
 
 resource "aws_s3_bucket_versioning" "ml_models" {

@@ -51,13 +51,13 @@ resource "aws_db_parameter_group" "main" {
 }
 
 resource "aws_db_instance" "main" {
-  identifier             = "${var.name_prefix}-postgres"
-  engine                 = "postgres"
-  engine_version         = "16.3"
-  instance_class         = var.instance_class
-  allocated_storage      = 20
-  max_allocated_storage  = 100
-  storage_encrypted      = true
+  identifier            = "${var.name_prefix}-postgres"
+  engine                = "postgres"
+  engine_version        = "16.3"
+  instance_class        = var.instance_class
+  allocated_storage     = 20
+  max_allocated_storage = 100
+  storage_encrypted     = true
 
   db_name  = var.db_name
   username = var.db_username

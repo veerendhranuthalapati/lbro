@@ -158,7 +158,7 @@ function ProjectCard({ project, onSelect }: { project: Project; onSelect: () => 
           )}
           <div className="flex items-center gap-1 mt-2 text-xs text-zinc-600">
             <Key className="w-3 h-3" />
-            <span className="font-mono">{project.api_key.slice(0, 16)}…</span>
+            <span className="font-mono">{project.api_key_prefix}…</span>
           </div>
         </div>
         <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-300 mt-1 shrink-0 transition-colors" />

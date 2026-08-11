@@ -30,6 +30,7 @@ os.environ.setdefault("AWS_ENDPOINT_URL", "http://localhost:4566")
 os.environ.setdefault("AWS_ACCESS_KEY_ID", "test")
 os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "test")
 os.environ.setdefault("ALLOW_PUBLIC_REGISTRATION", "true")
+os.environ.setdefault("DEMO_ENDPOINTS_ENABLED", "true")
 os.environ.setdefault("ENVIRONMENT", "test")
 
 # Import app AFTER env vars are set

@@ -31,6 +31,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer, APIKeyHea
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.api_keys import api_key_prefix, verify_api_key
 from app.core.security import decode_token
 from app.core.rbac import Permission, Role, has_permission, has_any_permission, is_super_admin
 from app.database import get_db
@@ -94,13 +95,18 @@ async def get_current_user(
         return user
 
     elif api_key:
+        prefix = api_key_prefix(api_key)
         result = await db.execute(
             select(User).where(
-                User.api_key == api_key,
+                User.api_key_prefix == prefix,
                 User.is_active == True,  # noqa: E712
             )
         )
-        matched_user = result.scalar_one_or_none()
+        matched_user = None
+        for user in result.scalars().all():
+            if user.api_key_hash and verify_api_key(api_key, user.api_key_hash):
+                matched_user = user
+                break
         if not matched_user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -142,7 +148,7 @@ async def get_project_from_api_key(
     It is ALWAYS derived from the authenticated API key.  This prevents any
     client from submitting events to a project it does not own.
     """
-    from app.models.project import Project
+    from app.services.project_service import ProjectService
 
     if not credentials:
         raise HTTPException(
@@ -159,13 +165,8 @@ async def get_project_from_api_key(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    result = await db.execute(
-        select(Project).where(
-            Project.api_key == token,
-            Project.status == "active",
-        )
-    )
-    project = result.scalar_one_or_none()
+    svc = ProjectService(db)
+    project = await svc.resolve_by_api_key(token)
     if not project:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

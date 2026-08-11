@@ -15,6 +15,7 @@ import {
   Terminal, Code2, Zap, Globe, Loader2, Key, Eye, EyeOff,
 } from 'lucide-react'
 import { projectsApi } from '@/api/client'
+import { getProjectApiKey } from '@/lib/projectApiKeys'
 import type { ProjectEnvironment } from '@/types'
 
 // ── constants ──────────────────────────────────────────────────────────────
@@ -586,16 +587,18 @@ export default function ProjectSetupWizardPage() {
     enabled:  !!projectId,
   })
 
+  const sessionKey = projectId ? getProjectApiKey(projectId) : null
+
   const copyKey = useCallback(() => {
-    if (!project?.api_key) return
-    navigator.clipboard.writeText(project.api_key).then(() => {
+    if (!sessionKey) return
+    navigator.clipboard.writeText(sessionKey).then(() => {
       setKeyCopied(true)
       setTimeout(() => setKeyCopied(false), 2000)
     })
-  }, [project?.api_key])
+  }, [sessionKey])
 
   const downloadKey = useCallback(() => {
-    if (!project) return
+    if (!project || !sessionKey) return
     const content = [
       'LBRO API Key',
       '===========',
@@ -603,19 +606,19 @@ export default function ProjectSetupWizardPage() {
       'Project:     ' + project.name,
       'Project ID:  ' + project.id,
       'Environment: ' + project.environment,
-      'API Key:     ' + project.api_key,
+      'API Key:     ' + sessionKey,
       '',
       'Keep this file secure. Do not commit to version control.',
       '',
       'Usage:',
-      '  Authorization: Bearer ' + project.api_key,
+      '  Authorization: Bearer ' + sessionKey,
     ].join('\n')
     const blob = new Blob([content], { type: 'text/plain' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
     a.download = 'lbro-' + project.name.toLowerCase().replace(/\s+/g, '-') + '-api-key.txt'
     a.click()
-  }, [project])
+  }, [project, sessionKey])
 
   const regenerateKey = useCallback(async () => {
     if (!projectId) return
@@ -637,8 +640,10 @@ export default function ProjectSetupWizardPage() {
   }
 
   const envColor = ENV_COLOR[project.environment as ProjectEnvironment] ?? '#666'
-  const apiKey   = project.api_key ?? ''
-  const maskedKey = apiKey ? apiKey.slice(0, 10) + '••••••••••••••••••••' : ''
+  const apiKey   = sessionKey ?? ''
+  const maskedKey = sessionKey
+    ? sessionKey.slice(0, 10) + '••••••••••••••••••••'
+    : `${project.api_key_prefix}…`
   const snippet  = getSnippet(selected, apiKey)
   const curl     = CURL_EXAMPLES[curlIdx]
   const curlCmd  = `curl -X POST ${window.location.origin}/api/v1/events \\

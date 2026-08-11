@@ -15,6 +15,7 @@ import {
   AlertTriangle, Shield, Wifi, WifiOff, Trash2, Pause, Play,
 } from 'lucide-react'
 import { projectsApi, apiClient } from '@/api/client'
+import { getProjectApiKey } from '@/lib/projectApiKeys'
 import { getAccessToken } from '@/store/authStore'
 
 const BG     = '#080808'
@@ -151,13 +152,14 @@ export default function LiveEventsPage() {
     }
   }, [flush])
 
+  const apiKey = projectId ? getProjectApiKey(projectId) : null
+
   // ── SSE connection ───────────────────────────────────────────────────────
   useEffect(() => {
-    if (!projectId || !project?.api_key) return
+    if (!projectId || !apiKey) return
 
     // EventSource doesn't support custom headers — use fetch with ReadableStream
-    let cancelled = false
-    const apiKey = project.api_key
+    const cancelledRef = { current: false }
 
     async function connectSSE() {
       setSseState('connecting')
@@ -172,7 +174,7 @@ export default function LiveEventsPage() {
         const decoder = new TextDecoder()
         let buf = ''
 
-        while (!cancelled) {
+        while (!cancelledRef.current) {
           const { done, value } = await reader.read()
           if (done) break
           buf += decoder.decode(value, { stream: true })
@@ -189,8 +191,8 @@ export default function LiveEventsPage() {
             }
           }
         }
-      } catch (err) {
-        if (!cancelled) {
+      } catch {
+        if (!cancelledRef.current) {
           setSseState('polling')
           startPolling()
         }
@@ -201,7 +203,7 @@ export default function LiveEventsPage() {
     let lastSeenId = ''
 
     async function startPolling() {
-      if (cancelled) return
+      if (cancelledRef.current) return
       try {
         const resp = await apiClient.get(`/api/v1/events`, {
           headers: { Authorization: 'Bearer ' + apiKey },
@@ -211,10 +213,10 @@ export default function LiveEventsPage() {
         if (items.length && items[0].id !== lastSeenId) {
           const fresh = lastSeenId ? items.filter(e => e._ts > Date.now() - 10000) : items.slice(0, 5)
           lastSeenId = items[0]?.id ?? ''
-          if (!cancelled) flush(fresh)
+          if (!cancelledRef.current) flush(fresh)
         }
       } catch { /* ignore */ }
-      if (!cancelled) {
+      if (!cancelledRef.current) {
         pollRef.current = window.setTimeout(startPolling, 5000)
       }
     }
@@ -222,11 +224,11 @@ export default function LiveEventsPage() {
     connectSSE()
 
     return () => {
-      cancelled = true
+      cancelledRef.current = true
       setSseState('disconnected')
       if (pollRef.current) clearTimeout(pollRef.current)
     }
-  }, [projectId, project?.api_key, addEvent, flush])
+  }, [projectId, apiKey, addEvent, flush])
 
   // ── Pause / resume ───────────────────────────────────────────────────────
   const togglePause = () => {
@@ -321,17 +323,23 @@ export default function LiveEventsPage() {
           ))}
         </div>
 
-        {/* Demo events banner */}
+        {/* Demo events banner — clearly labeled; does not affect production traffic */}
         <div className="rounded-xl border p-4 mb-6 flex items-center justify-between gap-4" style={{ background: '#0a0f0a', borderColor: '#1e3a1e' }}>
           <div>
-            <p className="text-sm font-medium text-white">No traffic yet?</p>
-            <p className="text-xs text-zinc-500">Fire 5 simulated attacks to see the stream in action. Incidents will be auto-created.</p>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded" style={{ background: 'rgba(34,197,94,0.15)', color: '#22c55e', border: '1px solid rgba(34,197,94,0.3)' }}>
+                Demo only
+              </span>
+              <p className="text-sm font-medium text-white">No traffic yet?</p>
+            </div>
+            <p className="text-xs text-zinc-500">Fire simulated attacks tagged [Demo]. Auto-created incidents are sample data only.</p>
           </div>
           <button
             onClick={() => demoMutation.mutate()}
             disabled={demoMutation.isPending}
             className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all hover:opacity-90 shrink-0"
             style={{ background: '#22c55e', color: '#fff' }}
+            aria-label="Fire demo attacks — sample data only"
           >
             {demoMutation.isPending
               ? <Loader2 className="w-4 h-4 animate-spin" />

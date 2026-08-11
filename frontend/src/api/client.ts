@@ -16,6 +16,7 @@ import axios, {
 import { getAccessToken, getRefreshToken, useAuthStore } from '@/store/authStore'
 import { globalApiThrottle, exponentialBackoff, shouldRetry } from '@/lib/rateLimiter'
 import { logger, generateRequestId } from '@/lib/logger'
+import { storeProjectApiKey } from '@/lib/projectApiKeys'
 import {
   API_BASE_URL, API_TIMEOUT_MS, AUTH_HEADER, MAX_RETRIES,
 } from '@/constants'
@@ -24,7 +25,7 @@ import type {
   PagedIncidentResponse, EvidencePackage, RegulatoryNotification,
   HealthCheck, ApiError, User,
   DashboardStats, AWSStatus, CICIDSFlow, PagedResponse,
-  Project, ProjectListResponse, ProjectCreate, ProjectUpdate, ProjectDashboard,
+  Project, ProjectListResponse, ProjectCreate, ProjectUpdate, ProjectDashboard, ProjectCreated,
 } from '@/types'
 
 // ---- Extend Axios config with per-request metadata -------------------------
@@ -52,8 +53,20 @@ export interface SqsHistoryEntry         { time: string; incident: number; conta
 
 // ---- ML types ---------------------------------------------------------------
 export interface MlMetrics {
+  has_evaluation_data?: boolean
+  model_loaded?: boolean
+  runtime_mode?: string
+  evaluation?: {
+    accuracy?: number
+    precision?: number
+    recall?: number
+    f1?: number
+    mcc?: number
+    confusion_matrix?: number[][]
+    labels?: string[]
+  } | null
   feature_importance: { feature: string; importance: number }[]
-  per_class_confidence: { subject: string; A: number; fullMark: number }[]
+  per_class_confidence: { subject: string; A: number; fullMark: number; count?: number }[]
   false_positive_analysis: { attack: string; tp: number; fp: number; fn: number }[]
   tactic_distribution: { tactic: string; count: number; color: string }[]
 }
@@ -332,16 +345,29 @@ export const notificationsApi = {
 }
 
 // ---- Compliance -------------------------------------------------------------
-export interface ComplianceSummary { regulation: string; total: number; met: number; overdue: number; pending: number }
 export interface ComplianceRecord {
   id: string; incident_id: string; regulation: string; jurisdiction: string
   obligation: string; deadline: string; is_met: boolean; met_at: string | null
   notes: string | null; created_at: string; updated_at: string
 }
+export interface ComplianceSummary {
+  regulation: string
+  total: number
+  met: number
+  overdue: number
+  pending: number
+  compliance_pct?: number | null
+  has_data?: boolean
+}
+
 export interface ComplianceDashboard {
   summaries: ComplianceSummary[]
   overdue_records: ComplianceRecord[]
   upcoming_deadlines: ComplianceRecord[]
+  total_records?: number
+  met_records?: number
+  overall_compliance_pct?: number | null
+  has_data?: boolean
 }
 
 /** Project-scoped obligation (replaces localStorage persistence). */
@@ -380,11 +406,12 @@ export interface ObligationUpdate {
 export interface ComplianceScoreResponse {
   project_id: string
   framework: string | null
-  overall_score: number
+  overall_score: number | null
   total_controls: number
   compliant_controls: number
   non_compliant_controls: number
   in_progress_controls: number
+  has_data: boolean
 }
 
 export const complianceApi = {
@@ -611,8 +638,11 @@ export const projectsApi = {
   get: (id: string): Promise<Project> =>
     apiClient.get<Project>(`/api/v1/projects/${id}`).then(r => r.data),
 
-  create: (data: ProjectCreate): Promise<Project> =>
-    apiClient.post<Project>('/api/v1/projects', data).then(r => r.data),
+  create: (data: ProjectCreate): Promise<ProjectCreated> =>
+    apiClient.post<ProjectCreated>('/api/v1/projects', data).then(r => {
+      storeProjectApiKey(r.data.id, r.data.api_key)
+      return r.data
+    }),
 
   update: (id: string, data: ProjectUpdate): Promise<Project> =>
     apiClient.patch<Project>(`/api/v1/projects/${id}`, data).then(r => r.data),
@@ -620,8 +650,11 @@ export const projectsApi = {
   delete: (id: string): Promise<void> =>
     apiClient.delete(`/api/v1/projects/${id}`).then(() => undefined),
 
-  regenerateKey: (id: string): Promise<Project> =>
-    apiClient.post<Project>(`/api/v1/projects/${id}/regenerate-key`).then(r => r.data),
+  regenerateKey: (id: string): Promise<ProjectCreated> =>
+    apiClient.post<ProjectCreated>(`/api/v1/projects/${id}/regenerate-key`).then(r => {
+      storeProjectApiKey(r.data.id, r.data.api_key)
+      return r.data
+    }),
 
   dashboard: (id: string): Promise<ProjectDashboard> =>
     apiClient.get<ProjectDashboard>(`/api/v1/projects/${id}/dashboard`).then(r => r.data),

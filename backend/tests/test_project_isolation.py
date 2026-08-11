@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.incident import Incident
 from app.models.project import Project
 from app.models.user import User
+from app.core.api_keys import generate_project_api_key
 from app.core.security import hash_password
 
 
@@ -83,12 +84,14 @@ async def admin_iso(db: AsyncSession) -> User:
 
 @pytest_asyncio.fixture
 async def project_a(db: AsyncSession, user_a: User) -> Project:
+    _, prefix, key_hash = generate_project_api_key()
     p = Project(
         id=uuid.uuid4(),
         name="Project Alpha",
         slug=f"project-alpha-{uuid.uuid4().hex[:6]}",
         owner_id=user_a.id,
-        api_key=f"proj_{uuid.uuid4().hex}",
+        api_key_hash=key_hash,
+        api_key_prefix=prefix,
         status="active",
         environment="production",
     )
@@ -99,12 +102,14 @@ async def project_a(db: AsyncSession, user_a: User) -> Project:
 
 @pytest_asyncio.fixture
 async def project_b(db: AsyncSession, user_b: User) -> Project:
+    _, prefix, key_hash = generate_project_api_key()
     p = Project(
         id=uuid.uuid4(),
         name="Project Beta",
         slug=f"project-beta-{uuid.uuid4().hex[:6]}",
         owner_id=user_b.id,
-        api_key=f"proj_{uuid.uuid4().hex}",
+        api_key_hash=key_hash,
+        api_key_prefix=prefix,
         status="active",
         environment="production",
     )

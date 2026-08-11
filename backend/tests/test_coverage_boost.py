@@ -462,7 +462,8 @@ async def test_compliance_score_empty_project(client: AsyncClient, auth_headers:
     assert resp.status_code == 200
     data = resp.json()
     assert data["total_controls"] == 0
-    assert data["overall_score"] == 0.0
+    assert data["overall_score"] is None
+    assert data["has_data"] is False
 
 
 async def test_compliance_score_after_compliant_obligation(
@@ -651,13 +652,13 @@ async def test_profile_update_email_change(client: AsyncClient, admin_token: str
 # ═══════════════════════════════════════════════════════════════════
 
 async def test_compliance_upsert_updates_existing(
-    client: AsyncClient, analyst_headers: dict, auth_headers: dict
+    client: AsyncClient, analyst_headers: dict,
 ):
     """POST obligation twice with same control_id → second call updates existing."""
-    # Create a project
+    # Project must be owned by the user writing obligations (owner-based RBAC).
     proj = await client.post("/api/v1/projects", json={
         "name": "Upsert Test Project", "environment": "production"
-    }, headers=auth_headers)
+    }, headers=analyst_headers)
     assert proj.status_code == 201
     proj_id = proj.json()["id"]
 

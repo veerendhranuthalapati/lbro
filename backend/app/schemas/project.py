@@ -77,11 +77,16 @@ class ProjectResponse(BaseModel):
     environment: str
     status: str
     owner_id: Optional[uuid.UUID]
-    api_key: str
+    api_key_prefix: str
     created_at: datetime
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class ProjectCreatedResponse(ProjectResponse):
+    """Returned only on create/regenerate — includes the full key once."""
+    api_key: str
 
 
 class ProjectListResponse(BaseModel):

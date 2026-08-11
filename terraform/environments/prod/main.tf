@@ -79,7 +79,7 @@ module "vpc" {
   vpc_cidr           = "10.1.0.0/16"
   aws_region         = var.aws_region
   enable_nat_gateway = true
-  single_nat_gateway = false  # Prod: HA — one NAT GW per AZ
+  single_nat_gateway = false # Prod: HA — one NAT GW per AZ
   tags               = local.common_tags
 }
 
@@ -143,12 +143,12 @@ module "ecs" {
   # Prod sizing
   api_cpu              = 1024
   api_memory           = 2048
-  api_desired_count    = 2     # Minimum 2 for HA across AZs
+  api_desired_count    = 2 # Minimum 2 for HA across AZs
   api_max_count        = 20
   worker_cpu           = 1024
   worker_memory        = 2048
   worker_desired_count = 2
-  worker_max_count     = 50    # Breach events can be bursty
+  worker_max_count     = 50 # Breach events can be bursty
 
   # Prod: Container Insights enabled for full observability
   enable_container_insights = true
@@ -179,14 +179,14 @@ module "rds" {
     module.ecs.worker_sg_id,
   ]
 
-  db_password             = random_password.db.result
-  instance_class          = "db.r8g.large"   # Prod: memory-optimised for query cache
-  replica_instance_class  = "db.r8g.large"
-  allocated_storage       = 100
-  max_allocated_storage   = 1000
-  max_connections         = "500"
-  create_read_replica     = true    # Prod: read replica for GET /incidents queries
-  enable_rds_proxy        = true    # Prod: connection pooling
+  db_password            = random_password.db.result
+  instance_class         = "db.r8g.large" # Prod: memory-optimised for query cache
+  replica_instance_class = "db.r8g.large"
+  allocated_storage      = 100
+  max_allocated_storage  = 1000
+  max_connections        = "500"
+  create_read_replica    = true # Prod: read replica for GET /incidents queries
+  enable_rds_proxy       = true # Prod: connection pooling
 
   alarm_sns_topic_arns            = [aws_sns_topic.alerts.arn]
   max_connections_alarm_threshold = 400
@@ -228,10 +228,10 @@ module "waf" {
   alb_arn     = module.ecs.alb_arn
   kms_key_arn = module.secrets.kms_key_arn
 
-  blocked_country_codes             = var.blocked_country_codes
-  blocked_requests_alarm_threshold  = 500
-  alarm_sns_topic_arns              = [aws_sns_topic.alerts.arn]
-  tags                              = local.common_tags
+  blocked_country_codes            = var.blocked_country_codes
+  blocked_requests_alarm_threshold = 500
+  alarm_sns_topic_arns             = [aws_sns_topic.alerts.arn]
+  tags                             = local.common_tags
 }
 
 module "eventbridge" {
@@ -247,11 +247,11 @@ module "backup" {
   name              = local.name
   rds_instance_arns = ["arn:aws:rds:${var.aws_region}:${data.aws_caller_identity.current.account_id}:db:${module.rds.db_instance_id}"]
 
-  alarm_sns_topic_arns     = [aws_sns_topic.alerts.arn]
-  backup_copy_region       = var.dr_region    # Cross-region DR copy
-  enable_vault_lock        = true             # Prod: compliance vault lock
-  vault_lock_changeable_days = 3              # 3-day grace period to correct config
-  tags                     = local.common_tags
+  alarm_sns_topic_arns       = [aws_sns_topic.alerts.arn]
+  backup_copy_region         = var.dr_region # Cross-region DR copy
+  enable_vault_lock          = true          # Prod: compliance vault lock
+  vault_lock_changeable_days = 3             # 3-day grace period to correct config
+  tags                       = local.common_tags
 }
 
 data "aws_caller_identity" "current" {}

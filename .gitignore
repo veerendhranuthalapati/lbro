@@ -23,7 +23,11 @@ frontend/.env.*.local
 
 # ── Secrets — NEVER COMMIT ────────────────────────────────────────────────────
 .env
+.env.prod
 .env.local
+.env.docker-validation
+.env.*.validation
+backend/.env
 *.pem
 *.key
 *.crt

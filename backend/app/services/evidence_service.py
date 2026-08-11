@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import NotFoundError
+from app.core.project_access import incident_access_scope
 from app.models.evidence import Evidence, ChainOfCustody
 from app.models.incident import Incident
 from app.models.user import User
@@ -64,13 +65,15 @@ class EvidenceService:
     async def get(self, evidence_id: uuid.UUID, accessor: User, ip_address: Optional[str] = None, project_id: Optional[uuid.UUID] = None) -> Evidence:
         query = (
             select(Evidence)
+            .join(Incident, Evidence.incident_id == Incident.id)
             .where(Evidence.id == evidence_id)
             .options(selectinload(Evidence.custody_chain))
         )
+        scope = incident_access_scope(accessor)
+        if scope is not None:
+            query = query.where(scope)
         if project_id is not None:
-            query = query.join(Incident, Evidence.incident_id == Incident.id).where(
-                Incident.project_id == project_id
-            )
+            query = query.where(Incident.project_id == project_id)
         result = await self.db.execute(query)
         evidence = result.scalar_one_or_none()
         if not evidence:
@@ -89,28 +92,45 @@ class EvidenceService:
         await self.db.flush()
         return evidence
 
-    async def list_for_incident(self, incident_id: uuid.UUID) -> list[Evidence]:
-        result = await self.db.execute(
+    async def list_for_incident(self, incident_id: uuid.UUID, accessor: User) -> list[Evidence]:
+        query = (
             select(Evidence)
+            .join(Incident, Evidence.incident_id == Incident.id)
             .where(Evidence.incident_id == incident_id)
             .options(selectinload(Evidence.custody_chain))
             .order_by(Evidence.created_at.desc())
         )
+        scope = incident_access_scope(accessor)
+        if scope is not None:
+            query = query.where(scope)
+        result = await self.db.execute(query)
         return result.scalars().all()
 
 
-    async def list_all(self, page: int = 1, page_size: int = 50, project_id: Optional[uuid.UUID] = None) -> tuple[list[Evidence], int]:
+    async def list_all(
+        self,
+        accessor: User,
+        page: int = 1,
+        page_size: int = 50,
+        project_id: Optional[uuid.UUID] = None,
+    ) -> tuple[list[Evidence], int]:
         """Global evidence listing across all incidents — paginated."""
         offset = (page - 1) * page_size
-        base = select(Evidence).options(selectinload(Evidence.custody_chain))
-        count_base = select(func.count(Evidence.id))
+        base = (
+            select(Evidence)
+            .join(Incident, Evidence.incident_id == Incident.id)
+            .options(selectinload(Evidence.custody_chain))
+        )
+        count_base = select(func.count(Evidence.id)).join(
+            Incident, Evidence.incident_id == Incident.id
+        )
+        scope = incident_access_scope(accessor)
+        if scope is not None:
+            base = base.where(scope)
+            count_base = count_base.where(scope)
         if project_id is not None:
-            base = base.join(Incident, Evidence.incident_id == Incident.id).where(
-                Incident.project_id == project_id
-            )
-            count_base = count_base.join(Incident, Evidence.incident_id == Incident.id).where(
-                Incident.project_id == project_id
-            )
+            base = base.where(Incident.project_id == project_id)
+            count_base = count_base.where(Incident.project_id == project_id)
         count_result = await self.db.execute(count_base)
         total: int = count_result.scalar_one() or 0
         result = await self.db.execute(

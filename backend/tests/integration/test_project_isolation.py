@@ -176,22 +176,15 @@ class TestProjectOwnership:
         )
         assert resp.status_code == 200
 
-    async def test_get_project_by_id_accessible_to_any_authenticated_user(
+    async def test_get_project_by_id_denied_for_non_owner(
         self, client: AsyncClient, bob_h: dict, portfolio_project: dict
     ):
-        """
-        KNOWN ISOLATION GAP: GET /projects/{id} has no ownership check.
-        Any authenticated user can read any project by ID.
-
-        This test documents the current behavior. A future fix should enforce
-        that non-admins can only GET projects they own.
-        """
+        """Non-owner cannot read another user's project by ID."""
         resp = await client.get(
             f"/api/v1/projects/{portfolio_project['id']}",
             headers=bob_h,  # Bob doesn't own Portfolio
         )
-        # Documents the gap — returns 200 instead of 403
-        assert resp.status_code == 200
+        assert resp.status_code == 403
 
 
 class TestEvidenceIsolation:

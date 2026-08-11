@@ -149,7 +149,11 @@ class Settings(BaseSettings):
     # ── Registration control ──────────────────────────────────────────────────
     # Set to True only in controlled dev/staging environments.
     # In production, all users should be created by an admin via POST /users.
-    ALLOW_PUBLIC_REGISTRATION: bool = True
+    ALLOW_PUBLIC_REGISTRATION: bool = False
+
+    # ── Demo endpoints ────────────────────────────────────────────────────────
+    # Demo data generation routes; disabled in production by default.
+    DEMO_ENDPOINTS_ENABLED: bool = False
 
     # ── Logging ────────────────────────────────────────
     LOG_LEVEL: str = "INFO"

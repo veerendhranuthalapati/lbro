@@ -151,20 +151,12 @@ function SecurityOverviewWidget({
           <Shield style={{ width: 14, height: 14, color: ORANGE }} />
           <span style={{ fontSize: 12, fontWeight: 600, color: BLACK }}>Security Overview</span>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
           <button
-            onClick={() => navigate('/security-score')}
+            onClick={() => navigate('/security-overview')}
             style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: ORANGE, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
           >
-            Score <ChevronRight style={{ width: 11, height: 11 }} />
+            View details <ChevronRight style={{ width: 11, height: 11 }} />
           </button>
-          <button
-            onClick={() => navigate('/weekly-report')}
-            style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: GRAY, background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-          >
-            Weekly Report <ChevronRight style={{ width: 11, height: 11 }} />
-          </button>
-        </div>
       </div>
 
       {/* Body */}
@@ -321,6 +313,9 @@ function EmptyTimeline({ isAdmin }: { isAdmin: boolean }) {
         </div>
       ) : isAdmin ? (
         <>
+          <div style={{ fontSize: 10, color: GRAY, textAlign: 'center', maxWidth: 320, lineHeight: 1.5 }}>
+            Demo only — creates clearly labeled sample incidents. Does not overwrite existing data.
+          </div>
           <button
             onClick={() => mutation.mutate()}
             disabled={mutation.isPending}
@@ -328,7 +323,7 @@ function EmptyTimeline({ isAdmin }: { isAdmin: boolean }) {
           >
             {mutation.isPending
               ? <><Loader2 style={{ width: 13, height: 13, animation: 'spin 1s linear infinite' }} /> Generating…</>
-              : <><Sparkles style={{ width: 13, height: 13 }} /> Generate Demo Data</>
+              : <><Sparkles style={{ width: 13, height: 13 }} /> Generate Demo Data (sample only)</>
             }
           </button>
           {demoError && (
@@ -580,7 +575,7 @@ export default function DashboardPage() {
                 return (
                   <div
                     key={idx}
-                    onClick={() => navigate(rec.link ?? '/security-score')}
+                    onClick={() => navigate(rec.link ?? '/security-overview')}
                     style={{ padding: '14px 20px', borderBottom: idx < arr.length - 1 ? `1px solid ${BORDER}` : 'none', cursor: 'pointer', transition: 'background 0.1s' }}
                     onMouseEnter={e => (e.currentTarget.style.background = PARCH)}
                     onMouseLeave={e => (e.currentTarget.style.background = '')}
@@ -602,7 +597,7 @@ export default function DashboardPage() {
               })}
               <div style={{ padding: '12px 20px', borderTop: `1px solid ${BORDER}` }}>
                 <button
-                  onClick={() => navigate('/security-score')}
+                  onClick={() => navigate('/security-overview')}
                   style={{ width: '100%', fontSize: 12, color: ORANGE, background: 'none', border: `1px solid ${BORDER}`, borderRadius: 4, padding: '8px 0', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
                 >
                   Full security report <ArrowRight style={{ width: 12, height: 12 }} />

@@ -1,12 +1,14 @@
 """Authentication router."""
 from __future__ import annotations
 
-import secrets
+import uuid
 from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.api_keys import generate_user_api_key
 
 from app.database import get_db
 from app.dependencies import get_current_active_user
@@ -72,11 +74,12 @@ async def rotate_api_key(
     The new key is returned exactly once — it cannot be retrieved again.
     Clients must store it securely immediately on receipt.
     """
-    new_key = "lbro_" + secrets.token_urlsafe(32)
-    current_user.api_key = new_key
+    full_key, prefix, key_hash = generate_user_api_key()
+    current_user.api_key_hash = key_hash
+    current_user.api_key_prefix = prefix
     db.add(current_user)
     await db.commit()
-    return {"api_key": new_key}
+    return {"api_key": full_key}
 
 
 @router.post("/logout", status_code=204)

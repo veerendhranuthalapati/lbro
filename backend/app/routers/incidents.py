@@ -28,6 +28,7 @@ from app.services.incident_service import IncidentService
 from app.services.compliance_service import ComplianceService
 from app.services.notification_service import NotificationService
 from app.services.project_service import ProjectService
+from app.core.project_access import resolve_project_scope
 
 router = APIRouter(prefix="/incidents", tags=["incidents"])
 
@@ -57,7 +58,7 @@ async def _resolve_project_id(
         return body_project_id
     if x_project_key:
         svc = ProjectService(db)
-        project = await svc.get_by_api_key(x_project_key)
+        project = await svc.resolve_by_api_key(x_project_key)
         if project:
             return project.id
     return None
@@ -100,6 +101,8 @@ async def list_incidents(
     source_ip: Optional[str] = Query(None, max_length=45),
     attack_category: Optional[str] = Query(None, max_length=100),
 ):
+    if project_id is not None:
+        await resolve_project_scope(db, current_user, project_id)
     svc = IncidentService(db)
     items, total = await svc.list(
         page=page,
@@ -120,8 +123,13 @@ async def incident_stats(
     current_user: Annotated[User, Depends(require_permission(Permission.READ_INCIDENT))],
     project_id: Optional[uuid.UUID] = Query(None),
 ):
+    if project_id is not None:
+        await resolve_project_scope(db, current_user, project_id)
     svc = IncidentService(db)
-    return await svc.get_stats(project_id=project_id)
+    return await svc.get_stats(
+        project_id=project_id,
+        owner_id=_owner_id_for(current_user),
+    )
 
 
 @router.get("/{incident_id}", response_model=IncidentResponse)

@@ -15,13 +15,15 @@ from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy import func, select
+from sqlalchemy import false, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.project_access import resolve_project_scope
 from app.core.rbac import Permission
 from app.database import get_db
 from app.dependencies import require_permission
 from app.models.audit import AuditLog
+from app.core.metrics import format_compliance_pct
 from app.models.compliance import ComplianceRecord
 from app.models.evidence import Evidence
 from app.models.incident import Incident, IncidentSeverity, IncidentStatus
@@ -30,17 +32,47 @@ from app.models.user import User
 router = APIRouter(prefix="/reports", tags=["reports"])
 
 
+def _apply_project_scope(q, scope_ids: Optional[list[uuid.UUID]]):
+    if scope_ids is None:
+        return q
+    if not scope_ids:
+        return q.where(false())
+    return q.where(Incident.project_id.in_(scope_ids))
+
+
+def _apply_compliance_scope(q, scope_ids: Optional[list[uuid.UUID]]):
+    if scope_ids is None:
+        return q
+    if not scope_ids:
+        return q.where(false())
+    return q.join(Incident, ComplianceRecord.incident_id == Incident.id).where(
+        Incident.project_id.in_(scope_ids)
+    )
+
+
+def _apply_evidence_scope(q, scope_ids: Optional[list[uuid.UUID]]):
+    if scope_ids is None:
+        return q
+    if not scope_ids:
+        return q.where(false())
+    return q.join(Incident, Evidence.incident_id == Incident.id).where(
+        Incident.project_id.in_(scope_ids)
+    )
+
+
 # ── Shared data builder ───────────────────────────────────────────────────────
 
-async def _build_report_data(db: AsyncSession, project_id=None, days: int = 7) -> dict:
+async def _build_report_data(
+    db: AsyncSession,
+    scope_ids: Optional[list[uuid.UUID]] = None,
+    days: int = 7,
+) -> dict:
     now = datetime.now(timezone.utc)
     week_ago = now - timedelta(days=days)
     open_statuses = [s.value for s in IncidentStatus if s != IncidentStatus.CLOSED]
 
     def _pf(q):
-        if project_id is not None:
-            q = q.where(Incident.project_id == project_id)
-        return q
+        return _apply_project_scope(q, scope_ids)
 
     # ── Incident counts ───────────────────────────────────────────────────────
     total = (await db.execute(_pf(select(func.count(Incident.id))))).scalar_one()
@@ -132,12 +164,18 @@ async def _build_report_data(db: AsyncSession, project_id=None, days: int = 7) -
     ]
 
     # ── Evidence ──────────────────────────────────────────────────────────────
-    evidence_count = (await db.execute(select(func.count(Evidence.id)))).scalar_one()
+    evidence_count = (await db.execute(
+        _apply_evidence_scope(select(func.count(Evidence.id)), scope_ids)
+    )).scalar_one()
 
-    # ── Compliance ────────────────────────────────────────────────────────────
-    compliance_total = (await db.execute(select(func.count(ComplianceRecord.id)))).scalar_one()
+    compliance_total = (await db.execute(
+        _apply_compliance_scope(select(func.count(ComplianceRecord.id)), scope_ids)
+    )).scalar_one()
     compliance_met = (await db.execute(
-        select(func.count(ComplianceRecord.id)).where(ComplianceRecord.is_met == True)
+        _apply_compliance_scope(
+            select(func.count(ComplianceRecord.id)).where(ComplianceRecord.is_met == True),
+            scope_ids,
+        )
     )).scalar_one()
 
     # ── Users / MFA ───────────────────────────────────────────────────────────
@@ -163,9 +201,12 @@ async def _build_report_data(db: AsyncSession, project_id=None, days: int = 7) -
     if recent_403s > 50:
         score -= 10
     overdue = (await db.execute(
-        select(func.count(ComplianceRecord.id)).where(
-            ComplianceRecord.is_met == False,
-            ComplianceRecord.deadline < now,
+        _apply_compliance_scope(
+            select(func.count(ComplianceRecord.id)).where(
+                ComplianceRecord.is_met == False,
+                ComplianceRecord.deadline < now,
+            ),
+            scope_ids,
         )
     )).scalar_one()
     score -= min(overdue * 5, 15)
@@ -272,7 +313,8 @@ async def weekly_report_json(
     days: Annotated[int, Query(ge=1, le=365)] = 7,
 ):
     """Return the weekly security report as JSON (used for the preview UI)."""
-    return await _build_report_data(db, project_id=project_id, days=days)
+    scope_ids = await resolve_project_scope(db, current_user, project_id)
+    return await _build_report_data(db, scope_ids=scope_ids, days=days)
 
 
 # ── PDF endpoint ──────────────────────────────────────────────────────────────
@@ -285,7 +327,8 @@ async def weekly_report_pdf(
     days: Annotated[int, Query(ge=1, le=365)] = 7,
 ):
     """Generate and stream the weekly security report as a PDF file."""
-    data = await _build_report_data(db, project_id=project_id, days=days)
+    scope_ids = await resolve_project_scope(db, current_user, project_id)
+    data = await _build_report_data(db, scope_ids=scope_ids, days=days)
     pdf_bytes = _generate_pdf(data)
     filename = f"lbro-security-report-{datetime.now().strftime('%Y-%m-%d')}.pdf"
     return StreamingResponse(
@@ -548,16 +591,13 @@ def _generate_pdf(data: dict) -> bytes:
 
     # ── Evidence + Compliance ─────────────────────────────────────────────────
     section("Evidence & Compliance")
-    comp_pct = (
-        round(data["compliance_met"] / data["compliance_total"] * 100)
-        if data["compliance_total"] > 0 else 100
-    )
+    comp_pct_str = format_compliance_pct(data["compliance_met"], data["compliance_total"])
     ec_data = [
         ["Evidence Packages", "Compliance Requirements Met", "Compliance %"],
         [
             str(data["evidence_count"]),
             f"{data['compliance_met']} / {data['compliance_total']}",
-            f"{comp_pct}%",
+            comp_pct_str if data["compliance_total"] > 0 else "No compliance data available",
         ],
     ]
     ec_tbl = Table(ec_data, colWidths=[content_width / 3] * 3)
@@ -572,7 +612,7 @@ def _generate_pdf(data: dict) -> bytes:
         ("GRID",      (0, 0), (-1, -1), 0.5, BORDER_COL),
         ("TOPPADDING",(0, 0), (-1, -1), 10),
         ("BOTTOMPADDING",(0, 0), (-1, -1), 10),
-        ("TEXTCOLOR", (2, 1), (2, 1), GREEN if comp_pct == 100 else (AMBER if comp_pct >= 75 else RED)),
+        ("TEXTCOLOR", (2, 1), (2, 1), GRAY if data["compliance_total"] == 0 else GREEN),
     ]))
     story.append(ec_tbl)
 
@@ -623,7 +663,8 @@ async def compliance_report_pdf(
     project_id: Optional[uuid.UUID] = Query(None),
 ):
     """Generate and stream the compliance audit report as a PDF file."""
-    pdf_bytes = await _generate_compliance_pdf(db, project_id=project_id)
+    scope_ids = await resolve_project_scope(db, current_user, project_id)
+    pdf_bytes = await _generate_compliance_pdf(db, scope_ids=scope_ids)
     filename = f"lbro-compliance-audit-{datetime.now().strftime('%Y-%m-%d')}.pdf"
     return StreamingResponse(
         io.BytesIO(pdf_bytes),
@@ -635,7 +676,10 @@ async def compliance_report_pdf(
     )
 
 
-async def _generate_compliance_pdf(db: AsyncSession, project_id=None) -> bytes:
+async def _generate_compliance_pdf(
+    db: AsyncSession,
+    scope_ids: Optional[list[uuid.UUID]] = None,
+) -> bytes:
     """Query compliance records and generate a PDF audit report."""
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.styles import ParagraphStyle
@@ -649,25 +693,23 @@ async def _generate_compliance_pdf(db: AsyncSession, project_id=None) -> bytes:
     now = datetime.now(timezone.utc)
 
     # ── Pull records from DB ──────────────────────────────────────────────────
-    if project_id is not None:
-        from sqlalchemy import join
-        compliance_q = (
-            select(ComplianceRecord)
-            .join(Incident, ComplianceRecord.incident_id == Incident.id)
-            .where(Incident.project_id == project_id)
-            .order_by(ComplianceRecord.regulation, ComplianceRecord.obligation)
-        )
-    else:
-        compliance_q = select(ComplianceRecord).order_by(
-            ComplianceRecord.regulation,
-            ComplianceRecord.obligation,
-        )
+    compliance_q = select(ComplianceRecord).order_by(
+        ComplianceRecord.regulation,
+        ComplianceRecord.obligation,
+    )
+    compliance_q = _apply_compliance_scope(compliance_q, scope_ids)
     result = await db.execute(compliance_q)
     records = result.scalars().all()
 
     total     = len(records)
     met       = sum(1 for r in records if r.is_met)
-    overdue   = sum(1 for r in records if not r.is_met and r.deadline < now)
+
+    def _deadline_utc(dt: datetime) -> datetime:
+        if dt.tzinfo is None:
+            return dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(timezone.utc)
+
+    overdue   = sum(1 for r in records if not r.is_met and _deadline_utc(r.deadline) < now)
     pending   = total - met - overdue
 
     regs: dict = {}
@@ -736,10 +778,10 @@ async def _generate_compliance_pdf(db: AsyncSession, project_id=None) -> bytes:
     hr()
 
     # Summary stats
-    pct = round(met / total * 100) if total > 0 else 100
+    pct_str = format_compliance_pct(met, total)
     stat_data = [
         ["Total Requirements", "Met", "Overdue", "Pending", "Compliance %"],
-        [str(total), str(met), str(overdue), str(pending), f"{pct}%"],
+        [str(total), str(met), str(overdue), str(pending), pct_str if total > 0 else "No compliance data available"],
     ]
     w5 = cw / 5
     stat_tbl = Table(stat_data, colWidths=[w5] * 5)
@@ -756,7 +798,7 @@ async def _generate_compliance_pdf(db: AsyncSession, project_id=None) -> bytes:
         ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
         ("TEXTCOLOR",     (1, 1), (1, 1), GREEN),
         ("TEXTCOLOR",     (2, 1), (2, 1), RED   if overdue > 0 else GREEN),
-        ("TEXTCOLOR",     (4, 1), (4, 1), GREEN if pct == 100 else (AMBER if pct >= 75 else RED)),
+        ("TEXTCOLOR",     (4, 1), (4, 1), GRAY if total == 0 else GREEN),
     ]))
     story.append(stat_tbl)
     story.append(Spacer(1, 10))
@@ -764,16 +806,21 @@ async def _generate_compliance_pdf(db: AsyncSession, project_id=None) -> bytes:
     # Per-regulation breakdown
     for reg, reg_records in regs.items():
         reg_met = sum(1 for r in reg_records if r.is_met)
-        reg_pct = round(reg_met / len(reg_records) * 100) if reg_records else 100
+        reg_pct_str = format_compliance_pct(reg_met, len(reg_records))
+        reg_label = (
+            f"{reg}  —  {reg_met}/{len(reg_records)} met ({reg_pct_str})"
+            if reg_records
+            else f"{reg}  —  No compliance data available"
+        )
 
-        story.append(Paragraph(f"{reg}  —  {reg_met}/{len(reg_records)} met ({reg_pct}%)", S["h2"]))
+        story.append(Paragraph(reg_label, S["h2"]))
         hr()
 
         tbl_data = [["Obligation", "Status", "Deadline", "Notes"]]
         for r in reg_records:
             if r.is_met:
                 status, status_color = "MET", GREEN
-            elif r.deadline < now:
+            elif _deadline_utc(r.deadline) < now:
                 status, status_color = "OVERDUE", RED
             else:
                 status, status_color = "PENDING", AMBER

@@ -5,9 +5,10 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import false, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.metrics import compliance_percentage
 from app.models.compliance import ComplianceRecord, ComplianceObligation, ComplianceAssessment
 from app.models.incident import Incident
 from app.schemas.compliance import ObligationCreate, ObligationUpdate
@@ -82,15 +83,25 @@ class ComplianceService:
         await self.db.flush()
         return records
 
-    async def get_dashboard(self, project_id: Optional[uuid.UUID] = None) -> dict:
+    async def get_dashboard(
+        self,
+        project_id: Optional[uuid.UUID] = None,
+        scope_project_ids: Optional[list[uuid.UUID]] = None,
+    ) -> dict:
         now = datetime.now(timezone.utc)
         summaries = []
 
         def _base(q):
-            """Join through incidents to filter by project when needed."""
+            """Join through incidents to filter by project scope."""
             if project_id is not None:
-                q = q.join(Incident, ComplianceRecord.incident_id == Incident.id).where(
+                return q.join(Incident, ComplianceRecord.incident_id == Incident.id).where(
                     Incident.project_id == project_id
+                )
+            if scope_project_ids is not None:
+                if not scope_project_ids:
+                    return q.where(false())
+                return q.join(Incident, ComplianceRecord.incident_id == Incident.id).where(
+                    Incident.project_id.in_(scope_project_ids)
                 )
             return q
 
@@ -122,6 +133,8 @@ class ComplianceService:
                 "met": met,
                 "overdue": overdue,
                 "pending": total - met - overdue,
+                "compliance_pct": compliance_percentage(met, total),
+                "has_data": total > 0,
             })
 
         overdue_q = _base(select(ComplianceRecord)).where(
@@ -136,19 +149,78 @@ class ComplianceService:
         ).order_by(ComplianceRecord.deadline.asc()).limit(20)
         upcoming_records = (await self.db.execute(upcoming_q)).scalars().all()
 
+        # Regulations outside the static rulebook (e.g. PCI-DSS, SOC2 from demo seed)
+        known = {s["regulation"] for s in summaries}
+        extra_q = _base(
+            select(ComplianceRecord.regulation, func.count(ComplianceRecord.id))
+            .group_by(ComplianceRecord.regulation)
+        )
+        for regulation, total in (await self.db.execute(extra_q)).all():
+            if regulation in known:
+                continue
+            met = (await self.db.execute(
+                _base(select(func.count(ComplianceRecord.id))).where(
+                    ComplianceRecord.regulation == regulation,
+                    ComplianceRecord.is_met == True,
+                )
+            )).scalar_one()
+            overdue = (await self.db.execute(
+                _base(select(func.count(ComplianceRecord.id))).where(
+                    ComplianceRecord.regulation == regulation,
+                    ComplianceRecord.is_met == False,
+                    ComplianceRecord.deadline < now,
+                )
+            )).scalar_one()
+            summaries.append({
+                "regulation": regulation,
+                "total": total,
+                "met": met,
+                "overdue": overdue,
+                "pending": total - met - overdue,
+                "compliance_pct": compliance_percentage(met, total),
+                "has_data": total > 0,
+            })
+
+        # Authoritative totals — every record in scope (must match compliance PDF)
+        grand_total = (await self.db.execute(
+            _base(select(func.count(ComplianceRecord.id)))
+        )).scalar_one()
+        grand_met = (await self.db.execute(
+            _base(select(func.count(ComplianceRecord.id))).where(
+                ComplianceRecord.is_met == True,
+            )
+        )).scalar_one()
+
         return {
             "summaries": summaries,
             "overdue_records": overdue_records,
             "upcoming_deadlines": upcoming_records,
+            "total_records": grand_total,
+            "met_records": grand_met,
+            "overall_compliance_pct": compliance_percentage(grand_met, grand_total),
+            "has_data": grand_total > 0,
         }
 
-    async def mark_met(self, record_id: uuid.UUID, notes: str = "", project_id: Optional[uuid.UUID] = None) -> ComplianceRecord:
+    async def mark_met(
+        self,
+        record_id: uuid.UUID,
+        notes: str = "",
+        project_id: Optional[uuid.UUID] = None,
+        scope_project_ids: Optional[list[uuid.UUID]] = None,
+    ) -> ComplianceRecord:
         from app.core.exceptions import NotFoundError
         query = select(ComplianceRecord).where(ComplianceRecord.id == record_id)
         if project_id is not None:
             query = (
                 query.join(Incident, ComplianceRecord.incident_id == Incident.id)
                 .where(Incident.project_id == project_id)
+            )
+        elif scope_project_ids is not None:
+            if not scope_project_ids:
+                raise NotFoundError("Compliance record")
+            query = (
+                query.join(Incident, ComplianceRecord.incident_id == Incident.id)
+                .where(Incident.project_id.in_(scope_project_ids))
             )
         result = await self.db.execute(query)
         record = result.scalar_one_or_none()
@@ -228,6 +300,16 @@ class ComplianceService:
         await self.db.flush()
         return obligation
 
+    async def get_obligation_by_id(self, obligation_id: uuid.UUID) -> ComplianceObligation:
+        from app.core.exceptions import NotFoundError
+        result = await self.db.execute(
+            select(ComplianceObligation).where(ComplianceObligation.id == obligation_id)
+        )
+        obligation = result.scalar_one_or_none()
+        if not obligation:
+            raise NotFoundError("Compliance obligation")
+        return obligation
+
     async def update_obligation(
         self,
         obligation_id: uuid.UUID,
@@ -275,7 +357,8 @@ class ComplianceService:
         compliant = sum(1 for o in obligations if o.status == "compliant")
         non_compliant = sum(1 for o in obligations if o.status == "non_compliant")
         in_progress = sum(1 for o in obligations if o.status == "in_progress")
-        overall_score = round((compliant / total * 100) if total > 0 else 0.0, 2)
+        has_data = total > 0
+        overall_score = round(compliant / total * 100, 2) if has_data else None
 
         return {
             "project_id": project_id,
@@ -285,6 +368,7 @@ class ComplianceService:
             "compliant_controls": compliant,
             "non_compliant_controls": non_compliant,
             "in_progress_controls": in_progress,
+            "has_data": has_data,
         }
 
     async def create_assessment(

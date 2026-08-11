@@ -150,52 +150,52 @@ module "iam" {
 module "ecs" {
   source = "./modules/ecs"
 
-  name_prefix          = local.name_prefix
-  environment          = var.environment
-  aws_region           = var.aws_region
-  vpc_id               = module.networking.vpc_id
-  public_subnet_ids    = module.networking.public_subnet_ids
-  private_subnet_ids   = module.networking.private_subnet_ids
-  execution_role_arn   = module.iam.execution_role_arn
-  task_role_arn        = module.iam.task_role_arn
+  name_prefix        = local.name_prefix
+  environment        = var.environment
+  aws_region         = var.aws_region
+  vpc_id             = module.networking.vpc_id
+  public_subnet_ids  = module.networking.public_subnet_ids
+  private_subnet_ids = module.networking.private_subnet_ids
+  execution_role_arn = module.iam.execution_role_arn
+  task_role_arn      = module.iam.task_role_arn
 
-  api_image              = var.api_image
-  worker_image           = var.worker_image
-  frontend_image         = var.frontend_image
-  api_cpu                = var.api_cpu
-  api_memory             = var.api_memory
-  worker_cpu             = var.worker_cpu
-  worker_memory          = var.worker_memory
-  api_desired_count      = var.api_desired_count
-  worker_desired_count   = var.worker_desired_count
+  api_image            = var.api_image
+  worker_image         = var.worker_image
+  frontend_image       = var.frontend_image
+  api_cpu              = var.api_cpu
+  api_memory           = var.api_memory
+  worker_cpu           = var.worker_cpu
+  worker_memory        = var.worker_memory
+  api_desired_count    = var.api_desired_count
+  worker_desired_count = var.worker_desired_count
 
   api_env_vars = [
-    { name = "ENVIRONMENT",                value = var.environment },
-    { name = "AWS_DEFAULT_REGION",         value = var.aws_region },
+    { name = "ENVIRONMENT", value = var.environment },
+    { name = "AWS_DEFAULT_REGION", value = var.aws_region },
     # env var names must match config.py settings (S3_BUCKET_EVIDENCE, S3_BUCKET_REPORTS)
-    { name = "S3_BUCKET_EVIDENCE",         value = module.s3.evidence_bucket_name },
-    { name = "S3_BUCKET_REPORTS",          value = module.s3.reports_bucket_name },
-    { name = "SQS_INCIDENT_QUEUE_URL",     value = module.sqs.incident_queue_url },
+    { name = "S3_BUCKET_EVIDENCE", value = module.s3.evidence_bucket_name },
+    { name = "S3_BUCKET_REPORTS", value = module.s3.reports_bucket_name },
+    { name = "SQS_INCIDENT_QUEUE_URL", value = module.sqs.incident_queue_url },
     { name = "SQS_NOTIFICATION_QUEUE_URL", value = module.sqs.notification_queue_url },
     # CORS_ORIGINS can't reference module.ecs.alb_dns_name (self-reference).
     # Set via var.cors_origins; after first deploy, run: terraform apply -var cors_origins=https://your-alb-dns
-    { name = "CORS_ORIGINS",               value = var.cors_origins },
+    { name = "CORS_ORIGINS", value = var.cors_origins },
   ]
   api_secrets = [
-    { name = "SECRET_KEY",   valueFrom = aws_secretsmanager_secret.app_secret_key.arn },
+    { name = "SECRET_KEY", valueFrom = aws_secretsmanager_secret.app_secret_key.arn },
     # DATABASE_URL secret contains the full asyncpg connection string (not just the password)
     { name = "DATABASE_URL", valueFrom = aws_secretsmanager_secret.db_url.arn },
   ]
 
   worker_env_vars = [
-    { name = "ENVIRONMENT",                value = var.environment },
-    { name = "AWS_DEFAULT_REGION",         value = var.aws_region },
-    { name = "S3_BUCKET_EVIDENCE",         value = module.s3.evidence_bucket_name },
-    { name = "SQS_INCIDENT_QUEUE_URL",     value = module.sqs.incident_queue_url },
+    { name = "ENVIRONMENT", value = var.environment },
+    { name = "AWS_DEFAULT_REGION", value = var.aws_region },
+    { name = "S3_BUCKET_EVIDENCE", value = module.s3.evidence_bucket_name },
+    { name = "SQS_INCIDENT_QUEUE_URL", value = module.sqs.incident_queue_url },
     { name = "SQS_NOTIFICATION_QUEUE_URL", value = module.sqs.notification_queue_url },
   ]
   worker_secrets = [
-    { name = "SECRET_KEY",   valueFrom = aws_secretsmanager_secret.app_secret_key.arn },
+    { name = "SECRET_KEY", valueFrom = aws_secretsmanager_secret.app_secret_key.arn },
     { name = "DATABASE_URL", valueFrom = aws_secretsmanager_secret.db_url.arn },
   ]
 
@@ -222,16 +222,16 @@ module "rds" {
 module "monitoring" {
   source = "./modules/monitoring"
 
-  name_prefix                  = local.name_prefix
-  environment                  = var.environment
-  sns_topic_arn                = aws_sns_topic.alerts.arn
-  ecs_cluster_name             = module.ecs.cluster_name
-  api_service_name             = module.ecs.api_service_name
-  worker_service_name          = module.ecs.worker_service_name
-  dlq_name                     = module.sqs.dlq_name
-  dlq_arn                      = module.sqs.dlq_arn
-  rds_instance_id              = module.rds.db_identifier
-  alb_arn_suffix               = module.ecs.alb_arn_suffix
-  api_target_group_arn_suffix  = module.ecs.api_target_group_arn_suffix
+  name_prefix                 = local.name_prefix
+  environment                 = var.environment
+  sns_topic_arn               = aws_sns_topic.alerts.arn
+  ecs_cluster_name            = module.ecs.cluster_name
+  api_service_name            = module.ecs.api_service_name
+  worker_service_name         = module.ecs.worker_service_name
+  dlq_name                    = module.sqs.dlq_name
+  dlq_arn                     = module.sqs.dlq_arn
+  rds_instance_id             = module.rds.db_identifier
+  alb_arn_suffix              = module.ecs.alb_arn_suffix
+  api_target_group_arn_suffix = module.ecs.api_target_group_arn_suffix
 }
 

@@ -201,7 +201,7 @@ class TestUserSecurityConsistency:
         )).scalar_one_or_none()
 
         assert user is not None
-        assert user.role == "viewer"
+        assert user.role == "analyst"
 
 
 class TestComplianceConsistency:

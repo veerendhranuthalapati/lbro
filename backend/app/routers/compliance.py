@@ -7,6 +7,7 @@ from typing import Annotated, List, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.project_access import assert_project_access, resolve_project_scope
 from app.core.rbac import Permission
 from app.database import get_db
 from app.dependencies import require_permission
@@ -36,8 +37,9 @@ async def compliance_dashboard(
     current_user: Annotated[User, Depends(require_permission(Permission.VIEW_COMPLIANCE))],
     project_id: Optional[uuid.UUID] = Query(None, description="Scope to a project"),
 ):
+    scope_ids = await resolve_project_scope(db, current_user, project_id)
     svc = ComplianceService(db)
-    data = await svc.get_dashboard(project_id=project_id)
+    data = await svc.get_dashboard(scope_project_ids=scope_ids)
     return ComplianceDashboard(**data)
 
 
@@ -49,8 +51,9 @@ async def mark_met(
     current_user: Annotated[User, Depends(require_permission(Permission.MANAGE_COMPLIANCE))],
     project_id: Optional[uuid.UUID] = Query(None, description="Scope to a project"),
 ):
+    scope_ids = await resolve_project_scope(db, current_user, project_id)
     svc = ComplianceService(db)
-    return await svc.mark_met(record_id, body.notes or "", project_id=project_id)
+    return await svc.mark_met(record_id, body.notes or "", scope_project_ids=scope_ids)
 
 
 # ---------------------------------------------------------------------------
@@ -65,6 +68,7 @@ async def list_obligations(
     framework: Optional[str] = Query(None, description="Filter by framework, e.g. GDPR"),
 ):
     """Return all saved obligation states for a project."""
+    await assert_project_access(db, project_id, current_user)
     svc = ComplianceService(db)
     return await svc.get_obligations(project_id=project_id, framework=framework)
 
@@ -81,6 +85,7 @@ async def upsert_obligation(
     Returns 200 whether it created or updated, so the frontend can use this as
     a simple upsert without needing to know whether the record already exists.
     """
+    await assert_project_access(db, project_id, current_user)
     svc = ComplianceService(db)
     return await svc.upsert_obligation(project_id=project_id, data=body)
 
@@ -94,6 +99,8 @@ async def update_obligation(
 ):
     """Partially update an existing obligation (status, evidence_reference, score, etc.)."""
     svc = ComplianceService(db)
+    existing = await svc.get_obligation_by_id(obligation_id)
+    await assert_project_access(db, existing.project_id, current_user)
     return await svc.update_obligation(obligation_id=obligation_id, data=body)
 
 
@@ -105,6 +112,7 @@ async def get_compliance_score(
     framework: Optional[str] = Query(None, description="Filter by framework"),
 ):
     """Compute live compliance score from DB obligations."""
+    await assert_project_access(db, project_id, current_user)
     svc = ComplianceService(db)
     data = await svc.get_score(project_id=project_id, framework=framework)
     return ScoreResponse(**data)
@@ -119,6 +127,7 @@ async def create_assessment(
     notes: Optional[str] = Query(None, description="Optional assessment notes"),
 ):
     """Compute current score and persist it as a point-in-time assessment snapshot."""
+    await assert_project_access(db, project_id, current_user)
     svc = ComplianceService(db)
     return await svc.create_assessment(
         project_id=project_id, framework=framework, notes=notes
@@ -133,5 +142,6 @@ async def list_assessments(
     framework: Optional[str] = Query(None, description="Filter by framework"),
 ):
     """Return historical assessment snapshots for a project, newest first."""
+    await assert_project_access(db, project_id, current_user)
     svc = ComplianceService(db)
     return await svc.get_assessments(project_id=project_id, framework=framework)

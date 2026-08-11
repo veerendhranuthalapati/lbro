@@ -68,3 +68,34 @@ def get_active_model_info() -> dict:
 
 def list_models() -> list[dict]:
     return _load_registry().get("models", [])
+
+
+def model_artifact_exists() -> bool:
+    from app.config import settings
+    return Path(settings.ML_MODEL_PATH).exists()
+
+
+def has_verified_evaluation() -> bool:
+    """True only when the model artifact is loaded AND registry holds evaluation metrics."""
+    if not model_artifact_exists():
+        return False
+    info = get_active_model_info()
+    metrics = info.get("metrics") or {}
+    return bool(metrics.get("accuracy") is not None)
+
+
+def get_evaluation_metrics() -> dict | None:
+    if not has_verified_evaluation():
+        return None
+    info = get_active_model_info()
+    metrics = info.get("metrics") or {}
+    return {
+        "version": info.get("version"),
+        "trained_at": info.get("registered_at"),
+        "accuracy": metrics.get("accuracy"),
+        "precision": metrics.get("precision"),
+        "recall": metrics.get("recall"),
+        "f1": metrics.get("f1") or metrics.get("f1_macro"),
+        "mcc": metrics.get("matthews_corrcoef") or metrics.get("mcc"),
+        "confusion_matrix": info.get("confusion_matrix"),
+    }

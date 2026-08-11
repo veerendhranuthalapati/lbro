@@ -29,7 +29,8 @@ class User(Base):
     last_login: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     failed_login_attempts: Mapped[int] = mapped_column(default=0, nullable=False)
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    api_key: Mapped[str | None] = mapped_column(String(128), unique=True, nullable=True, index=True)
+    api_key_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    api_key_prefix: Mapped[str | None] = mapped_column(String(16), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )

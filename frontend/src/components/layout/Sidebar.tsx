@@ -3,8 +3,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import {
   LayoutDashboard, ShieldAlert, FileText, Lock,
   Cloud, Settings, LogOut, Brain, Bell, Users,
-  Target, ClipboardList, ShieldCheck, BarChart2, ClipboardCheck,
-  Layers, BookOpen, Plug2,
+  Target, ClipboardList, ShieldCheck, ClipboardCheck,
+  Layers, BookOpen, Plug2, Activity,
 } from 'lucide-react'
 import type { LucideProps } from 'lucide-react'
 import { cn } from '@/utils'
@@ -22,9 +22,8 @@ interface NavItem {
 // Backend enforces access; sidebar never hides pages based on JWT permissions
 // because missing/empty permissions would cause the entire sidebar to collapse.
 const NAV: NavItem[] = [
-  { to: '/dashboard',      icon: LayoutDashboard, label: 'Application Security' },
-  { to: '/security-score', icon: ShieldCheck,     label: 'Security Score' },
-  { to: '/weekly-report',  icon: BarChart2,       label: 'Weekly Report' },
+  { to: '/dashboard',         icon: LayoutDashboard, label: 'Application Security' },
+  { to: '/security-overview', icon: ShieldCheck,     label: 'Security Overview' },
   { to: '/incidents',      icon: ShieldAlert,     label: 'Security Events' },
   { to: '/notifications',  icon: Bell,            label: 'Notifications' },
   { to: '/compliance',       icon: FileText,        label: 'Compliance' },
@@ -136,23 +135,38 @@ export function Sidebar() {
           )
         })}
 
-        {/* Integrations — project-scoped, only visible when a project is active */}
+        {/* Project-scoped links — visible when a project is active */}
         {currentProject && (() => {
           const intTo = `/projects/${currentProject.id}/integrations`
-          const isActive = location.pathname === intTo || location.pathname.startsWith(intTo)
+          const eventsTo = `/projects/${currentProject.id}/events`
+          const intActive = location.pathname === intTo || location.pathname.startsWith(intTo)
+          const eventsActive = location.pathname === eventsTo || location.pathname.startsWith(eventsTo)
           return (
             <>
               <div className="w-6 border-t my-1" style={{ borderColor: '#2a2a2a' }} />
               <NavLink
+                to={eventsTo}
+                title="Live Events"
+                aria-label="Live Events"
+                aria-current={eventsActive ? 'page' : undefined}
+                className={cn(
+                  'flex items-center justify-center w-9 h-9 rounded transition-all focus:outline-none focus:ring-2',
+                  eventsActive ? 'text-white' : 'text-zinc-500 hover:text-zinc-300',
+                )}
+                style={eventsActive ? { background: '#e54e1b', color: '#fff' } : {}}
+              >
+                <Activity className="w-4 h-4" aria-hidden="true" />
+              </NavLink>
+              <NavLink
                 to={intTo}
                 title="Integrations"
                 aria-label="Integrations"
-                aria-current={isActive ? 'page' : undefined}
+                aria-current={intActive ? 'page' : undefined}
                 className={cn(
                   'flex items-center justify-center w-9 h-9 rounded transition-all focus:outline-none focus:ring-2',
-                  isActive ? 'text-white' : 'text-zinc-500 hover:text-zinc-300',
+                  intActive ? 'text-white' : 'text-zinc-500 hover:text-zinc-300',
                 )}
-                style={isActive ? { background: '#e54e1b', color: '#fff' } : {}}
+                style={intActive ? { background: '#e54e1b', color: '#fff' } : {}}
               >
                 <Plug2 className="w-4 h-4" aria-hidden="true" />
               </NavLink>

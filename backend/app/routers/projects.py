@@ -18,10 +18,12 @@ from app.dependencies import require_permission
 from app.models.user import User
 from app.schemas.project import (
     ProjectCreate,
+    ProjectCreatedResponse,
     ProjectListResponse,
     ProjectResponse,
     ProjectUpdate,
 )
+from app.core.project_access import assert_project_access
 from app.services.project_service import ProjectService
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -58,15 +60,18 @@ async def list_projects(
     return ProjectListResponse(items=items, total=total)
 
 
-@router.post("", response_model=ProjectResponse, status_code=201)
+@router.post("", response_model=ProjectCreatedResponse, status_code=201)
 async def create_project(
     data: ProjectCreate,
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_permission(Permission.VIEW_DASHBOARD))],
 ):
     svc = ProjectService(db)
-    project = await svc.create(data, owner_id=current_user.id)
-    return project
+    project, plaintext = await svc.create(data, owner_id=current_user.id)
+    return ProjectCreatedResponse(
+        **ProjectResponse.model_validate(project).model_dump(),
+        api_key=plaintext,
+    )
 
 
 # ── Single project ────────────────────────────────────────────────────────────
@@ -77,8 +82,8 @@ async def get_project(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_permission(Permission.VIEW_DASHBOARD))],
 ):
-    svc = ProjectService(db)
-    return await svc.get(project_id)
+    project = await assert_project_access(db, project_id, current_user)
+    return project
 
 
 @router.patch("/{project_id}", response_model=ProjectResponse)
@@ -108,7 +113,7 @@ async def delete_project(
 
 # ── Project API key ───────────────────────────────────────────────────────────
 
-@router.post("/{project_id}/regenerate-key", response_model=ProjectResponse)
+@router.post("/{project_id}/regenerate-key", response_model=ProjectCreatedResponse)
 async def regenerate_api_key(
     project_id: uuid.UUID,
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -118,7 +123,11 @@ async def regenerate_api_key(
     svc = ProjectService(db)
     project = await svc.get(project_id)
     _assert_owner_or_admin(project.owner_id, current_user)
-    return await svc.regenerate_api_key(project_id)
+    project, plaintext = await svc.regenerate_api_key(project_id)
+    return ProjectCreatedResponse(
+        **ProjectResponse.model_validate(project).model_dump(),
+        api_key=plaintext,
+    )
 
 
 # ── Project dashboard ─────────────────────────────────────────────────────────
@@ -130,5 +139,6 @@ async def project_dashboard(
     current_user: Annotated[User, Depends(require_permission(Permission.VIEW_DASHBOARD))],
 ):
     """Aggregated security stats for a single project."""
+    await assert_project_access(db, project_id, current_user)
     svc = ProjectService(db)
     return await svc.get_dashboard(project_id)

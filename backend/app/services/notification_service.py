@@ -16,6 +16,7 @@ from sqlalchemy.orm import selectinload
 
 from app.config import settings
 from app.core.exceptions import NotFoundError, ConflictError
+from app.core.project_access import incident_access_scope, is_privileged_user
 from app.models.notification import Notification
 from app.models.incident import Incident
 from app.models.user import User
@@ -171,19 +172,24 @@ class NotificationService:
         await self.db.flush()
         return notifications
 
-    async def get(self, notification_id: uuid.UUID) -> Notification:
-        result = await self.db.execute(
+    async def get(self, notification_id: uuid.UUID, user: Optional[User] = None) -> Notification:
+        query = (
             select(Notification)
             .where(Notification.id == notification_id)
             .options(selectinload(Notification.recipients))
         )
+        if user is not None and not is_privileged_user(user):
+            scope = incident_access_scope(user)
+            if scope is not None:
+                query = query.join(Incident, Notification.incident_id == Incident.id).where(scope)
+        result = await self.db.execute(query)
         n = result.scalar_one_or_none()
         if not n:
             raise NotFoundError("Notification")
         return n
 
     async def approve(self, notification_id: uuid.UUID, approver: User) -> Notification:
-        n = await self.get(notification_id)
+        n = await self.get(notification_id, user=approver)
         if n.status != "pending":
             raise ConflictError(f"Notification status is '{n.status}', expected 'pending'")
         n.status = "approved"
@@ -197,8 +203,8 @@ class NotificationService:
             pass
         return n
 
-    async def send(self, notification_id: uuid.UUID) -> Notification:
-        n = await self.get(notification_id)
+    async def send(self, notification_id: uuid.UUID, user: Optional[User] = None) -> Notification:
+        n = await self.get(notification_id, user=user)
         if n.status not in ("approved", "failed"):
             raise ConflictError(f"Cannot send notification in status '{n.status}'")
 
@@ -250,9 +256,18 @@ class NotificationService:
         status: Optional[str] = None,
         regulation: Optional[str] = None,
         incident_id: Optional[uuid.UUID] = None,
+        user: Optional[User] = None,
     ) -> tuple[list[Notification], int]:
         query = select(Notification).options(selectinload(Notification.recipients))
         count_query = select(func.count(Notification.id))
+
+        if user is not None and not is_privileged_user(user):
+            scope = incident_access_scope(user)
+            if scope is not None:
+                query = query.join(Incident, Notification.incident_id == Incident.id).where(scope)
+                count_query = count_query.join(
+                    Incident, Notification.incident_id == Incident.id
+                ).where(scope)
 
         if status:
             query = query.where(Notification.status == status)

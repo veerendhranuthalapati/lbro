@@ -57,7 +57,7 @@ class AuthService:
             username=username,
             full_name=data.full_name,
             hashed_password=hash_password(data.password),
-            role="viewer",
+            role="analyst",
             is_active=True,
             is_verified=True,
         )

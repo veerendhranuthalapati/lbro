@@ -174,7 +174,7 @@ resource "aws_cloudwatch_metric_alarm" "rds_storage" {
   namespace           = "AWS/RDS"
   period              = 300
   statistic           = "Minimum"
-  threshold           = 2147483648  # 2 GiB in bytes
+  threshold           = 2147483648 # 2 GiB in bytes
   treat_missing_data  = "missing"
 
   dimensions = { DBInstanceIdentifier = var.rds_instance_id }
@@ -211,7 +211,7 @@ resource "aws_cloudwatch_dashboard" "lbro" {
           title  = "API CPU & Memory"
           period = 60
           metrics = [
-            ["AWS/ECS", "CPUUtilization",    "ClusterName", var.ecs_cluster_name, "ServiceName", var.api_service_name],
+            ["AWS/ECS", "CPUUtilization", "ClusterName", var.ecs_cluster_name, "ServiceName", var.api_service_name],
             ["AWS/ECS", "MemoryUtilization", "ClusterName", var.ecs_cluster_name, "ServiceName", var.api_service_name]
           ]
         }
@@ -222,7 +222,7 @@ resource "aws_cloudwatch_dashboard" "lbro" {
           title  = "ALB Request Rate & Errors"
           period = 60
           metrics = [
-            ["AWS/ApplicationELB", "RequestCount",            "LoadBalancer", var.alb_arn_suffix],
+            ["AWS/ApplicationELB", "RequestCount", "LoadBalancer", var.alb_arn_suffix],
             ["AWS/ApplicationELB", "HTTPCode_Target_5XX_Count", "LoadBalancer", var.alb_arn_suffix],
             ["AWS/ApplicationELB", "HTTPCode_Target_4XX_Count", "LoadBalancer", var.alb_arn_suffix]
           ]
@@ -234,9 +234,9 @@ resource "aws_cloudwatch_dashboard" "lbro" {
           title  = "RDS Metrics"
           period = 60
           metrics = [
-            ["AWS/RDS", "CPUUtilization",       "DBInstanceIdentifier", var.rds_instance_id],
-            ["AWS/RDS", "DatabaseConnections",  "DBInstanceIdentifier", var.rds_instance_id],
-            ["AWS/RDS", "FreeStorageSpace",     "DBInstanceIdentifier", var.rds_instance_id]
+            ["AWS/RDS", "CPUUtilization", "DBInstanceIdentifier", var.rds_instance_id],
+            ["AWS/RDS", "DatabaseConnections", "DBInstanceIdentifier", var.rds_instance_id],
+            ["AWS/RDS", "FreeStorageSpace", "DBInstanceIdentifier", var.rds_instance_id]
           ]
         }
       },

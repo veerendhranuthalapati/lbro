@@ -121,7 +121,8 @@ lbro/
 │   │   └── monitoring/    # CloudWatch alarms + dashboard
 │   ├── main.tf
 │   ├── variables.tf
-│   └── outputs.tf
+│   ├── outputs.tf
+│   └── README.md          # Canonical prod path (not environments/*)
 ├── .github/
 │   └── workflows/
 │       ├── ci.yml         # Lint, test, build, security scan
@@ -284,7 +285,7 @@ npm run build      # Production build
 # Backend unit + integration tests (uses SQLite in-memory)
 cd backend && pytest tests/ -v
 
-# Validate Terraform
+# Validate Terraform (canonical root — see terraform/README.md)
 cd terraform && terraform init -backend=false && terraform validate
 ```
 

@@ -26,7 +26,23 @@ export const complianceHandlers = [
       .filter(r => !r.is_met && new Date(r.deadline).getTime() >= now)
       .sort((a, b) => new Date(a.deadline).getTime() - new Date(b.deadline).getTime())
 
-    return HttpResponse.json({ summaries, overdue_records, upcoming_deadlines })
+    const grandTotal = summaries.reduce((n, s) => n + s.total, 0)
+    const grandMet = summaries.reduce((n, s) => n + s.met, 0)
+    const overallPct = grandTotal > 0 ? Math.round(grandMet / grandTotal * 100) : null
+
+    return HttpResponse.json({
+      summaries: summaries.map(s => ({
+        ...s,
+        compliance_pct: s.total > 0 ? Math.round(s.met / s.total * 100) : null,
+        has_data: s.total > 0,
+      })),
+      overdue_records,
+      upcoming_deadlines,
+      total_records: grandTotal,
+      met_records: grandMet,
+      overall_compliance_pct: overallPct,
+      has_data: grandTotal > 0,
+    })
   }),
 
   // POST /api/v1/compliance/records/:id/mark-met

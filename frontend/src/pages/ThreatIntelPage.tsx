@@ -104,11 +104,11 @@ export default function ThreatIntelPage() {
 
   // KPI: overall model accuracy derived from FP analysis (live data when available)
   const overallAccuracy = useMemo(() => {
-    const fp = mlMetrics?.false_positive_analysis
-    if (!fp || fp.length === 0) return null
-    const total   = fp.reduce((s, d) => s + d.tp + d.fp + d.fn, 0)
-    const correct = fp.reduce((s, d) => s + d.tp, 0)
-    return (correct / total * 100).toFixed(1)
+    const ev = mlMetrics?.evaluation
+    if (mlMetrics?.has_evaluation_data && ev?.accuracy != null) {
+      return (ev.accuracy * 100).toFixed(1)
+    }
+    return null
   }, [mlMetrics])
 
   // KPI: average confidence across live flows
@@ -143,7 +143,7 @@ export default function ThreatIntelPage() {
         <StatCard
           label="Model Accuracy"
           value={metricsLoading ? '…' : metricsError ? '--' : overallAccuracy != null ? `${overallAccuracy}%` : '--'}
-          sub={metricsError ? 'unavailable' : overallAccuracy != null ? 'live incident data' : 'no incidents yet'}
+          sub={metricsError ? 'unavailable' : overallAccuracy != null ? 'offline evaluation (registry + model file)' : 'No evaluation data available'}
           icon={Brain} accent="orange"
         />
         <StatCard
@@ -277,7 +277,9 @@ export default function ThreatIntelPage() {
           </div>
         ) : fpData.length === 0 ? (
           <div style={{ padding: '24px 16px', textAlign: 'center', fontSize: 11, color: GRAY }}>
-            No classified incidents yet. FP analysis will populate as threats are detected and classified.
+            {mlMetrics?.has_evaluation_data
+              ? 'No confusion-matrix evaluation data in model registry.'
+              : 'No evaluation data available. Precision/recall require offline model evaluation with a confusion matrix.'}
           </div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>

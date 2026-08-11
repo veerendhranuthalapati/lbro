@@ -1,7 +1,6 @@
 """Project CRUD and dashboard service."""
 from __future__ import annotations
 
-import secrets
 import uuid
 from collections import Counter
 from datetime import datetime, timedelta, timezone
@@ -10,6 +9,7 @@ from typing import Optional
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.api_keys import api_key_prefix, generate_project_api_key, verify_api_key
 from app.core.exceptions import ConflictError, NotFoundError
 from app.models.compliance import ComplianceRecord
 from app.models.evidence import Evidence
@@ -24,10 +24,11 @@ class ProjectService:
 
     # ── CRUD ─────────────────────────────────────────────────────────────────
 
-    async def create(self, data: ProjectCreate, owner_id: uuid.UUID) -> Project:
+    async def create(self, data: ProjectCreate, owner_id: uuid.UUID) -> tuple[Project, str]:
         base_slug = _slugify(data.name)
         slug = await self._unique_slug(base_slug)
 
+        full_key, prefix, key_hash = generate_project_api_key()
         project = Project(
             name=data.name,
             slug=slug,
@@ -35,10 +36,12 @@ class ProjectService:
             environment=data.environment,
             status="active",
             owner_id=owner_id,
+            api_key_hash=key_hash,
+            api_key_prefix=prefix,
         )
         self.db.add(project)
         await self.db.flush()
-        return project
+        return project, full_key
 
     async def get(self, project_id: uuid.UUID) -> Project:
         result = await self.db.execute(
@@ -58,12 +61,21 @@ class ProjectService:
             raise NotFoundError("Project")
         return project
 
-    async def get_by_api_key(self, api_key: str) -> Optional[Project]:
-        """Identify a project by its external API key (for log ingestion)."""
+    async def resolve_by_api_key(self, api_key: str) -> Optional[Project]:
+        """Identify a project by its external API key (prefix lookup + hash verify)."""
+        if not api_key:
+            return None
+        prefix = api_key_prefix(api_key)
         result = await self.db.execute(
-            select(Project).where(Project.api_key == api_key)
+            select(Project).where(
+                Project.api_key_prefix == prefix,
+                Project.status == "active",
+            )
         )
-        return result.scalar_one_or_none()
+        for project in result.scalars().all():
+            if verify_api_key(api_key, project.api_key_hash):
+                return project
+        return None
 
     async def list_for_user(
         self,
@@ -113,12 +125,14 @@ class ProjectService:
         await self.db.flush()
         return project
 
-    async def regenerate_api_key(self, project_id: uuid.UUID) -> Project:
+    async def regenerate_api_key(self, project_id: uuid.UUID) -> tuple[Project, str]:
         project = await self.get(project_id)
-        project.api_key = "proj_" + secrets.token_urlsafe(32)
+        full_key, prefix, key_hash = generate_project_api_key()
+        project.api_key_hash = key_hash
+        project.api_key_prefix = prefix
         project.updated_at = datetime.now(timezone.utc)
         await self.db.flush()
-        return project
+        return project, full_key
 
     async def delete(self, project_id: uuid.UUID) -> None:
         """Hard-delete a project and all its incidents (CASCADE in DB)."""
@@ -226,7 +240,7 @@ class ProjectService:
             "project_name": project.name,
             "environment": project.environment,
             "status": project.status,
-            "api_key": project.api_key,
+            "api_key_prefix": project.api_key_prefix,
             "security_score": score,
             "security_grade": grade,
             "open_incidents": open_incidents,

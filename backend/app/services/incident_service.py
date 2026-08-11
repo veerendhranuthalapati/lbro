@@ -104,11 +104,13 @@ class IncidentService:
         )
         if project_id is not None:
             query = query.where(Incident.project_id == project_id)
-        elif owner_id is not None:
+        if owner_id is not None:
             query = query.where(self._ownership_scope(owner_id))
         result = await self.db.execute(query)
         incident = result.scalar_one_or_none()
         if not incident:
+            raise NotFoundError("Incident")
+        if project_id is not None and incident.project_id != project_id:
             raise NotFoundError("Incident")
         return incident
 
@@ -135,7 +137,7 @@ class IncidentService:
         if project_id is not None:
             query = query.where(Incident.project_id == project_id)
             count_query = count_query.where(Incident.project_id == project_id)
-        elif owner_id is not None:
+        if owner_id is not None:
             scope = self._ownership_scope(owner_id)
             query = query.where(scope)
             count_query = count_query.where(scope)
@@ -233,10 +235,16 @@ class IncidentService:
         await self.db.delete(incident)
         await self.db.flush()
 
-    async def get_stats(self, project_id: Optional[uuid.UUID] = None) -> dict:
+    async def get_stats(
+        self,
+        project_id: Optional[uuid.UUID] = None,
+        owner_id: Optional[uuid.UUID] = None,
+    ) -> dict:
         def _filter(q):
             if project_id is not None:
                 q = q.where(Incident.project_id == project_id)
+            if owner_id is not None:
+                q = q.where(self._ownership_scope(owner_id))
             return q
 
         total = (await self.db.execute(_filter(select(func.count(Incident.id))))).scalar_one()

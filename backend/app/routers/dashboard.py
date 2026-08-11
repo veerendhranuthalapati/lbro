@@ -6,9 +6,10 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select
+from sqlalchemy import false, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.project_access import resolve_project_scope
 from app.core.rbac import Permission
 from app.database import get_db
 from app.dependencies import require_permission
@@ -21,20 +22,27 @@ from app.models.user import User
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 
+def _apply_project_scope(q, scope_ids: Optional[list[uuid.UUID]]):
+    """Filter incident-scoped queries by resolved project IDs."""
+    if scope_ids is None:
+        return q
+    if not scope_ids:
+        return q.where(false())
+    return q.where(Incident.project_id.in_(scope_ids))
+
+
 @router.get("/summary")
 async def dashboard_summary(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_permission(Permission.VIEW_DASHBOARD))],
     project_id: Optional[uuid.UUID] = Query(None, description="Scope summary to a project"),
 ):
+    scope_ids = await resolve_project_scope(db, current_user, project_id)
     now = datetime.now(timezone.utc)
     last_24h = now - timedelta(hours=24)
 
     def _pf(q):
-        """Apply project filter when a project_id is provided."""
-        if project_id is not None:
-            q = q.where(Incident.project_id == project_id)
-        return q
+        return _apply_project_scope(q, scope_ids)
 
     total_incidents = (await db.execute(_pf(select(func.count(Incident.id))))).scalar_one()
 
@@ -50,60 +58,49 @@ async def dashboard_summary(
         _pf(select(func.count(Incident.id))).where(Incident.severity == "critical")
     )).scalar_one()
 
-    # Notifications and compliance don't have direct project_id — filter via incident join
-    if project_id is not None:
-        pending_notifications = (await db.execute(
+    pending_notifications = (await db.execute(
+        _apply_project_scope(
             select(func.count(Notification.id))
             .join(Incident, Notification.incident_id == Incident.id)
-            .where(Notification.status == "pending", Incident.project_id == project_id)
-        )).scalar_one()
+            .where(Notification.status == "pending"),
+            scope_ids,
+        )
+    )).scalar_one()
 
-        overdue_compliance = (await db.execute(
+    overdue_compliance = (await db.execute(
+        _apply_project_scope(
             select(func.count(ComplianceRecord.id))
             .join(Incident, ComplianceRecord.incident_id == Incident.id)
             .where(
                 ComplianceRecord.is_met == False,
                 ComplianceRecord.deadline < now,
-                Incident.project_id == project_id,
-            )
-        )).scalar_one()
+            ),
+            scope_ids,
+        )
+    )).scalar_one()
 
-        total_evidence = (await db.execute(
+    total_evidence = (await db.execute(
+        _apply_project_scope(
             select(func.count(Evidence.id))
-            .join(Incident, Evidence.incident_id == Incident.id)
-            .where(Incident.project_id == project_id)
-        )).scalar_one()
-    else:
-        pending_notifications = (await db.execute(
-            select(func.count(Notification.id)).where(Notification.status == "pending")
-        )).scalar_one()
-
-        overdue_compliance = (await db.execute(
-            select(func.count(ComplianceRecord.id)).where(
-                ComplianceRecord.is_met == False,
-                ComplianceRecord.deadline < now,
-            )
-        )).scalar_one()
-
-        total_evidence = (await db.execute(select(func.count(Evidence.id)))).scalar_one()
+            .join(Incident, Evidence.incident_id == Incident.id),
+            scope_ids,
+        )
+    )).scalar_one()
 
     needs_review = (await db.execute(
         _pf(select(func.count(Incident.id))).where(Incident.needs_analyst_review == True)
     )).scalar_one()
 
-    # Recent incidents
     recent_q = _pf(select(Incident)).order_by(Incident.created_at.desc()).limit(5)
     recent_result = await db.execute(recent_q)
     recent_incidents = recent_result.scalars().all()
 
-    # Severity breakdown
     sev_q = _pf(select(Incident.severity, func.count(Incident.id)).group_by(Incident.severity))
     severity_rows = (await db.execute(sev_q)).all()
     severity_breakdown = {s.value: 0 for s in IncidentSeverity}
     for sev, cnt in severity_rows:
         severity_breakdown[sev] = cnt
 
-    # Status breakdown
     st_q = _pf(select(Incident.status, func.count(Incident.id)).group_by(Incident.status))
     status_rows = (await db.execute(st_q)).all()
     status_breakdown = {s.value: 0 for s in IncidentStatus}

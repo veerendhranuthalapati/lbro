@@ -10,7 +10,7 @@ const PARCH  = '#e8e2d9'
 
 interface ModelInfo {
   model_id: string; version: string; trained_at: string
-  accuracy: number; f1_score: number; is_active: boolean
+  accuracy: number | null; f1_score: number | null; is_active: boolean
   feature_count: number; class_count: number
 }
 
@@ -22,6 +22,9 @@ interface MLStats {
   low_confidence_count: number
   attack_distribution: Record<string, number>
   top_features: Array<{ name: string; importance: number }>
+  has_evaluation_data?: boolean
+  runtime_mode?: string
+  evaluation?: Record<string, unknown> | null
 }
 
 function confColor(score: number) {
@@ -70,7 +73,7 @@ export default function MLInsightsPage() {
               { icon: <Cpu style={{ width: 14, height: 14, color: ORANGE }} />, label: 'Predictions today', value: stats.predictions_today.toLocaleString(), color: ORANGE },
               { icon: <TrendingUp style={{ width: 14, height: 14, color: '#3a7a50' }} />, label: 'Avg confidence', value: `${(stats.avg_confidence * 100).toFixed(1)}%`, color: confColor(stats.avg_confidence) },
               { icon: <AlertCircle style={{ width: 14, height: 14, color: '#d97706' }} />, label: 'Needs review', value: stats.low_confidence_count.toString(), color: stats.low_confidence_count > 0 ? '#d97706' : '#3a7a50' },
-              { icon: <CheckCircle style={{ width: 14, height: 14, color: '#3b82f6' }} />, label: 'Model accuracy', value: stats.active_model ? `${(stats.active_model.accuracy * 100).toFixed(1)}%` : 'N/A', color: BLACK },
+              { icon: <CheckCircle style={{ width: 14, height: 14, color: '#3b82f6' }} />, label: 'Model accuracy', value: stats.has_evaluation_data && stats.active_model?.accuracy != null ? `${(stats.active_model.accuracy * 100).toFixed(1)}%` : 'N/A', color: BLACK },
             ].map(k => (
               <div key={k.label} style={{ background: CREAM, border: `1px solid ${BORDER}`, borderRadius: 4, padding: '14px 16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: GRAY, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}>
@@ -87,14 +90,14 @@ export default function MLInsightsPage() {
               <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
                 <div>
                   <div style={{ fontSize: 11, fontWeight: 500, color: ORANGE, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 2 }}>Active model</div>
-                  <div style={{ fontSize: 11, color: GRAY }}>v{stats.active_model.version} · Trained {new Date(stats.active_model.trained_at).toLocaleDateString()}</div>
+                  <div style={{ fontSize: 11, color: GRAY }}>v{stats.active_model.version} · Runtime: {stats.runtime_mode ?? 'heuristic'} · Trained {stats.active_model.trained_at ? new Date(stats.active_model.trained_at).toLocaleDateString() : 'N/A'}</div>
                 </div>
-                <span style={{ fontSize: 10, padding: '2px 8px', border: '1px solid rgba(58,122,80,0.3)', background: 'rgba(58,122,80,0.08)', color: '#3a7a50', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Active</span>
+                <span style={{ fontSize: 10, padding: '2px 8px', border: '1px solid rgba(58,122,80,0.3)', background: 'rgba(58,122,80,0.08)', color: '#3a7a50', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{stats.runtime_mode === 'model' ? 'Model loaded' : 'Heuristic fallback'}</span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
                 {[
-                  { label: 'Accuracy', value: `${(stats.active_model.accuracy * 100).toFixed(2)}%` },
-                  { label: 'F1 score', value: stats.active_model.f1_score.toFixed(4) },
+                  { label: 'Accuracy', value: stats.has_evaluation_data && stats.active_model.accuracy != null ? `${(stats.active_model.accuracy * 100).toFixed(2)}%` : 'N/A' },
+                  { label: 'F1 score', value: stats.has_evaluation_data && stats.active_model.f1_score != null ? stats.active_model.f1_score.toFixed(4) : 'N/A' },
                   { label: 'Features / Classes', value: `${stats.active_model.feature_count} / ${stats.active_model.class_count}` },
                 ].map(f => (
                   <div key={f.label}>
@@ -136,6 +139,9 @@ export default function MLInsightsPage() {
                 Top predictive features
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {stats.top_features.length === 0 && (
+                  <p style={{ fontSize: 11, color: GRAY }}>No feature importance — model not loaded or heuristic runtime.</p>
+                )}
                 {stats.top_features.slice(0, 10).map((f) => (
                   <div key={f.name}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: GRAY, marginBottom: 3 }}>
@@ -175,8 +181,12 @@ export default function MLInsightsPage() {
                     >
                       <td style={{ padding: '10px 14px', fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: BLACK }}>v{m.version}</td>
                       <td style={{ padding: '10px 14px', fontSize: 11, color: GRAY }}>{new Date(m.trained_at).toLocaleDateString()}</td>
-                      <td style={{ padding: '10px 14px', fontSize: 11, color: BLACK }}>{(m.accuracy * 100).toFixed(2)}%</td>
-                      <td style={{ padding: '10px 14px', fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: BLACK }}>{m.f1_score.toFixed(4)}</td>
+                      <td style={{ padding: '10px 14px', fontSize: 11, color: BLACK }}>
+                        {stats.has_evaluation_data && m.is_active && m.accuracy != null ? `${(m.accuracy * 100).toFixed(2)}%` : 'N/A'}
+                      </td>
+                      <td style={{ padding: '10px 14px', fontFamily: 'JetBrains Mono, monospace', fontSize: 10, color: BLACK }}>
+                        {stats.has_evaluation_data && m.is_active && m.f1_score != null ? m.f1_score.toFixed(4) : 'N/A'}
+                      </td>
                       <td style={{ padding: '10px 14px' }}>
                         {m.is_active
                           ? <span style={{ fontSize: 10, padding: '2px 8px', background: 'rgba(58,122,80,0.08)', border: '1px solid rgba(58,122,80,0.3)', color: '#3a7a50', borderRadius: 2, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Active</span>

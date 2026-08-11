@@ -35,9 +35,9 @@ async def test_list_obligations_empty_for_new_project(client: AsyncClient, auth_
 # ── Create obligation ─────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_create_obligation(client: AsyncClient, analyst_headers: dict, auth_headers: dict):
-    """Analyst can POST a new obligation; response has correct shape."""
-    project_id = await _create_project(client, auth_headers, "Create Obligation Project")
+async def test_create_obligation(client: AsyncClient, analyst_headers: dict):
+    """Analyst can POST a new obligation on their own project."""
+    project_id = await _create_project(client, analyst_headers, "Create Obligation Project")
     resp = await client.post(
         f"/api/v1/compliance/obligations?project_id={project_id}",
         json={
@@ -59,10 +59,10 @@ async def test_create_obligation(client: AsyncClient, analyst_headers: dict, aut
 
 @pytest.mark.asyncio
 async def test_create_obligation_compliant_sets_score_100(
-    client: AsyncClient, analyst_headers: dict, auth_headers: dict
+    client: AsyncClient, analyst_headers: dict
 ):
     """Creating an obligation with status=compliant must auto-set score=100."""
-    project_id = await _create_project(client, auth_headers, "Score 100 Project")
+    project_id = await _create_project(client, analyst_headers, "Score 100 Project")
     resp = await client.post(
         f"/api/v1/compliance/obligations?project_id={project_id}",
         json={
@@ -80,9 +80,9 @@ async def test_create_obligation_compliant_sets_score_100(
 # ── Update obligation ─────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_patch_obligation_status(client: AsyncClient, analyst_headers: dict, auth_headers: dict):
+async def test_patch_obligation_status(client: AsyncClient, analyst_headers: dict):
     """PATCH changes status and auto-recalculates score."""
-    project_id = await _create_project(client, auth_headers, "Patch Obligation Project")
+    project_id = await _create_project(client, analyst_headers, "Patch Obligation Project")
     create_resp = await client.post(
         f"/api/v1/compliance/obligations?project_id={project_id}",
         json={"framework": "GDPR", "control_id": "g2", "control_name": "Encryption", "status": "not_started"},
@@ -128,15 +128,16 @@ async def test_score_zero_for_empty_project(client: AsyncClient, auth_headers: d
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["overall_score"] == 0.0
+    assert data["overall_score"] is None
     assert data["total_controls"] == 0
     assert data["compliant_controls"] == 0
+    assert data["has_data"] is False
 
 
 @pytest.mark.asyncio
-async def test_score_100_when_all_compliant(client: AsyncClient, analyst_headers: dict, auth_headers: dict):
+async def test_score_100_when_all_compliant(client: AsyncClient, analyst_headers: dict):
     """Score is 100 when every obligation is marked compliant."""
-    project_id = await _create_project(client, auth_headers, "Full Compliance Project")
+    project_id = await _create_project(client, analyst_headers, "Full Compliance Project")
     for i in range(3):
         await client.post(
             f"/api/v1/compliance/obligations?project_id={project_id}",
@@ -146,7 +147,7 @@ async def test_score_100_when_all_compliant(client: AsyncClient, analyst_headers
 
     resp = await client.get(
         f"/api/v1/compliance/score?project_id={project_id}",
-        headers=auth_headers,
+        headers=analyst_headers,
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -156,9 +157,9 @@ async def test_score_100_when_all_compliant(client: AsyncClient, analyst_headers
 
 
 @pytest.mark.asyncio
-async def test_score_partial_compliance(client: AsyncClient, analyst_headers: dict, auth_headers: dict):
+async def test_score_partial_compliance(client: AsyncClient, analyst_headers: dict):
     """Score is 50 when half the obligations are compliant."""
-    project_id = await _create_project(client, auth_headers, "Partial Compliance Project")
+    project_id = await _create_project(client, analyst_headers, "Partial Compliance Project")
     # 2 compliant, 2 not_started
     for i in range(2):
         await client.post(
@@ -175,7 +176,7 @@ async def test_score_partial_compliance(client: AsyncClient, analyst_headers: di
 
     resp = await client.get(
         f"/api/v1/compliance/score?project_id={project_id}",
-        headers=auth_headers,
+        headers=analyst_headers,
     )
     assert resp.status_code == 200
     assert resp.json()["overall_score"] == 50.0
@@ -184,14 +185,27 @@ async def test_score_partial_compliance(client: AsyncClient, analyst_headers: di
 # ── RBAC on compliance ────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_viewer_can_read_obligations(client: AsyncClient, viewer_headers: dict, auth_headers: dict):
-    """Viewer role has VIEW_COMPLIANCE — reading obligations returns 200."""
-    project_id = await _create_project(client, auth_headers, "Viewer Read Project")
+async def test_viewer_can_read_own_project_obligations(client: AsyncClient, viewer_headers: dict):
+    """Viewer can read obligations on projects they own."""
+    project_id = await _create_project(client, viewer_headers, "Viewer Read Project")
     resp = await client.get(
         f"/api/v1/compliance/obligations?project_id={project_id}",
         headers=viewer_headers,
     )
     assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_viewer_cannot_read_other_project_obligations(
+    client: AsyncClient, viewer_headers: dict, auth_headers: dict
+):
+    """Viewer cannot read obligations on another user's project."""
+    project_id = await _create_project(client, auth_headers, "Admin Viewer Read Project")
+    resp = await client.get(
+        f"/api/v1/compliance/obligations?project_id={project_id}",
+        headers=viewer_headers,
+    )
+    assert resp.status_code == 403
 
 
 @pytest.mark.asyncio
@@ -229,9 +243,9 @@ async def test_compliance_dashboard(client: AsyncClient, auth_headers: dict):
 # ── Assessment snapshot ───────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_create_assessment(client: AsyncClient, analyst_headers: dict, auth_headers: dict):
+async def test_create_assessment(client: AsyncClient, analyst_headers: dict):
     """POST /compliance/assess persists a score snapshot."""
-    project_id = await _create_project(client, auth_headers, "Assessment Project")
+    project_id = await _create_project(client, analyst_headers, "Assessment Project")
     resp = await client.post(
         f"/api/v1/compliance/assess?project_id={project_id}&framework=GDPR",
         headers=analyst_headers,
@@ -243,12 +257,12 @@ async def test_create_assessment(client: AsyncClient, analyst_headers: dict, aut
 
 
 @pytest.mark.asyncio
-async def test_list_assessments(client: AsyncClient, analyst_headers: dict, auth_headers: dict):
+async def test_list_assessments(client: AsyncClient, analyst_headers: dict):
     """GET /compliance/assessments returns list (may be empty)."""
-    project_id = await _create_project(client, auth_headers, "Assessments List Project")
+    project_id = await _create_project(client, analyst_headers, "Assessments List Project")
     resp = await client.get(
         f"/api/v1/compliance/assessments?project_id={project_id}",
-        headers=auth_headers,
+        headers=analyst_headers,
     )
     assert resp.status_code == 200
     assert isinstance(resp.json(), list)

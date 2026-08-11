@@ -176,7 +176,7 @@ function SnapshotItem({ label, value }: { label: string; value: number | string 
 }
 
 // ── Main page ─────────────────────────────────────────────────────────────────
-export default function SecurityScorePage() {
+export default function SecurityScorePage({ embedded = false }: { embedded?: boolean }) {
   const { data, isLoading, isError, refetch, isFetching, dataUpdatedAt } = useSecurityScore()
 
   const lastUpdated = dataUpdatedAt
@@ -231,7 +231,6 @@ export default function SecurityScorePage() {
     open_high_incidents:     'Open high incidents',
     open_medium_low_incidents: 'Open medium/low incidents',
     total_users:             'Total users',
-    users_without_mfa:       'Users without MFA',
     users_with_failed_logins:'Users with failed login attempts',
     locked_users:            'Accounts currently locked',
     overdue_compliance:      'Overdue compliance items',
@@ -242,6 +241,7 @@ export default function SecurityScorePage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
 
       {/* Header */}
+      {!embedded && (
       <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, color: BLACK, letterSpacing: '0.04em', lineHeight: 1 }}>
@@ -267,6 +267,26 @@ export default function SecurityScorePage() {
           {isFetching ? 'Recalculating...' : 'Recalculate'}
         </button>
       </div>
+      )}
+      {embedded && (
+        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+          <button
+            onClick={() => refetch()}
+            disabled={isFetching}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              fontSize: 11, color: GRAY, border: `1px solid ${BORDER}`,
+              padding: '6px 12px', borderRadius: 2, background: 'transparent',
+              cursor: isFetching ? 'default' : 'pointer',
+              textTransform: 'uppercase', letterSpacing: '0.06em',
+              opacity: isFetching ? 0.5 : 1,
+            }}
+          >
+            <RefreshCw style={{ width: 12, height: 12, animation: isFetching ? 'spin 1s linear infinite' : 'none' }} />
+            {isFetching ? 'Recalculating...' : 'Recalculate'}
+          </button>
+        </div>
+      )}
 
       {/* Score + Summary */}
       <div style={{
@@ -309,7 +329,7 @@ export default function SecurityScorePage() {
           <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
             {[
               { label: 'Open Critical', value: data_snapshot.open_critical_incidents, bad: true },
-              { label: 'Without MFA',   value: data_snapshot.users_without_mfa, bad: true },
+              { label: 'Locked Accounts', value: data_snapshot.locked_users, bad: true },
               { label: 'Overdue Rules', value: data_snapshot.overdue_compliance, bad: true },
               { label: 'Auth Attacks (24h)', value: data_snapshot.recent_403s_24h, bad: Number(data_snapshot.recent_403s_24h) > 50 },
             ].map(({ label, value, bad }) => (

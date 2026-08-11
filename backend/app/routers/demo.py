@@ -25,6 +25,7 @@ from app.models.evidence import Evidence
 from app.models.incident import Incident
 from app.models.project import Project
 from app.models.security_event import SecurityEvent
+from app.core.project_access import assert_project_access
 from app.models.user import User
 
 router = APIRouter(prefix="/demo", tags=["demo"])
@@ -258,6 +259,7 @@ async def generate_demo_events(
     project = await db.get(Project, project_uuid)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found.")
+    await assert_project_access(db, project_uuid, current_user)
 
     from app.routers.events import _bus_publish, _event_to_response, _classify_event, SecurityEventCreate
 

@@ -87,8 +87,9 @@ class TestApiKeyAuthentication:
         from app.models.user import User
         from app.core.security import hash_password
 
-        # Create a user with a known api_key
-        test_key = "test-api-key-inactive-user-xyz123"
+        from app.core.api_keys import hash_api_key, api_key_prefix
+
+        test_key = "lbro_test-inactive-user-xyz123456789"
         inactive = User(
             id=uuid.uuid4(),
             email="inactive_key@test.com",
@@ -98,7 +99,8 @@ class TestApiKeyAuthentication:
             role="viewer",
             is_active=False,
             is_verified=True,
-            api_key=test_key,
+            api_key_hash=hash_api_key(test_key),
+            api_key_prefix=api_key_prefix(test_key),
         )
         db.add(inactive)
         await db.flush()

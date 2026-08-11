@@ -8,12 +8,11 @@ Future: add an Organisation layer above Project for multi-team SaaS.
 """
 from __future__ import annotations
 
-import secrets
 import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, String, Text
+from sqlalchemy import DateTime, ForeignKey, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -23,12 +22,11 @@ if TYPE_CHECKING:
     from app.models.compliance import ComplianceObligation, ComplianceAssessment
 
 
-def _default_api_key() -> str:
-    return "proj_" + secrets.token_urlsafe(32)
-
-
 class Project(Base):
     __tablename__ = "projects"
+    __table_args__ = (
+        UniqueConstraint("api_key_prefix", "api_key_hash", name="uq_projects_api_key_prefix_hash"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
@@ -51,12 +49,9 @@ class Project(Base):
         index=True,
     )
 
-    # Per-project API key — used by external apps to submit incidents.
-    # Starts with "proj_" to distinguish from user API keys.
-    api_key: Mapped[str] = mapped_column(
-        String(64), unique=True, nullable=False, index=True,
-        default=_default_api_key,
-    )
+    # Per-project API key — prefix + HMAC hash only; full key shown once at creation.
+    api_key_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    api_key_prefix: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

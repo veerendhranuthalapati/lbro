@@ -133,9 +133,9 @@ resource "aws_iam_role_policy" "ecs_task_cloudwatch" {
     Statement = [
       {
         # CloudWatch Logs — scoped to LBRO log group prefix
-        Sid    = "CWLogs"
-        Effect = "Allow"
-        Action = ["logs:CreateLogStream", "logs:PutLogEvents"]
+        Sid      = "CWLogs"
+        Effect   = "Allow"
+        Action   = ["logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = "arn:aws:logs:*:*:log-group:/ecs/${var.name_prefix}/*"
       },
       {

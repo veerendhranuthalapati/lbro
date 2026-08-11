@@ -397,9 +397,14 @@ export interface Project {
   readonly environment: ProjectEnvironment
   readonly status: ProjectStatus
   readonly owner_id: UUID | null
-  readonly api_key: string
+  readonly api_key_prefix: string
   readonly created_at: ISODateString
   readonly updated_at: ISODateString
+}
+
+/** Returned once on create/regenerate — includes full key exactly once. */
+export interface ProjectCreated extends Project {
+  readonly api_key: string
 }
 
 export interface ProjectListResponse {
@@ -425,7 +430,7 @@ export interface ProjectDashboard {
   readonly project_name: string
   readonly environment: ProjectEnvironment
   readonly status: ProjectStatus
-  readonly api_key: string
+  readonly api_key_prefix: string
   readonly security_score: number
   readonly security_grade: string
   readonly open_incidents: number

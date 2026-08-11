@@ -13,6 +13,7 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { AuthUser } from '@/types'
 import { LOGIN_MAX_ATTEMPTS, LOGIN_LOCKOUT_MS, SESSION_TIMEOUT_MS } from '@/constants'
+import { useProjectStore } from '@/store/projectStore'
 
 // ---- Token memory (module-level, NOT in Zustand state) ----------------------
 // This avoids the Zustand persist bug: spreading state into a new object
@@ -79,6 +80,7 @@ export const useAuthStore = create<AuthStoreState>()(
       logout: () => {
         _accessTokenMemory = null
         _refreshTokenMemory = null
+        useProjectStore.getState().clearProject()
         set({
           isAuthenticated: false,
           user: null,

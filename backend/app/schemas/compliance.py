@@ -34,12 +34,18 @@ class ComplianceSummary(BaseModel):
     met: int
     overdue: int
     pending: int
+    compliance_pct: Optional[float] = None
+    has_data: bool = False
 
 
 class ComplianceDashboard(BaseModel):
     summaries: List[ComplianceSummary]
     overdue_records: List[ComplianceRecordResponse]
     upcoming_deadlines: List[ComplianceRecordResponse]
+    total_records: int = 0
+    met_records: int = 0
+    overall_compliance_pct: Optional[float] = None
+    has_data: bool = False
 
 
 class MarkMetRequest(BaseModel):
@@ -89,11 +95,12 @@ class ObligationResponse(BaseModel):
 class ScoreResponse(BaseModel):
     project_id: uuid.UUID
     framework: Optional[str]
-    overall_score: float
+    overall_score: Optional[float] = None
     total_controls: int
     compliant_controls: int
     non_compliant_controls: int
     in_progress_controls: int
+    has_data: bool = False
 
 
 class AssessmentResponse(BaseModel):

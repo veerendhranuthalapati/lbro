@@ -10,9 +10,10 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated, Optional
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import func, select
+from sqlalchemy import false, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.project_access import resolve_project_scope
 from app.core.rbac import Permission
 from app.database import get_db
 from app.dependencies import require_permission
@@ -23,7 +24,7 @@ from app.models.user import User
 
 router = APIRouter(prefix="/security-score", tags=["security-score"])
 
-# ── Grade thresholds ──────────────────────────────────────────────────────────
+
 def _grade(score: int) -> tuple[str, str, str]:
     """Return (grade, color_hex, status_label)."""
     if score >= 90:
@@ -35,6 +36,24 @@ def _grade(score: int) -> tuple[str, str, str]:
     if score >= 40:
         return "D", "#f97316", "At Risk"
     return "F", "#ef4444", "Critical"
+
+
+def _apply_project_scope(q, scope_ids: Optional[list[uuid.UUID]]):
+    if scope_ids is None:
+        return q
+    if not scope_ids:
+        return q.where(false())
+    return q.where(Incident.project_id.in_(scope_ids))
+
+
+def _apply_compliance_scope(q, scope_ids: Optional[list[uuid.UUID]]):
+    if scope_ids is None:
+        return q
+    if not scope_ids:
+        return q.where(false())
+    return q.join(Incident, ComplianceRecord.incident_id == Incident.id).where(
+        Incident.project_id.in_(scope_ids)
+    )
 
 
 @router.get("")
@@ -49,18 +68,13 @@ async def get_security_score(
     Score is derived entirely from live database state — no hardcoded values.
     When project_id is supplied, only incidents belonging to that project are used.
     """
+    scope_ids = await resolve_project_scope(db, current_user, project_id)
     now = datetime.now(timezone.utc)
     last_24h = now - timedelta(hours=24)
-    last_7d = now - timedelta(days=7)
 
-
-    # project filter helper
     def _pf(q):
-        if project_id is not None:
-            q = q.where(Incident.project_id == project_id)
-        return q
+        return _apply_project_scope(q, scope_ids)
 
-    # ── Incident data ─────────────────────────────────────────────────────────
     open_statuses = [s.value for s in IncidentStatus if s != IncidentStatus.CLOSED]
 
     open_critical = (await db.execute(
@@ -84,39 +98,25 @@ async def get_security_score(
         )
     )).scalar_one()
 
-    # ── User data ─────────────────────────────────────────────────────────────
-    total_users = (await db.execute(select(func.count(User.id)))).scalar_one()
-
-    users_without_mfa = (await db.execute(
-        select(func.count(User.id)).where(
-            User.mfa_enabled == False,
-            User.is_active == True,
-        )
-    )).scalar_one()
-
-    users_with_failed_logins = (await db.execute(
-        select(func.count(User.id)).where(User.failed_login_attempts > 3)
-    )).scalar_one()
-
-    locked_users = (await db.execute(
-        select(func.count(User.id)).where(User.locked_until > now)
-    )).scalar_one()
-
-    # ── Compliance data ───────────────────────────────────────────────────────
     overdue_compliance = (await db.execute(
-        select(func.count(ComplianceRecord.id)).where(
-            ComplianceRecord.is_met == False,
-            ComplianceRecord.deadline < now,
+        _apply_compliance_scope(
+            select(func.count(ComplianceRecord.id)).where(
+                ComplianceRecord.is_met == False,
+                ComplianceRecord.deadline < now,
+            ),
+            scope_ids,
         )
     )).scalar_one()
 
     unmet_compliance = (await db.execute(
-        select(func.count(ComplianceRecord.id)).where(
-            ComplianceRecord.is_met == False,
+        _apply_compliance_scope(
+            select(func.count(ComplianceRecord.id)).where(
+                ComplianceRecord.is_met == False,
+            ),
+            scope_ids,
         )
     )).scalar_one()
 
-    # ── Audit log: attack signal (403s from non-user sources) ────────────────
     recent_403s = (await db.execute(
         select(func.count(AuditLog.id)).where(
             AuditLog.response_status == 403,
@@ -124,13 +124,11 @@ async def get_security_score(
         )
     )).scalar_one()
 
-    # ── Score calculation ─────────────────────────────────────────────────────
     score = 100
     positive_factors = []
     negative_factors = []
     recommendations = []
 
-    # Critical incidents: -15 each, capped at -45
     if open_critical > 0:
         deduction = min(open_critical * 15, 45)
         score -= deduction
@@ -156,7 +154,6 @@ async def get_security_score(
             "impact": 0,
         })
 
-    # High severity incidents: -8 each, capped at -24
     if open_high > 0:
         deduction = min(open_high * 8, 24)
         score -= deduction
@@ -180,7 +177,6 @@ async def get_security_score(
             "impact": 0,
         })
 
-    # Medium/low incidents: -2 each, capped at -10
     if open_medium_low > 0:
         deduction = min(open_medium_low * 2, 10)
         score -= deduction
@@ -190,71 +186,6 @@ async def get_security_score(
             "impact": -deduction,
         })
 
-    # MFA: -4 per user without it, capped at -20
-    if users_without_mfa > 0 and total_users > 0:
-        deduction = min(users_without_mfa * 4, 20)
-        score -= deduction
-        pct = round(users_without_mfa / total_users * 100)
-        negative_factors.append({
-            "label": f"{users_without_mfa} user{'s' if users_without_mfa != 1 else ''} ({pct}%) without MFA",
-            "detail": "Accounts without MFA are the most common entry point for attackers.",
-            "impact": -deduction,
-        })
-        recommendations.append({
-            "priority": "high",
-            "title": "Enable MFA for all team members",
-            "detail": (
-                f"{users_without_mfa} of your {total_users} accounts have no second factor. "
-                "Enabling MFA blocks over 99% of automated credential attacks."
-            ),
-            "action": "Manage users",
-            "link": "/users",
-        })
-    else:
-        score += 5  # Bonus: all users have MFA
-        positive_factors.append({
-            "label": "All accounts have MFA enabled",
-            "detail": "Strong authentication protects against credential attacks.",
-            "impact": 5,
-        })
-
-    # Failed login attempts: -5 per affected user, capped at -15
-    if users_with_failed_logins > 0:
-        deduction = min(users_with_failed_logins * 5, 15)
-        score -= deduction
-        negative_factors.append({
-            "label": f"{users_with_failed_logins} account{'s' if users_with_failed_logins != 1 else ''} with repeated login failures",
-            "detail": "This may indicate a brute-force or credential-stuffing attack in progress.",
-            "impact": -deduction,
-        })
-        recommendations.append({
-            "priority": "medium",
-            "title": "Investigate repeated login failures",
-            "detail": (
-                "Repeated failures on an account are often early signs of a brute-force attack. "
-                "Review audit logs and consider temporarily locking those accounts."
-            ),
-            "action": "View audit logs",
-            "link": "/audit-logs",
-        })
-    else:
-        positive_factors.append({
-            "label": "No accounts with repeated login failures",
-            "detail": "No signs of active credential attacks.",
-            "impact": 0,
-        })
-
-    # Locked accounts: -3 each, capped at -9
-    if locked_users > 0:
-        deduction = min(locked_users * 3, 9)
-        score -= deduction
-        negative_factors.append({
-            "label": f"{locked_users} account{'s' if locked_users != 1 else ''} currently locked",
-            "detail": "Accounts lock automatically after repeated failed login attempts.",
-            "impact": -deduction,
-        })
-
-    # Overdue compliance: -5 each, capped at -15
     if overdue_compliance > 0:
         deduction = min(overdue_compliance * 5, 15)
         score -= deduction
@@ -280,7 +211,6 @@ async def get_security_score(
             "impact": 0,
         })
 
-    # 403 burst (potential attack traffic): -10 if >50 in last 24h
     if recent_403s > 50:
         score -= 10
         negative_factors.append({
@@ -299,7 +229,6 @@ async def get_security_score(
             "link": "/audit-logs",
         })
 
-    # Bonus: all compliance met
     if unmet_compliance == 0 and overdue_compliance == 0:
         score += 5
         positive_factors.append({
@@ -308,11 +237,9 @@ async def get_security_score(
             "impact": 5,
         })
 
-    # Clamp to [0, 100]
     score = max(0, min(100, score))
     grade, color, status = _grade(score)
 
-    # ── Plain-English summary ─────────────────────────────────────────────────
     if score >= 90:
         summary = "Your application has a strong security posture. Keep it up."
     elif score >= 75:
@@ -321,13 +248,12 @@ async def get_security_score(
         summary = (
             f"Your security posture needs improvement. "
             f"{'Resolve open critical incidents. ' if open_critical else ''}"
-            f"{'Enable MFA for your team. ' if users_without_mfa else ''}"
             f"{'Address overdue compliance items.' if overdue_compliance else ''}"
         ).strip() or "Review the recommendations below to improve your score."
     elif score >= 40:
         summary = (
-            "Your application is at risk. Active threats or weak authentication "
-            "controls are leaving you exposed. Address the critical recommendations below."
+            "Your application is at risk. Active threats or weak controls "
+            "are leaving you exposed. Address the critical recommendations below."
         )
     else:
         summary = (
@@ -341,7 +267,6 @@ async def get_security_score(
         "color": color,
         "status": status,
         "summary": summary,
-        # Flat array with impact:'positive'|'negative' — matches frontend ScoreFactor interface
         "factors": [
             {**f, "impact": "positive"} for f in positive_factors
         ] + [
@@ -355,10 +280,6 @@ async def get_security_score(
             "open_critical_incidents": open_critical,
             "open_high_incidents": open_high,
             "open_medium_low_incidents": open_medium_low,
-            "total_users": total_users,
-            "users_without_mfa": users_without_mfa,
-            "users_with_failed_logins": users_with_failed_logins,
-            "locked_users": locked_users,
             "overdue_compliance": overdue_compliance,
             "recent_403s_24h": recent_403s,
         },

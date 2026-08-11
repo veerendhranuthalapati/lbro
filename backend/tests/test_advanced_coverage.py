@@ -37,7 +37,7 @@ async def test_security_score_requires_auth(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_security_score_with_project_id(client: AsyncClient, auth_headers: dict):
     resp = await client.get(f"/api/v1/security-score?project_id={uuid.uuid4()}", headers=auth_headers)
-    assert resp.status_code == 200
+    assert resp.status_code in (403, 404)
 
 @pytest.mark.asyncio
 async def test_security_score_with_critical_incident(client: AsyncClient, auth_headers: dict):
@@ -272,8 +272,9 @@ async def test_incident_stats(client: AsyncClient, auth_headers: dict):
 
 @pytest.mark.asyncio
 async def test_incident_stats_with_project(client: AsyncClient, auth_headers: dict):
+    """Nonexistent project_id must return 404 (not leak existence via 403)."""
     resp = await client.get(f"/api/v1/incidents/stats?project_id={uuid.uuid4()}", headers=auth_headers)
-    assert resp.status_code == 200
+    assert resp.status_code == 404
 
 @pytest.mark.asyncio
 async def test_incident_status_change(client: AsyncClient, auth_headers: dict):
@@ -337,7 +338,7 @@ async def test_weekly_report_with_incident_data(client: AsyncClient, auth_header
 @pytest.mark.asyncio
 async def test_weekly_report_project_scoped(client: AsyncClient, auth_headers: dict):
     resp = await client.get(f"/api/v1/reports/weekly?project_id={uuid.uuid4()}", headers=auth_headers)
-    assert resp.status_code == 200
+    assert resp.status_code in (403, 404)
 
 @pytest.mark.asyncio
 async def test_viewer_can_access_security_score(client: AsyncClient, viewer_headers: dict):

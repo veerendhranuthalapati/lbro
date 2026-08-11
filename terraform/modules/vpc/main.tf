@@ -134,7 +134,7 @@ resource "aws_route_table" "private" {
   dynamic "route" {
     for_each = var.enable_nat_gateway ? [1] : []
     content {
-      cidr_block     = "0.0.0.0/0"
+      cidr_block = "0.0.0.0/0"
       # single_nat_gateway: all private subnets route through NAT GW[0]
       nat_gateway_id = aws_nat_gateway.this[var.single_nat_gateway ? 0 : count.index].id
     }
@@ -146,8 +146,8 @@ resource "aws_route_table" "private" {
 }
 
 resource "aws_route_table_association" "private" {
-  count          = length(aws_subnet.private)
-  subnet_id      = aws_subnet.private[count.index].id
+  count     = length(aws_subnet.private)
+  subnet_id = aws_subnet.private[count.index].id
   # single_nat_gateway: all subnets use the same route table [0]
   route_table_id = var.enable_nat_gateway ? (
     var.single_nat_gateway ? aws_route_table.private[0].id : aws_route_table.private[count.index].id

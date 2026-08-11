@@ -33,8 +33,7 @@ const NotificationsPage   = lazy(() => import('@/pages/NotificationsPage'))
 const UsersPage           = lazy(() => import('@/pages/UsersPage'))
 const MLInsightsPage      = lazy(() => import('@/pages/MLInsightsPage'))
 const AuditLogsPage       = lazy(() => import('@/pages/AuditLogsPage'))
-const SecurityScorePage   = lazy(() => import('@/pages/SecurityScorePage'))
-const WeeklyReportPage    = lazy(() => import('@/pages/WeeklyReportPage'))
+const SecurityOverviewPage = lazy(() => import('@/pages/SecurityOverviewPage'))
 const PrivacyPage         = lazy(() => import('@/pages/PrivacyPage'))
 const ComplianceAuditPage = lazy(() => import('@/pages/ComplianceAuditPage'))
 const WelcomePage            = lazy(() => import('@/pages/WelcomePage'))
@@ -108,8 +107,9 @@ export function AppRouter() {
           <Route path="/notifications"  element={<SuspenseRoute><NotificationsPage /></SuspenseRoute>} />
           <Route path="/settings"       element={<SuspenseRoute><SettingsPage /></SuspenseRoute>} />
           <Route path="/privacy"        element={<SuspenseRoute><PrivacyPage /></SuspenseRoute>} />
-          <Route path="/security-score" element={<SuspenseRoute><SecurityScorePage /></SuspenseRoute>} />
-          <Route path="/weekly-report"  element={<SuspenseRoute><WeeklyReportPage /></SuspenseRoute>} />
+          <Route path="/security-overview" element={<SuspenseRoute><SecurityOverviewPage /></SuspenseRoute>} />
+          <Route path="/security-score" element={<Navigate to="/security-overview" replace />} />
+          <Route path="/weekly-report"  element={<Navigate to="/security-overview?tab=report" replace />} />
 
           {/* ── Compliance — analyst + admin ── */}
           <Route path="/compliance" element={

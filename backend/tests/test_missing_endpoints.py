@@ -201,6 +201,8 @@ class TestMlMetrics:
         assert "per_class_confidence" in body
         assert "false_positive_analysis" in body
         assert "tactic_distribution" in body
+        assert "has_evaluation_data" in body
+        assert "runtime_mode" in body
 
         assert isinstance(body["feature_importance"], list)
         assert isinstance(body["per_class_confidence"], list)
@@ -210,7 +212,7 @@ class TestMlMetrics:
     async def test_feature_importance_entries(self, client: AsyncClient, admin_token: str):
         resp = await client.get("/api/v1/ml/metrics", headers=_auth(admin_token))
         fi = resp.json()["feature_importance"]
-        assert len(fi) >= 1
+        # Empty when model not loaded — no hardcoded fallback
         for entry in fi:
             assert "feature" in entry
             assert "importance" in entry
@@ -219,7 +221,7 @@ class TestMlMetrics:
     async def test_per_class_confidence_entries(self, client: AsyncClient, admin_token: str):
         resp = await client.get("/api/v1/ml/metrics", headers=_auth(admin_token))
         pc = resp.json()["per_class_confidence"]
-        assert len(pc) >= 1
+        # Live avg confidence per attack category — may be empty
         for entry in pc:
             assert "subject" in entry
             assert "A" in entry

@@ -224,7 +224,7 @@ export default function ProjectOverviewPage() {
             <Key className="w-3.5 h-3.5" /> Project API key
             <span className="text-zinc-700">— send this in <code className="text-zinc-500">X-Project-Key</code> header when submitting incidents</span>
           </p>
-          <p className="font-mono text-sm text-zinc-300 break-all">{dashboard.api_key}</p>
+          <p className="font-mono text-sm text-zinc-300 break-all">{dashboard.api_key_prefix}…</p>
         </div>
 
         {/* Connect your app — shown when no incidents yet */}

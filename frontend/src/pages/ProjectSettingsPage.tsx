@@ -6,6 +6,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, RefreshCw, Archive, Trash2, Save, Loader2, AlertTriangle, Copy, Check } from 'lucide-react'
 import { projectsApi } from '@/api/client'
+import { getProjectApiKey } from '@/lib/projectApiKeys'
 import { useProjectStore } from '@/store/projectStore'
 import type { ProjectEnvironment } from '@/types'
 
@@ -87,9 +88,12 @@ export default function ProjectSettingsPage() {
     },
   })
 
+  const sessionKey = projectId ? getProjectApiKey(projectId) : null
+  const displayKey = sessionKey ?? `${project?.api_key_prefix ?? ''}…`
+
   const copyKey = () => {
-    if (project) {
-      navigator.clipboard.writeText(project.api_key)
+    if (sessionKey) {
+      navigator.clipboard.writeText(sessionKey)
       setKeyCopied(true)
       setTimeout(() => setKeyCopied(false), 2000)
     }
@@ -192,12 +196,13 @@ export default function ProjectSettingsPage() {
               className="flex-1 px-3 py-2 rounded text-xs text-zinc-300 border font-mono break-all"
               style={{ background: '#1a1a1a', borderColor: '#333' }}
             >
-              {project.api_key}
+              {displayKey}
             </code>
             <button
               onClick={copyKey}
-              title="Copy"
-              className="px-3 py-2 rounded border text-zinc-400 hover:text-white transition-colors shrink-0"
+              disabled={!sessionKey}
+              title={sessionKey ? 'Copy' : 'Full key only available right after create or regenerate'}
+              className="px-3 py-2 rounded border text-zinc-400 hover:text-white transition-colors shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
               style={{ borderColor: '#333' }}
             >
               {keyCopied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}

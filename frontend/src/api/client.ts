@@ -658,6 +658,18 @@ export const projectsApi = {
 
   dashboard: (id: string): Promise<ProjectDashboard> =>
     apiClient.get<ProjectDashboard>(`/api/v1/projects/${id}/dashboard`).then(r => r.data),
+
+  downloadPythonSdk: async (id: string, slug: string): Promise<void> => {
+    const resp = await apiClient.get(`/api/v1/projects/${id}/sdk/python`, {
+      responseType: 'blob',
+    })
+    const url = URL.createObjectURL(resp.data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `lbro-sdk-${slug}.zip`
+    a.click()
+    URL.revokeObjectURL(url)
+  },
 }
 
 

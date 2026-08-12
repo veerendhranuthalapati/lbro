@@ -2,21 +2,14 @@
  * LBRO Project Store
  *
  * Holds the currently selected project and the full project list.
- * Persisted to sessionStorage so the selection survives page refreshes
- * but is cleared when the tab closes (matches authStore behaviour).
- *
- * Usage:
- *   const { currentProject, setCurrentProject } = useProjectStore()
- *   const projectId = currentProject?.id  // inject into every API call
+ * Persisted to sessionStorage so the selection survives page refreshes.
  */
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { Project } from '@/types'
 
 interface ProjectStoreState {
-  /** The project the user is currently working in. null = no project selected yet. */
   currentProject: Project | null
-  /** Full list fetched from GET /projects — used to populate the switcher. */
   projects: Project[]
 
   setCurrentProject: (project: Project) => void
@@ -37,7 +30,6 @@ export const useProjectStore = create<ProjectStoreState>()(
     {
       name: 'lbro-project',
       storage: createJSONStorage(() => sessionStorage),
-      // Only persist the selection and list — everything else is derived from the API
       partialize: (state) => ({
         currentProject: state.currentProject,
         projects: state.projects,
@@ -45,3 +37,15 @@ export const useProjectStore = create<ProjectStoreState>()(
     }
   )
 )
+
+/** Query keys cleared when switching projects to prevent stale cross-project data. */
+export const PROJECT_SCOPED_QUERY_PREFIXES = [
+  'incidents',
+  'dashboard',
+  'compliance',
+  'notifications',
+  'security-score',
+  'reports',
+  'ml',
+  'evidence',
+] as const

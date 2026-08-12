@@ -14,7 +14,10 @@ from app.core.exceptions import ConflictError, NotFoundError
 from app.models.compliance import ComplianceRecord
 from app.models.evidence import Evidence
 from app.models.incident import Incident, IncidentSeverity, IncidentStatus
+from app.core.project_access import is_privileged_user
 from app.models.project import Project
+from app.models.project_member import ProjectMember
+from app.models.user import User
 from app.schemas.project import ProjectCreate, ProjectUpdate, _slugify
 
 
@@ -40,6 +43,15 @@ class ProjectService:
             api_key_prefix=prefix,
         )
         self.db.add(project)
+        await self.db.flush()
+        self.db.add(
+            ProjectMember(
+                project_id=project.id,
+                user_id=owner_id,
+                role="admin",
+                invited_by=owner_id,
+            )
+        )
         await self.db.flush()
         return project, full_key
 
@@ -82,11 +94,7 @@ class ProjectService:
         owner_id: Optional[uuid.UUID] = None,
         include_archived: bool = False,
     ) -> tuple[list[Project], int]:
-        """Return all projects visible to a user.
-
-        Admin users pass owner_id=None to see every project.
-        Regular users pass their own ID to see only their projects.
-        """
+        """Legacy list by owner_id only (privileged callers pass owner_id=None for all)."""
         query = select(Project)
         count_q = select(func.count(Project.id))
 
@@ -102,6 +110,75 @@ class ProjectService:
         total = (await self.db.execute(count_q)).scalar_one()
         rows = (await self.db.execute(query)).scalars().all()
         return list(rows), total
+
+    async def list_accessible(
+        self,
+        user: User,
+        include_archived: bool = False,
+    ) -> tuple[list[tuple[Project, str]], int]:
+        """Projects the user owns or is a member of, with effective project role."""
+        if is_privileged_user(user):
+            projects, total = await self.list_for_user(
+                owner_id=None, include_archived=include_archived
+            )
+            return [(p, "admin") for p in projects], total
+
+        status_filter = [] if include_archived else [Project.status == "active"]
+
+        owned_q = select(Project).where(Project.owner_id == user.id, *status_filter)
+        member_q = (
+            select(Project, ProjectMember.role)
+            .join(ProjectMember, ProjectMember.project_id == Project.id)
+            .where(ProjectMember.user_id == user.id, *status_filter)
+        )
+
+        owned_rows = (await self.db.execute(owned_q)).scalars().all()
+        member_rows = (await self.db.execute(member_q)).all()
+
+        by_id: dict[uuid.UUID, tuple[Project, str]] = {}
+        for project in owned_rows:
+            by_id[project.id] = (project, "admin")
+        for project, role in member_rows:
+            if project.id not in by_id:
+                by_id[project.id] = (project, role)
+
+        items = sorted(by_id.values(), key=lambda x: x[0].created_at, reverse=True)
+        return items, len(items)
+
+    async def add_member(
+        self,
+        project_id: uuid.UUID,
+        user_id: uuid.UUID,
+        role: str,
+        invited_by: uuid.UUID,
+    ) -> ProjectMember:
+        existing = await self.db.execute(
+            select(ProjectMember).where(
+                ProjectMember.project_id == project_id,
+                ProjectMember.user_id == user_id,
+            )
+        )
+        if existing.scalar_one_or_none():
+            raise ConflictError("User is already a member of this project")
+        if role not in ("admin", "analyst", "viewer"):
+            raise ConflictError("Invalid project role")
+        member = ProjectMember(
+            project_id=project_id,
+            user_id=user_id,
+            role=role,
+            invited_by=invited_by,
+        )
+        self.db.add(member)
+        await self.db.flush()
+        return member
+
+    async def list_members(self, project_id: uuid.UUID) -> list[ProjectMember]:
+        result = await self.db.execute(
+            select(ProjectMember)
+            .where(ProjectMember.project_id == project_id)
+            .order_by(ProjectMember.created_at.asc())
+        )
+        return list(result.scalars().all())
 
     async def update(self, project_id: uuid.UUID, data: ProjectUpdate) -> Project:
         project = await self.get(project_id)

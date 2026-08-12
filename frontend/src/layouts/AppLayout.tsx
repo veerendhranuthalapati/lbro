@@ -4,8 +4,10 @@ import { Navbar } from '@/components/layout/Navbar'
 import { ToastContainer } from '@/components/ui/Toast'
 import { GlobalSearch } from '@/components/GlobalSearch'
 import { useIncidents } from '@/hooks/useApi'
+import { useProjectBootstrap } from '@/hooks/useProjectBootstrap'
 
 export function AppLayout() {
+  useProjectBootstrap()
   const { data: newData }      = useIncidents({ status: 'new',      page_size: 1 })
   const { data: triagingData } = useIncidents({ status: 'triaging', page_size: 1 })
   const alertCount = (newData?.total ?? 0) + (triagingData?.total ?? 0)

@@ -80,8 +80,37 @@ class ProjectResponse(BaseModel):
     api_key_prefix: str
     created_at: datetime
     updated_at: datetime
+    my_role: Optional[str] = None
 
     model_config = {"from_attributes": True}
+
+
+class ProjectMemberResponse(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    user_id: uuid.UUID
+    role: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class ProjectMemberCreate(BaseModel):
+    user_id: uuid.UUID
+    role: str = "analyst"
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, v: str) -> str:
+        allowed = {"admin", "analyst", "viewer"}
+        if v not in allowed:
+            raise ValueError(f"role must be one of {sorted(allowed)}")
+        return v
+
+
+class ProjectMemberListResponse(BaseModel):
+    items: list[ProjectMemberResponse]
+    total: int
 
 
 class ProjectCreatedResponse(ProjectResponse):

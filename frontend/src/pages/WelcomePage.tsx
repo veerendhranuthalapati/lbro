@@ -80,7 +80,7 @@ const ENV_OPTIONS: { value: ProjectEnvironment; label: string; color: string }[]
 
 function StepCreateProject({ onNext }: { onNext: (project: { id: string; name: string; api_key: string }) => void }) {
   const qc = useQueryClient()
-  const { setCurrentProject } = useProjectStore()
+  const { setCurrentProject, setProjects } = useProjectStore()
   const [name, setName] = useState('My First Project')
   const [env, setEnv] = useState<ProjectEnvironment>('production')
   const [error, setError] = useState('')
@@ -89,6 +89,7 @@ function StepCreateProject({ onNext }: { onNext: (project: { id: string; name: s
     mutationFn: () => projectsApi.create({ name: name.trim(), environment: env }),
     onSuccess: (project) => {
       setCurrentProject(project)
+      setProjects([project])
       qc.invalidateQueries({ queryKey: ['projects'] })
       onNext({ id: project.id, name: project.name, api_key: project.api_key })
     },

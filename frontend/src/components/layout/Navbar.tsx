@@ -1,8 +1,11 @@
 import { Bell, Search, RefreshCw } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { cn } from '@/utils'
 import { useAuthStore } from '@/store/authStore'
+import { ProjectSwitcher } from '@/components/layout/ProjectSwitcher'
+import { PROJECT_SCOPED_QUERY_PREFIXES } from '@/store/projectStore'
 
 const PAGE_TITLES: Record<string, string> = {
   '/dashboard':          'Dashboard',
@@ -45,6 +48,7 @@ interface Props { alertCount?: number }
 export function Navbar({ alertCount = 0 }: Props) {
   const { pathname } = useLocation()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const user = useAuthStore(s => s.user)
   const title = getPageTitle(pathname)
   const [refreshing, setRefreshing] = useState(false)
@@ -53,8 +57,11 @@ export function Navbar({ alertCount = 0 }: Props) {
 
   const handleRefresh = () => {
     setRefreshing(true)
+    for (const prefix of PROJECT_SCOPED_QUERY_PREFIXES) {
+      queryClient.invalidateQueries({ queryKey: [prefix] })
+    }
+    queryClient.invalidateQueries({ queryKey: ['projects'] })
     setTimeout(() => setRefreshing(false), 1000)
-    window.location.reload()
   }
 
   const openSearch = () =>
@@ -65,16 +72,17 @@ export function Navbar({ alertCount = 0 }: Props) {
       className="sticky top-0 z-20 flex items-center gap-4 px-6 h-14 border-b"
       style={{ background: "#f9f5ef", borderColor: "#c8c2b8" }}
     >
-      {/* Page title */}
-      <div className="flex-1 flex items-baseline gap-3">
+      {/* Page title + project switcher */}
+      <div className="flex-1 flex items-center gap-4 min-w-0">
         <h1
-          className="font-display text-2xl leading-none"
+          className="font-display text-2xl leading-none shrink-0"
           style={{ color: "#111111", letterSpacing: "0.04em" }}
         >
           {title.toUpperCase()}
         </h1>
+        <ProjectSwitcher />
         <div
-          className="text-[10px] font-mono flex items-center gap-1.5"
+          className="text-[10px] font-mono flex items-center gap-1.5 shrink-0"
           style={{ color: "#6b6560" }}
         >
           <span

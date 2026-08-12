@@ -1,18 +1,19 @@
 """Projects router.
 
-Provides full CRUD for projects plus a per-project dashboard endpoint.
-All authenticated users can create projects; only the owner (or an admin)
-can update, regenerate the API key, or delete.
+Provides full CRUD for projects plus membership, SDK download, and dashboard.
+All authenticated users can create projects; project admins can update/delete.
 """
 from __future__ import annotations
 
 import uuid
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.rbac import Permission, Role, is_super_admin
+from app.core.project_access import assert_project_access, assert_project_admin
+from app.core.rbac import Permission
 from app.database import get_db
 from app.dependencies import require_permission
 from app.models.user import User
@@ -20,26 +21,22 @@ from app.schemas.project import (
     ProjectCreate,
     ProjectCreatedResponse,
     ProjectListResponse,
+    ProjectMemberCreate,
+    ProjectMemberListResponse,
+    ProjectMemberResponse,
     ProjectResponse,
     ProjectUpdate,
 )
-from app.core.project_access import assert_project_access
 from app.services.project_service import ProjectService
+from app.services.sdk_generator import build_python_sdk_zip
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
-def _assert_owner_or_admin(project_owner_id, current_user: User) -> None:
-    """Raise 403 if the user is not the owner, not an admin, and not a super_admin."""
-    if (
-        current_user.role != Role.ADMIN
-        and not is_super_admin(current_user.role)
-        and project_owner_id != current_user.id
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the project owner or an admin can perform this action.",
-        )
+def _project_response(project, my_role: str | None = None) -> ProjectResponse:
+    data = ProjectResponse.model_validate(project).model_dump()
+    data["my_role"] = my_role
+    return ProjectResponse(**data)
 
 
 # ── List / Create ─────────────────────────────────────────────────────────────
@@ -50,14 +47,13 @@ async def list_projects(
     current_user: Annotated[User, Depends(require_permission(Permission.VIEW_DASHBOARD))],
     include_archived: bool = False,
 ):
-    """Return projects owned by the current user (admin/super_admin sees all)."""
+    """Return projects the user owns or is a member of (platform admins see all)."""
     svc = ProjectService(db)
-    is_privileged = current_user.role == Role.ADMIN or is_super_admin(current_user.role)
-    owner_filter = None if is_privileged else current_user.id
-    items, total = await svc.list_for_user(
-        owner_id=owner_filter, include_archived=include_archived
+    items, total = await svc.list_accessible(current_user, include_archived=include_archived)
+    return ProjectListResponse(
+        items=[_project_response(p, role) for p, role in items],
+        total=total,
     )
-    return ProjectListResponse(items=items, total=total)
 
 
 @router.post("", response_model=ProjectCreatedResponse, status_code=201)
@@ -69,7 +65,7 @@ async def create_project(
     svc = ProjectService(db)
     project, plaintext = await svc.create(data, owner_id=current_user.id)
     return ProjectCreatedResponse(
-        **ProjectResponse.model_validate(project).model_dump(),
+        **_project_response(project, "admin").model_dump(),
         api_key=plaintext,
     )
 
@@ -82,8 +78,11 @@ async def get_project(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_permission(Permission.VIEW_DASHBOARD))],
 ):
+    from app.core.project_access import get_effective_project_role
+
     project = await assert_project_access(db, project_id, current_user)
-    return project
+    role = await get_effective_project_role(db, current_user, project)
+    return _project_response(project, role)
 
 
 @router.patch("/{project_id}", response_model=ProjectResponse)
@@ -93,10 +92,13 @@ async def update_project(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_permission(Permission.VIEW_DASHBOARD))],
 ):
+    from app.core.project_access import get_effective_project_role
+
+    await assert_project_admin(db, project_id, current_user)
     svc = ProjectService(db)
-    project = await svc.get(project_id)
-    _assert_owner_or_admin(project.owner_id, current_user)
-    return await svc.update(project_id, data)
+    project = await svc.update(project_id, data)
+    role = await get_effective_project_role(db, current_user, project)
+    return _project_response(project, role)
 
 
 @router.delete("/{project_id}", status_code=204)
@@ -105,9 +107,8 @@ async def delete_project(
     db: Annotated[AsyncSession, Depends(get_db)],
     current_user: Annotated[User, Depends(require_permission(Permission.VIEW_DASHBOARD))],
 ):
+    await assert_project_admin(db, project_id, current_user)
     svc = ProjectService(db)
-    project = await svc.get(project_id)
-    _assert_owner_or_admin(project.owner_id, current_user)
     await svc.delete(project_id)
 
 
@@ -120,13 +121,69 @@ async def regenerate_api_key(
     current_user: Annotated[User, Depends(require_permission(Permission.VIEW_DASHBOARD))],
 ):
     """Rotate the project API key. The old key is immediately invalidated."""
+    await assert_project_admin(db, project_id, current_user)
     svc = ProjectService(db)
-    project = await svc.get(project_id)
-    _assert_owner_or_admin(project.owner_id, current_user)
     project, plaintext = await svc.regenerate_api_key(project_id)
     return ProjectCreatedResponse(
-        **ProjectResponse.model_validate(project).model_dump(),
+        **_project_response(project, "admin").model_dump(),
         api_key=plaintext,
+    )
+
+
+# ── Project members ───────────────────────────────────────────────────────────
+
+@router.get("/{project_id}/members", response_model=ProjectMemberListResponse)
+async def list_project_members(
+    project_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_permission(Permission.VIEW_DASHBOARD))],
+):
+    await assert_project_access(db, project_id, current_user)
+    svc = ProjectService(db)
+    members = await svc.list_members(project_id)
+    return ProjectMemberListResponse(
+        items=[ProjectMemberResponse.model_validate(m) for m in members],
+        total=len(members),
+    )
+
+
+@router.post("/{project_id}/members", response_model=ProjectMemberResponse, status_code=201)
+async def add_project_member(
+    project_id: uuid.UUID,
+    data: ProjectMemberCreate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_permission(Permission.VIEW_DASHBOARD))],
+):
+    await assert_project_admin(db, project_id, current_user)
+    svc = ProjectService(db)
+    member = await svc.add_member(
+        project_id, data.user_id, data.role, invited_by=current_user.id
+    )
+    return ProjectMemberResponse.model_validate(member)
+
+
+# ── SDK download ──────────────────────────────────────────────────────────────
+
+@router.get("/{project_id}/sdk/python")
+async def download_python_sdk(
+    project_id: uuid.UUID,
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_permission(Permission.VIEW_DASHBOARD))],
+):
+    """Download a Python SDK example zip (no API key embedded)."""
+    project = await assert_project_access(db, project_id, current_user)
+    base_url = str(request.base_url).rstrip("/")
+    if base_url.endswith("/api/v1"):
+        base_url = base_url[: -len("/api/v1")]
+    content = build_python_sdk_zip(base_url, project.name)
+    slug = project.slug or "project"
+    return Response(
+        content=content,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="lbro-sdk-{slug}.zip"',
+        },
     )
 
 

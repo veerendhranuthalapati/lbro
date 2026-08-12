@@ -3,16 +3,17 @@
  *
  * Route: /projects/:projectId/integrations
  */
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Copy, Check, Terminal, ChevronRight,
   Search, ExternalLink, Key, RefreshCw,
-  Plug2, AlertTriangle, Loader2, FolderOpen,
+  Plug2, AlertTriangle, Loader2, FolderOpen, Download,
 } from 'lucide-react'
 import { projectsApi } from '@/api/client'
 import { getProjectApiKey } from '@/lib/projectApiKeys'
+import { useProjectStore } from '@/store/projectStore'
 
 const BG     = '#080808'
 const CARD   = '#0f0f0f'
@@ -618,6 +619,8 @@ export default function IntegrationsPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const navigate      = useNavigate()
   const queryClient   = useQueryClient()
+  const setCurrentProject = useProjectStore(s => s.setCurrentProject)
+  const [sdkLoading, setSdkLoading] = useState(false)
 
   const [selected,     setSelected]     = useState('curl')
   const [category,     setCategory]     = useState<typeof CATEGORIES[number]>('All')
@@ -631,6 +634,20 @@ export default function IntegrationsPage() {
     queryFn:  () => projectsApi.get(projectId!),
     enabled:  !!projectId,
   })
+
+  useEffect(() => {
+    if (project) setCurrentProject(project)
+  }, [project, setCurrentProject])
+
+  const handleDownloadSdk = async () => {
+    if (!project) return
+    setSdkLoading(true)
+    try {
+      await projectsApi.downloadPythonSdk(project.id, project.slug)
+    } finally {
+      setSdkLoading(false)
+    }
+  }
 
   const regenMutation = useMutation({
     mutationFn: () => projectsApi.regenerateKey(projectId!),
@@ -780,6 +797,30 @@ export default function IntegrationsPage() {
           {regenMutation.isError && (
             <p className="text-xs text-red-400 mt-2">Failed to regenerate key. Please try again.</p>
           )}
+        </div>
+
+        {/* Python SDK download */}
+        <div className="rounded-xl p-5 mb-8" style={{ background: CARD, border: '1px solid ' + BORDER }}>
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <h2 className="text-sm font-medium text-white mb-1">Download Python SDK</h2>
+              <p className="text-xs text-zinc-500 max-w-xl">
+                Starter package with <code className="text-zinc-400">lbro_client.py</code>, example script, and{' '}
+                <code className="text-zinc-400">.env.example</code>. No API key is embedded — copy yours separately.
+              </p>
+              <p className="text-[10px] text-zinc-600 mt-2 font-mono">Project ID: {projectId}</p>
+            </div>
+            <button
+              type="button"
+              onClick={handleDownloadSdk}
+              disabled={sdkLoading || !project}
+              className="inline-flex items-center gap-2 text-xs px-4 py-2.5 rounded font-medium transition-all disabled:opacity-50"
+              style={{ background: ORANGE, color: '#fff' }}
+            >
+              {sdkLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+              Download SDK
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

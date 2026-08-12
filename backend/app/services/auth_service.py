@@ -64,21 +64,6 @@ class AuthService:
         self.db.add(new_user)
         await self.db.flush()
 
-        try:
-            from app.services.project_service import ProjectService
-            from app.schemas.project import ProjectCreate
-            project_svc = ProjectService(self.db)
-            await project_svc.create(
-                ProjectCreate(
-                    name="My First Project",
-                    description="Your default project.",
-                    environment="production",
-                ),
-                owner_id=new_user.id,
-            )
-        except Exception:
-            pass
-
         from app.core.rbac import Role as RbacRole, get_permissions_for_role
         permissions = get_permissions_for_role(RbacRole(new_user.role))
         access_token = create_access_token(str(new_user.id), extra={

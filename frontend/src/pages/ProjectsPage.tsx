@@ -4,7 +4,7 @@
  * Shows all projects owned by the user, lets them create a new one,
  * and switches the active project when one is clicked.
  */
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, FolderOpen, Archive, Globe, Code2, Layers, ChevronRight, Key, Loader2 } from 'lucide-react'
@@ -178,6 +178,10 @@ export default function ProjectsPage() {
     queryFn: () => projectsApi.list(),
     staleTime: 30_000,
   })
+
+  useEffect(() => {
+    if (data?.items) setProjects(data.items)
+  }, [data, setProjects])
 
   const handleSelect = (project: Project) => {
     setCurrentProject(project)

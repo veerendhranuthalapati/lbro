@@ -74,6 +74,33 @@ curl http://localhost:80/health
 
 ## Routine Operations
 
+### Backup the database (before any upgrade)
+
+`POSTGRES_USER` / `POSTGRES_DB` live in `.env` for Docker Compose — they are **not** exported to your SSH shell. Do **not** use bare `$POSTGRES_USER` in `exec` unless you `source .env` first.
+
+**Recommended** (uses credentials from inside the postgres container):
+
+```bash
+bash scripts/backup_postgres.sh
+```
+
+Or manually:
+
+```bash
+docker compose -f docker-compose.prod.yml exec -T postgres \
+  sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > lbro-backup-$(date +%Y%m%d).sql
+
+ls -lh lbro-backup-*.sql
+head -3 lbro-backup-*.sql   # should start with "-- PostgreSQL database dump"
+```
+
+Tag current images for rollback:
+
+```bash
+docker tag lbro-api:prod lbro-api:prev
+docker tag lbro-frontend:latest lbro-frontend:prev 2>/dev/null || true
+```
+
 ### Deploy a new version
 
 ```bash
@@ -81,6 +108,7 @@ git pull
 docker compose -f docker-compose.prod.yml build
 docker compose -f docker-compose.prod.yml run --rm api alembic upgrade head
 docker compose -f docker-compose.prod.yml up -d
+docker compose -f docker-compose.prod.yml ps
 ```
 
 Docker Compose replaces only containers whose image changed, so postgres is left untouched.

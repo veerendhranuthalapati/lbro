@@ -398,6 +398,7 @@ export interface Project {
   readonly status: ProjectStatus
   readonly owner_id: UUID | null
   readonly api_key_prefix: string
+  readonly my_role?: 'admin' | 'analyst' | 'viewer' | null
   readonly created_at: ISODateString
   readonly updated_at: ISODateString
 }

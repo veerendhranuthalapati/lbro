@@ -48,4 +48,6 @@ export const PROJECT_SCOPED_QUERY_PREFIXES = [
   'reports',
   'ml',
   'evidence',
+  'project',
+  'invitations',
 ] as const

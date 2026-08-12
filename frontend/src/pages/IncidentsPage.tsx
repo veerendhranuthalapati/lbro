@@ -2,7 +2,12 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { SeverityBadge } from '@/components/ui/SeverityBadge'
 import { StatusBadge } from '@/components/ui/StatusBadge'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { ErrorState } from '@/components/ui/ErrorState'
+import { EmptyState } from '@/components/ui/EmptyState'
+import { LoadingState } from '@/components/ui/LoadingState'
 import { useIncidents } from '@/hooks/useApi'
+import { useProjectStore } from '@/store/projectStore'
 import { timeAgo } from '@/utils'
 import type { Incident, IncidentSeverity, IncidentStatus } from '@/types'
 
@@ -56,6 +61,7 @@ function exportToCSV(incidents: readonly Incident[]) {
 
 export default function IncidentsPage() {
   const navigate = useNavigate()
+  const currentProject = useProjectStore(s => s.currentProject)
   const [severityFilter, setSeverityFilter] = useState<IncidentSeverity | 'all'>('all')
   const [statusFilter,   setStatusFilter]   = useState<IncidentStatus | 'all'>('all')
 
@@ -90,61 +96,54 @@ export default function IncidentsPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-      {/* ---- Header ---- */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
-          <h2 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, color: BLACK, letterSpacing: '0.04em', lineHeight: 1 }}>
-            All Incidents
-          </h2>
-          <p style={{ fontSize: 11, color: GRAY, marginTop: 4 }}>
-            {isLoading ? 'Loading...' : totalCount + ' incident' + (totalCount !== 1 ? 's' : '') + ' · automatically detected and classified'}
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            onClick={() => exportToCSV(incidents)}
-            disabled={incidents.length === 0}
-            title="Export current results to CSV"
-            style={{
-              padding: '9px 16px',
-              background: 'transparent',
-              color: incidents.length === 0 ? BORDER : GRAY,
-              border: '1px solid ' + BORDER,
-              borderRadius: 2,
-              fontSize: 11,
-              fontWeight: 500,
-              textTransform: 'uppercase',
-              letterSpacing: '0.1em',
-              cursor: incidents.length === 0 ? 'not-allowed' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-            }}
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path d="M6 1v7M3 6l3 3 3-3M1 10h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            Export CSV
-          </button>
-          <button
-            onClick={() => navigate('/incidents/new')}
-            style={{
-              padding: '9px 20px',
-              background: ORANGE,
-              color: '#fff',
-              border: 'none',
-              borderRadius: 2,
-              fontSize: 11,
-              fontWeight: 500,
-              textTransform: 'uppercase',
-              letterSpacing: '0.1em',
-              cursor: 'pointer',
-            }}
-          >
-            + New incident
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        compact
+        description="Investigate and manage security incidents for this project."
+        actions={
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button
+              onClick={() => exportToCSV(incidents)}
+              disabled={incidents.length === 0}
+              title="Export current results to CSV"
+              style={{
+                padding: '9px 16px',
+                background: 'transparent',
+                color: incidents.length === 0 ? BORDER : GRAY,
+                border: '1px solid ' + BORDER,
+                borderRadius: 2,
+                fontSize: 11,
+                fontWeight: 500,
+                textTransform: 'uppercase',
+                letterSpacing: '0.1em',
+                cursor: incidents.length === 0 ? 'not-allowed' : 'pointer',
+              }}
+            >
+              Export CSV
+            </button>
+            <button
+              onClick={() => navigate('/incidents/new')}
+              style={{
+                padding: '9px 20px',
+                background: ORANGE,
+                color: '#fff',
+                border: 'none',
+                borderRadius: 2,
+                fontSize: 11,
+                fontWeight: 500,
+                textTransform: 'uppercase',
+                letterSpacing: '0.1em',
+                cursor: 'pointer',
+              }}
+            >
+              + New incident
+            </button>
+          </div>
+        }
+      />
+
+      <p style={{ fontSize: 11, color: GRAY, marginTop: -8 }}>
+        {isLoading ? 'Loading…' : `${totalCount} incident${totalCount !== 1 ? 's' : ''}`}
+      </p>
 
       {/* ---- Filters ---- */}
       <div style={{ background: CREAM, border: '1px solid ' + BORDER, borderRadius: 4, padding: '12px 16px', display: 'flex', flexWrap: 'wrap', gap: 16, alignItems: 'center' }}>
@@ -169,9 +168,7 @@ export default function IncidentsPage() {
 
       {/* ---- Error state ---- */}
       {isError && (
-        <div style={{ background: 'rgba(229,78,27,0.06)', border: '1px solid rgba(229,78,27,0.3)', borderLeft: '3px solid ' + ORANGE, borderRadius: 4, padding: '12px 16px', fontSize: 12, color: BLACK }}>
-          Unable to load incidents. Ensure the backend is running and you are signed in with the correct account.
-        </div>
+        <ErrorState message="Unable to load incidents." onRetry={() => window.location.reload()} />
       )}
 
       {/* ---- Table ---- */}
@@ -258,10 +255,33 @@ export default function IncidentsPage() {
         </table>
 
         {!isLoading && !isError && incidents.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '48px 0', color: GRAY }}>
-            <div style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 32, color: BORDER, marginBottom: 8 }}>No Incidents</div>
-            <div style={{ fontSize: 12 }}>No incidents match the current filters</div>
-          </div>
+          <EmptyState
+            title="No incidents yet"
+            description={
+              currentProject
+                ? 'Connect your application and send your first security event to this project.'
+                : 'Select a project, then connect your application to start receiving events.'
+            }
+            action={
+              currentProject ? (
+                <button
+                  type="button"
+                  onClick={() => navigate(`/projects/${currentProject.id}/integrations`)}
+                  style={{ padding: '8px 16px', background: ORANGE, color: '#fff', borderRadius: 4, fontSize: 12 }}
+                >
+                  Go to Integrations
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => navigate('/projects')}
+                  style={{ padding: '8px 16px', background: ORANGE, color: '#fff', borderRadius: 4, fontSize: 12 }}
+                >
+                  Select a project
+                </button>
+              )
+            }
+          />
         )}
       </div>
     </div>

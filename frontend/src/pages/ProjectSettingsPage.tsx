@@ -1,22 +1,38 @@
 /**
- * ProjectSettingsPage — rename, regenerate key, archive, delete.
+ * ProjectSettingsPage — tabbed project settings (General, Members, API Keys, Danger Zone).
  */
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, RefreshCw, Archive, Trash2, Save, Loader2, AlertTriangle, Copy, Check } from 'lucide-react'
+import {
+  RefreshCw, Archive, Trash2, Save, Loader2, AlertTriangle, Copy, Check,
+} from 'lucide-react'
 import { projectsApi } from '@/api/client'
 import { getProjectApiKey } from '@/lib/projectApiKeys'
 import { useProjectStore } from '@/store/projectStore'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { Card } from '@/components/ui/Card'
+import { LoadingState } from '@/components/ui/LoadingState'
+import { ProjectMembersSection } from '@/components/projects/ProjectMembersSection'
+import { LBRO } from '@/lib/tokens'
 import type { ProjectEnvironment } from '@/types'
 
 const ENV_OPTIONS: ProjectEnvironment[] = ['development', 'staging', 'production']
+type Tab = 'general' | 'members' | 'api-keys' | 'danger'
+
+const TABS: { id: Tab; label: string; adminOnly?: boolean }[] = [
+  { id: 'general', label: 'General' },
+  { id: 'members', label: 'Members' },
+  { id: 'api-keys', label: 'API Keys' },
+  { id: 'danger', label: 'Danger Zone', adminOnly: true },
+]
 
 export default function ProjectSettingsPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
   const qc = useQueryClient()
   const { currentProject, setCurrentProject, clearProject } = useProjectStore()
+  const [tab, setTab] = useState<Tab>('general')
 
   const { data: project, isLoading } = useQuery({
     queryKey: ['project', projectId],
@@ -31,21 +47,16 @@ export default function ProjectSettingsPage() {
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleteText, setDeleteText] = useState('')
 
-  // Populate fields once project loads
-  useState(() => {
+  useEffect(() => {
     if (project) {
       setName(project.name)
       setDescription(project.description ?? '')
       setEnvironment(project.environment)
+      if (currentProject?.id !== project.id) setCurrentProject(project)
     }
-  })
+  }, [project, currentProject?.id, setCurrentProject])
 
-  // Sync state when project changes
-  if (project && !name) {
-    setName(project.name)
-    setDescription(project.description ?? '')
-    setEnvironment(project.environment)
-  }
+  const canManage = project?.my_role === 'admin'
 
   const updateMutation = useMutation({
     mutationFn: () => projectsApi.update(projectId!, {
@@ -88,8 +99,14 @@ export default function ProjectSettingsPage() {
     },
   })
 
+  if (isLoading || !project) {
+    return <LoadingState label="Loading project settings…" />
+  }
+
   const sessionKey = projectId ? getProjectApiKey(projectId) : null
-  const displayKey = sessionKey ?? `${project?.api_key_prefix ?? ''}…`
+  const displayKey = sessionKey ?? `${project.api_key_prefix}…`
+  const isArchived = project.status === 'archived'
+  const visibleTabs = TABS.filter(t => !t.adminOnly || canManage)
 
   const copyKey = () => {
     if (sessionKey) {
@@ -99,174 +116,184 @@ export default function ProjectSettingsPage() {
     }
   }
 
-  if (isLoading || !project) {
-    return (
-      <div className="flex items-center justify-center min-h-screen" style={{ background: '#080808' }}>
-        <Loader2 className="w-5 h-5 animate-spin text-zinc-500" />
-      </div>
-    )
-  }
-
-  const isArchived = project.status === 'archived'
-
   return (
-    <div className="min-h-screen" style={{ background: '#080808' }}>
-      <div className="max-w-2xl mx-auto px-6 py-10">
+    <div className="max-w-2xl mx-auto">
+      <PageHeader
+        compact
+        title="Project Settings"
+        description="Manage this project's name, members, API keys, and lifecycle."
+      />
 
-        {/* Back */}
-        <button
-          onClick={() => navigate(`/projects/${projectId}`)}
-          className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 mb-6 transition-colors"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" /> Back to {project.name}
-        </button>
+      <div
+        className="flex flex-wrap gap-1 mb-6 p-1 rounded-lg border"
+        style={{ background: LBRO.cream, borderColor: LBRO.border }}
+        role="tablist"
+      >
+        {visibleTabs.map(t => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            onClick={() => setTab(t.id)}
+            className="px-4 py-2 rounded-md text-sm font-medium transition-colors"
+            style={
+              tab === t.id
+                ? { background: LBRO.orange, color: '#fff' }
+                : { color: LBRO.gray }
+            }
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-        <h1 className="font-display text-2xl text-white mb-8">Project Settings</h1>
-
-        {/* General */}
-        <section className="rounded-lg border p-5 mb-4" style={{ background: '#0f0f0f', borderColor: '#1e1e1e' }}>
-          <h2 className="text-sm font-medium text-white mb-4">General</h2>
+      {tab === 'general' && (
+        <Card title="General" description="Project name, description, and environment.">
           <div className="space-y-4">
             <div>
-              <label className="block text-xs text-zinc-400 mb-1">Project name</label>
+              <label className="block text-xs mb-1" style={{ color: LBRO.gray }}>Project name</label>
               <input
                 value={name}
                 onChange={e => setName(e.target.value)}
-                className="w-full px-3 py-2 rounded text-sm text-white border outline-none"
-                style={{ background: '#1a1a1a', borderColor: '#333' }}
+                disabled={!canManage}
+                className="w-full px-3 py-2 rounded text-sm border outline-none"
+                style={{ borderColor: LBRO.border, color: LBRO.black }}
               />
             </div>
             <div>
-              <label className="block text-xs text-zinc-400 mb-1">Description</label>
+              <label className="block text-xs mb-1" style={{ color: LBRO.gray }}>Description</label>
               <input
                 value={description}
                 onChange={e => setDescription(e.target.value)}
-                placeholder="Optional description"
-                className="w-full px-3 py-2 rounded text-sm text-white border outline-none"
-                style={{ background: '#1a1a1a', borderColor: '#333' }}
+                disabled={!canManage}
+                className="w-full px-3 py-2 rounded text-sm border outline-none"
+                style={{ borderColor: LBRO.border, color: LBRO.black }}
               />
             </div>
             <div>
-              <label className="block text-xs text-zinc-400 mb-2">Environment</label>
+              <label className="block text-xs mb-2" style={{ color: LBRO.gray }}>Environment</label>
               <div className="flex gap-2">
-                {ENV_OPTIONS.map(env => {
-                  const color = env === 'production' ? '#ef4444' : env === 'staging' ? '#f59e0b' : '#22c55e'
-                  return (
-                    <button
-                      key={env}
-                      onClick={() => setEnvironment(env)}
-                      className="flex-1 py-1.5 rounded text-xs capitalize border transition-all"
-                      style={{
-                        background: environment === env ? color + '22' : '#1a1a1a',
-                        borderColor: environment === env ? color : '#333',
-                        color: environment === env ? color : '#666',
-                      }}
-                    >
-                      {env}
-                    </button>
-                  )
-                })}
+                {ENV_OPTIONS.map(env => (
+                  <button
+                    key={env}
+                    type="button"
+                    disabled={!canManage}
+                    onClick={() => setEnvironment(env)}
+                    className="flex-1 py-1.5 rounded text-xs capitalize border"
+                    style={{
+                      borderColor: environment === env ? LBRO.orange : LBRO.border,
+                      background: environment === env ? `${LBRO.orange}15` : '#fff',
+                      color: environment === env ? LBRO.orange : LBRO.gray,
+                    }}
+                  >
+                    {env}
+                  </button>
+                ))}
               </div>
             </div>
-
-            <button
-              onClick={() => updateMutation.mutate()}
-              disabled={updateMutation.isPending}
-              className="flex items-center gap-2 px-4 py-2 rounded text-sm font-medium disabled:opacity-40 transition-opacity"
-              style={{ background: '#e54e1b', color: '#fff' }}
-            >
-              {updateMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-              Save changes
-            </button>
-            {updateMutation.isSuccess && (
-              <p className="text-xs text-green-500">Saved.</p>
+            {canManage && (
+              <button
+                type="button"
+                onClick={() => updateMutation.mutate()}
+                disabled={updateMutation.isPending}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded text-sm font-medium text-white disabled:opacity-40"
+                style={{ background: LBRO.orange }}
+              >
+                {updateMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Save changes
+              </button>
             )}
           </div>
-        </section>
+        </Card>
+      )}
 
-        {/* API Key */}
-        <section className="rounded-lg border p-5 mb-4" style={{ background: '#0f0f0f', borderColor: '#1e1e1e' }}>
-          <h2 className="text-sm font-medium text-white mb-1">API Key</h2>
-          <p className="text-xs text-zinc-500 mb-4">
-            Send this key in the <code className="text-zinc-400">X-Project-Key</code> header when your app submits incidents to LBRO.
-            Regenerating immediately invalidates the old key.
-          </p>
+      {tab === 'members' && (
+        <ProjectMembersSection projectId={projectId!} canManage={canManage} />
+      )}
+
+      {tab === 'api-keys' && (
+        <Card
+          title="Project API key"
+          description="Use this key in the X-Project-Key header or Authorization Bearer for event ingestion."
+        >
           <div className="flex gap-2 mb-3">
             <code
-              className="flex-1 px-3 py-2 rounded text-xs text-zinc-300 border font-mono break-all"
-              style={{ background: '#1a1a1a', borderColor: '#333' }}
+              className="flex-1 px-3 py-2 rounded text-xs font-mono break-all border"
+              style={{ borderColor: LBRO.border, color: LBRO.black, background: LBRO.offwhite }}
             >
               {displayKey}
             </code>
             <button
+              type="button"
               onClick={copyKey}
               disabled={!sessionKey}
-              title={sessionKey ? 'Copy' : 'Full key only available right after create or regenerate'}
-              className="px-3 py-2 rounded border text-zinc-400 hover:text-white transition-colors shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ borderColor: '#333' }}
+              className="px-3 py-2 rounded border disabled:opacity-40"
+              style={{ borderColor: LBRO.border }}
+              aria-label="Copy API key"
             >
-              {keyCopied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4" />}
+              {keyCopied ? <Check className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
             </button>
           </div>
-          <button
-            onClick={() => regenKeyMutation.mutate()}
-            disabled={regenKeyMutation.isPending}
-            className="flex items-center gap-2 text-sm text-zinc-400 hover:text-white transition-colors disabled:opacity-40"
-          >
-            {regenKeyMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-            Regenerate key
-          </button>
-        </section>
+          {canManage && (
+            <button
+              type="button"
+              onClick={() => regenKeyMutation.mutate()}
+              disabled={regenKeyMutation.isPending}
+              className="inline-flex items-center gap-2 text-sm"
+              style={{ color: LBRO.gray }}
+            >
+              {regenKeyMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+              Regenerate key
+            </button>
+          )}
+          {!canManage && (
+            <p className="text-xs" style={{ color: LBRO.gray }}>Only project admins can regenerate keys.</p>
+          )}
+        </Card>
+      )}
 
-        {/* Danger zone */}
-        <section className="rounded-lg border p-5" style={{ background: '#0f0f0f', borderColor: '#3a1a1a' }}>
-          <h2 className="text-sm font-medium text-red-400 mb-4">Danger zone</h2>
+      {tab === 'danger' && canManage && (
+        <Card title="Danger zone" description="Archive or permanently delete this project." danger>
           <div className="space-y-4">
-
-            {/* Archive */}
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-sm text-white">{isArchived ? 'Restore project' : 'Archive project'}</p>
-                <p className="text-xs text-zinc-500 mt-0.5">
-                  {isArchived
-                    ? 'Make this project active again.'
-                    : 'Hide from the project list. Data is preserved.'}
+                <p className="text-sm font-medium" style={{ color: LBRO.black }}>
+                  {isArchived ? 'Restore project' : 'Archive project'}
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: LBRO.gray }}>
+                  {isArchived ? 'Make this project active again.' : 'Hide from lists. Data is preserved.'}
                 </p>
               </div>
               <button
+                type="button"
                 onClick={() => archiveMutation.mutate()}
                 disabled={archiveMutation.isPending}
-                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded text-xs border text-zinc-400 hover:text-white transition-colors disabled:opacity-40"
-                style={{ borderColor: '#444' }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs border"
+                style={{ borderColor: LBRO.border }}
               >
-                {archiveMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Archive className="w-3.5 h-3.5" />}
+                <Archive className="w-3.5 h-3.5" />
                 {isArchived ? 'Restore' : 'Archive'}
               </button>
             </div>
 
-            {/* Delete */}
-            <div className="border-t pt-4" style={{ borderColor: '#2a2a2a' }}>
-              <div className="flex items-start justify-between gap-4 mb-3">
-                <div>
-                  <p className="text-sm text-red-400">Delete project</p>
-                  <p className="text-xs text-zinc-500 mt-0.5">
-                    Permanently delete this project and all its incidents, evidence, and reports.
-                    This cannot be undone.
-                  </p>
-                </div>
+            <div className="border-t pt-4" style={{ borderColor: LBRO.border }}>
+              <p className="text-sm font-medium mb-1" style={{ color: LBRO.danger }}>Delete project</p>
+              <p className="text-xs mb-3" style={{ color: LBRO.gray }}>
+                Permanently delete all incidents, evidence, and reports. Cannot be undone.
+              </p>
+              {!confirmDelete ? (
                 <button
-                  onClick={() => setConfirmDelete(!confirmDelete)}
-                  className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded text-xs border text-red-400 hover:text-red-300 transition-colors"
-                  style={{ borderColor: '#5a2020' }}
+                  type="button"
+                  onClick={() => setConfirmDelete(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-xs border"
+                  style={{ borderColor: '#fca5a5', color: LBRO.danger }}
                 >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  Delete
+                  <Trash2 className="w-3.5 h-3.5" /> Delete project
                 </button>
-              </div>
-
-              {confirmDelete && (
+              ) : (
                 <div className="space-y-2">
-                  <div className="flex items-center gap-1.5 text-xs text-amber-400">
+                  <div className="flex items-center gap-1.5 text-xs text-amber-700">
                     <AlertTriangle className="w-3.5 h-3.5" />
                     Type <strong>{project.name}</strong> to confirm
                   </div>
@@ -274,17 +301,16 @@ export default function ProjectSettingsPage() {
                     <input
                       value={deleteText}
                       onChange={e => setDeleteText(e.target.value)}
-                      placeholder={project.name}
-                      className="flex-1 px-3 py-2 rounded text-sm text-white border outline-none"
-                      style={{ background: '#1a1a1a', borderColor: '#5a2020' }}
+                      className="flex-1 px-3 py-2 rounded text-sm border"
+                      style={{ borderColor: LBRO.border }}
                     />
                     <button
+                      type="button"
                       onClick={() => deleteMutation.mutate()}
                       disabled={deleteText !== project.name || deleteMutation.isPending}
-                      className="px-4 py-2 rounded text-sm font-medium disabled:opacity-30 flex items-center gap-1.5 transition-opacity"
-                      style={{ background: '#ef4444', color: '#fff' }}
+                      className="px-4 py-2 rounded text-sm font-medium text-white disabled:opacity-30"
+                      style={{ background: LBRO.danger }}
                     >
-                      {deleteMutation.isPending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
                       Confirm delete
                     </button>
                   </div>
@@ -292,8 +318,8 @@ export default function ProjectSettingsPage() {
               )}
             </div>
           </div>
-        </section>
-      </div>
+        </Card>
+      )}
     </div>
   )
 }

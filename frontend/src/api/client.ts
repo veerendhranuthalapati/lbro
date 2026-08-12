@@ -26,6 +26,8 @@ import type {
   HealthCheck, ApiError, User,
   DashboardStats, AWSStatus, CICIDSFlow, PagedResponse,
   Project, ProjectListResponse, ProjectCreate, ProjectUpdate, ProjectDashboard, ProjectCreated,
+  ProjectMember, ProjectMemberListResponse, ProjectInvitation, ProjectInvitationCreated,
+  ProjectInvitationListResponse, ProjectMemberRole,
 } from '@/types'
 
 // ---- Extend Axios config with per-request metadata -------------------------
@@ -670,6 +672,35 @@ export const projectsApi = {
     a.click()
     URL.revokeObjectURL(url)
   },
+
+  listMembers: (projectId: string): Promise<ProjectMemberListResponse> =>
+    apiClient.get<ProjectMemberListResponse>(`/api/v1/projects/${projectId}/members`).then(r => r.data),
+
+  updateMember: (projectId: string, memberId: string, role: ProjectMemberRole): Promise<ProjectMember> =>
+    apiClient.patch<ProjectMember>(`/api/v1/projects/${projectId}/members/${memberId}`, { role }).then(r => r.data),
+
+  removeMember: (projectId: string, memberId: string): Promise<void> =>
+    apiClient.delete(`/api/v1/projects/${projectId}/members/${memberId}`).then(() => undefined),
+
+  listInvitations: (projectId: string): Promise<ProjectInvitationListResponse> =>
+    apiClient.get<ProjectInvitationListResponse>(`/api/v1/projects/${projectId}/invitations`).then(r => r.data),
+
+  createInvitation: (projectId: string, email: string, role: ProjectMemberRole): Promise<ProjectInvitationCreated> =>
+    apiClient.post<ProjectInvitationCreated>(`/api/v1/projects/${projectId}/invitations`, { email, role }).then(r => r.data),
+
+  cancelInvitation: (projectId: string, invitationId: string): Promise<void> =>
+    apiClient.delete(`/api/v1/projects/${projectId}/invitations/${invitationId}`).then(() => undefined),
+}
+
+export const invitationsApi = {
+  listPending: (): Promise<ProjectInvitationListResponse> =>
+    apiClient.get<ProjectInvitationListResponse>('/api/v1/invitations/pending').then(r => r.data),
+
+  accept: (invitationId: string, token?: string): Promise<ProjectMember> =>
+    apiClient.post<ProjectMember>(`/api/v1/invitations/${invitationId}/accept`, { token: token ?? null }).then(r => r.data),
+
+  decline: (invitationId: string): Promise<void> =>
+    apiClient.post(`/api/v1/invitations/${invitationId}/decline`).then(() => undefined),
 }
 
 

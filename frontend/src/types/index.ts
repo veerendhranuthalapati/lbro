@@ -443,3 +443,43 @@ export interface ProjectDashboard {
   readonly most_targeted_port: number | null
   readonly top_recommendations: Array<{ priority: string; title: string; link: string }>
 }
+
+export type ProjectMemberRole = 'admin' | 'analyst' | 'viewer'
+
+export interface ProjectMember {
+  readonly id: UUID
+  readonly project_id: UUID
+  readonly user_id: UUID
+  readonly role: ProjectMemberRole
+  readonly email: string
+  readonly full_name: string | null
+  readonly is_owner: boolean
+  readonly invited_by: UUID | null
+  readonly created_at: ISODateString
+}
+
+export interface ProjectMemberListResponse {
+  readonly items: ProjectMember[]
+  readonly total: number
+}
+
+export interface ProjectInvitation {
+  readonly id: UUID
+  readonly project_id: UUID
+  readonly invited_email: string
+  readonly role: ProjectMemberRole
+  readonly invited_by: UUID | null
+  readonly status: string
+  readonly expires_at: ISODateString
+  readonly created_at: ISODateString
+  readonly project_name?: string | null
+}
+
+export interface ProjectInvitationCreated extends ProjectInvitation {
+  readonly invite_token: string
+}
+
+export interface ProjectInvitationListResponse {
+  readonly items: ProjectInvitation[]
+  readonly total: number
+}

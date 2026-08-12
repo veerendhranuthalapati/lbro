@@ -20,14 +20,20 @@ from app.models.user import User
 from app.schemas.project import (
     ProjectCreate,
     ProjectCreatedResponse,
+    ProjectInvitationCreate,
+    ProjectInvitationCreatedResponse,
+    ProjectInvitationListResponse,
+    ProjectInvitationResponse,
     ProjectListResponse,
     ProjectMemberCreate,
     ProjectMemberListResponse,
     ProjectMemberResponse,
+    ProjectMemberUpdate,
     ProjectResponse,
     ProjectUpdate,
 )
 from app.services.project_service import ProjectService
+from app.services.invitation_service import InvitationService
 from app.services.sdk_generator import build_python_sdk_zip
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -142,7 +148,7 @@ async def list_project_members(
     svc = ProjectService(db)
     members = await svc.list_members(project_id)
     return ProjectMemberListResponse(
-        items=[ProjectMemberResponse.model_validate(m) for m in members],
+        items=[ProjectMemberResponse(**m) for m in members],
         total=len(members),
     )
 
@@ -159,7 +165,139 @@ async def add_project_member(
     member = await svc.add_member(
         project_id, data.user_id, data.role, invited_by=current_user.id
     )
-    return ProjectMemberResponse.model_validate(member)
+    from sqlalchemy import select
+    from app.models.user import User as UserModel
+
+    user_row = (
+        await db.execute(select(UserModel).where(UserModel.id == member.user_id))
+    ).scalar_one()
+    project = await svc.get(project_id)
+    return ProjectMemberResponse(
+        id=member.id,
+        project_id=member.project_id,
+        user_id=member.user_id,
+        role=member.role,
+        email=user_row.email,
+        full_name=user_row.full_name,
+        is_owner=project.owner_id == member.user_id,
+        invited_by=member.invited_by,
+        created_at=member.created_at,
+    )
+
+
+@router.patch("/{project_id}/members/{member_id}", response_model=ProjectMemberResponse)
+async def update_project_member(
+    project_id: uuid.UUID,
+    member_id: uuid.UUID,
+    data: ProjectMemberUpdate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_permission(Permission.VIEW_DASHBOARD))],
+):
+    await assert_project_admin(db, project_id, current_user)
+    svc = ProjectService(db)
+    member = await svc.update_member_role(
+        project_id, member_id, data.role, actor_id=current_user.id
+    )
+    from sqlalchemy import select
+    from app.models.user import User as UserModel
+
+    user_row = (
+        await db.execute(select(UserModel).where(UserModel.id == member.user_id))
+    ).scalar_one()
+    project = await svc.get(project_id)
+    return ProjectMemberResponse(
+        id=member.id,
+        project_id=member.project_id,
+        user_id=member.user_id,
+        role=member.role,
+        email=user_row.email,
+        full_name=user_row.full_name,
+        is_owner=project.owner_id == member.user_id,
+        invited_by=member.invited_by,
+        created_at=member.created_at,
+    )
+
+
+@router.delete("/{project_id}/members/{member_id}", status_code=204)
+async def remove_project_member(
+    project_id: uuid.UUID,
+    member_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_permission(Permission.VIEW_DASHBOARD))],
+):
+    await assert_project_admin(db, project_id, current_user)
+    svc = ProjectService(db)
+    await svc.remove_member(project_id, member_id, actor_id=current_user.id)
+
+
+# ── Project invitations ───────────────────────────────────────────────────────
+
+async def _invitation_response(db: AsyncSession, invitation) -> ProjectInvitationResponse:
+    from sqlalchemy import select
+    from app.models.project import Project
+
+    project_name = None
+    result = await db.execute(select(Project).where(Project.id == invitation.project_id))
+    project = result.scalar_one_or_none()
+    if project:
+        project_name = project.name
+    return ProjectInvitationResponse(
+        id=invitation.id,
+        project_id=invitation.project_id,
+        invited_email=invitation.invited_email,
+        role=invitation.role,
+        invited_by=invitation.invited_by,
+        status=invitation.status,
+        expires_at=invitation.expires_at,
+        created_at=invitation.created_at,
+        project_name=project_name,
+    )
+
+
+@router.get("/{project_id}/invitations", response_model=ProjectInvitationListResponse)
+async def list_project_invitations(
+    project_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_permission(Permission.VIEW_DASHBOARD))],
+):
+    await assert_project_admin(db, project_id, current_user)
+    svc = InvitationService(db)
+    items = await svc.list_for_project(project_id)
+    responses = [await _invitation_response(db, inv) for inv in items]
+    return ProjectInvitationListResponse(items=responses, total=len(responses))
+
+
+@router.post(
+    "/{project_id}/invitations",
+    response_model=ProjectInvitationCreatedResponse,
+    status_code=201,
+)
+async def create_project_invitation(
+    project_id: uuid.UUID,
+    data: ProjectInvitationCreate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_permission(Permission.VIEW_DASHBOARD))],
+):
+    """Create a pending invitation. Email is NOT sent unless SMTP is configured."""
+    await assert_project_admin(db, project_id, current_user)
+    svc = InvitationService(db)
+    invitation, token = await svc.create(
+        project_id, data.email, data.role, invited_by=current_user.id
+    )
+    base = await _invitation_response(db, invitation)
+    return ProjectInvitationCreatedResponse(**base.model_dump(), invite_token=token)
+
+
+@router.delete("/{project_id}/invitations/{invitation_id}", status_code=204)
+async def cancel_project_invitation(
+    project_id: uuid.UUID,
+    invitation_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_permission(Permission.VIEW_DASHBOARD))],
+):
+    await assert_project_admin(db, project_id, current_user)
+    svc = InvitationService(db)
+    await svc.cancel(invitation_id, project_id)
 
 
 # ── SDK download ──────────────────────────────────────────────────────────────

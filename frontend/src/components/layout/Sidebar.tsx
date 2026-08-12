@@ -1,42 +1,61 @@
 import { NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
-import {
-  LayoutDashboard, ShieldAlert, FileText, Lock,
-  Cloud, Settings, LogOut, Brain, Bell, Users,
-  Target, ClipboardList, ShieldCheck, ClipboardCheck,
-  Layers, BookOpen, Plug2, Activity,
-} from 'lucide-react'
-import type { LucideProps } from 'lucide-react'
+import { LogOut } from 'lucide-react'
 import { cn } from '@/utils'
 import { useAuthStore } from '@/store/authStore'
 import { useProjectStore } from '@/store/projectStore'
+import { usePermissions } from '@/hooks/usePermissions'
 import { logger, auditAction } from '@/lib/logger'
+import {
+  NAV_SECTIONS,
+  resolveNavHref,
+  isNavActive,
+  type NavItemDef,
+} from '@/lib/navigation'
+import { LBRO } from '@/lib/tokens'
 
-interface NavItem {
-  to: string
-  icon: React.FC<LucideProps>
-  label: string
+function NavItem({
+  item,
+  href,
+  active,
+  disabled,
+}: {
+  item: NavItemDef
+  href: string
+  active: boolean
+  disabled?: boolean
+}) {
+  const Icon = item.icon
+  const className = cn(
+    'flex items-center gap-2.5 px-3 py-2 rounded-md text-sm transition-all focus:outline-none focus:ring-2 focus:ring-offset-1',
+    active ? 'font-medium' : 'font-normal',
+    disabled && 'opacity-40 pointer-events-none',
+  )
+  const style = active
+    ? { background: LBRO.orange, color: '#fff' }
+    : { color: '#a1a1aa' }
+
+  if (disabled) {
+    return (
+      <span className={className} style={style} title={`Select a project to open ${item.label}`}>
+        <Icon className="w-4 h-4 shrink-0" aria-hidden />
+        <span className="truncate">{item.label}</span>
+      </span>
+    )
+  }
+
+  return (
+    <NavLink
+      to={href}
+      className={className}
+      style={style}
+      aria-current={active ? 'page' : undefined}
+    >
+      <Icon className="w-4 h-4 shrink-0" aria-hidden />
+      <span className="truncate">{item.label}</span>
+    </NavLink>
+  )
 }
-
-// All authenticated users see all nav items.
-// Backend enforces access; sidebar never hides pages based on JWT permissions
-// because missing/empty permissions would cause the entire sidebar to collapse.
-const NAV: NavItem[] = [
-  { to: '/dashboard',         icon: LayoutDashboard, label: 'Application Security' },
-  { to: '/security-overview', icon: ShieldCheck,     label: 'Security Overview' },
-  { to: '/incidents',      icon: ShieldAlert,     label: 'Security Events' },
-  { to: '/notifications',  icon: Bell,            label: 'Notifications' },
-  { to: '/compliance',       icon: FileText,        label: 'Compliance' },
-  { to: '/compliance/audit', icon: ClipboardCheck,  label: 'Audit Report' },
-  { to: '/ml-insights',    icon: Brain,           label: 'Threat Detection' },
-  { to: '/threat-intel',   icon: Target,          label: 'Security Activity' },
-  { to: '/evidence',       icon: Lock,            label: 'Evidence Vault' },
-  { to: '/infrastructure', icon: Cloud,           label: 'Infrastructure' },
-  { to: '/audit-logs',     icon: ClipboardList,   label: 'Security History' },
-  { to: '/users',          icon: Users,           label: 'Users' },
-  { to: '/docs',           icon: BookOpen,        label: 'API Docs' },
-  { to: '/settings',       icon: Settings,        label: 'Settings' },
-]
 
 export function Sidebar() {
   const logout = useAuthStore(s => s.logout)
@@ -44,6 +63,10 @@ export function Sidebar() {
   const location = useLocation()
   const currentProject = useProjectStore(s => s.currentProject)
   const queryClient = useQueryClient()
+  const { can } = usePermissions()
+  const user = useAuthStore(s => s.user)
+
+  const isPlatformUser = user?.role === 'admin' || String(user?.role) === 'super_admin'
 
   const handleLogout = () => {
     auditAction('auth:logout', 'session', 'current')
@@ -53,149 +76,86 @@ export function Sidebar() {
     navigate('/login', { replace: true })
   }
 
-  // First two letters of project name for the badge, or generic icon
-  const projectInitials = currentProject
-    ? currentProject.name.slice(0, 2).toUpperCase()
-    : null
+  const visibleSections = NAV_SECTIONS.filter(section => {
+    if (section.id === 'platform') return isPlatformUser
+    return true
+  })
 
   return (
     <aside
-      className="flex flex-col w-14 shrink-0 h-screen sticky top-0 z-30 border-r border-lbro-border"
-      style={{ background: '#111111' }}
+      className="flex flex-col w-56 shrink-0 h-screen sticky top-0 z-30 border-r"
+      style={{ background: LBRO.black, borderColor: '#1e1e1e' }}
       role="navigation"
       aria-label="Main navigation"
     >
-      <div
-        className="flex items-center justify-center h-14 border-b shrink-0"
+      <button
+        type="button"
+        onClick={() => navigate('/dashboard')}
+        className="flex items-center h-14 px-4 border-b shrink-0 focus:outline-none focus:ring-2"
         style={{ borderColor: '#1e1e1e' }}
+        aria-label="LBRO home"
       >
-        <span
-          className="font-display text-xl"
-          style={{ color: '#e54e1b', letterSpacing: '0.05em' }}
-          aria-label="LBRO"
-        >
-          LB
+        <span className="font-display text-2xl" style={{ color: LBRO.orange, letterSpacing: '0.06em' }}>
+          LB<span style={{ color: '#fff' }}>RO</span>
         </span>
-      </div>
+      </button>
 
-      {/* Project switcher */}
-      <div
-        className="flex flex-col items-center justify-center py-2 border-b gap-1"
-        style={{ borderColor: '#1e1e1e' }}
-      >
-        <button
-          onClick={() => navigate('/projects')}
-          title={currentProject ? `Project: ${currentProject.name} — click to switch` : 'Select a project'}
-          aria-label={currentProject ? `Switch project (current: ${currentProject.name})` : 'Select a project — click to choose project'}
-          className={cn(
-            'flex items-center justify-center w-9 h-9 rounded text-xs font-bold transition-all focus:outline-none focus:ring-2',
-            currentProject ? 'text-white' : 'text-white',
-          )}
-          style={
-            currentProject
-              ? { background: '#2a2a2a', color: '#e54e1b', border: '1px solid #3a3a3a' }
-              : { background: '#e54e1b', color: '#fff', border: '1px solid #e54e1b', animation: 'lbro-pulse 2s ease-in-out infinite' }
-          }
-        >
-          {projectInitials ?? <Layers className="w-3.5 h-3.5" aria-hidden="true" />}
-        </button>
-        {!currentProject && (
-          <span
-            style={{ fontSize: 8, color: '#e54e1b', textTransform: 'uppercase', letterSpacing: '0.05em', lineHeight: 1, textAlign: 'center' }}
-            aria-hidden="true"
-          >
-            Select
-          </span>
-        )}
-      </div>
-
-      <nav
-        className="flex-1 flex flex-col items-center py-3 gap-1 overflow-y-auto"
-        aria-label="Application pages"
-      >
-        {NAV.map(({ to, icon: Icon, label }) => {
-          const isActive =
-            location.pathname === to ||
-            (to !== '/dashboard' && location.pathname.startsWith(to))
-          return (
-            <NavLink
-              key={to}
-              to={to}
-              title={label}
-              aria-label={label}
-              aria-current={isActive ? 'page' : undefined}
-              className={cn(
-                'flex items-center justify-center w-9 h-9 rounded transition-all focus:outline-none focus:ring-2',
-                isActive ? 'text-white' : 'text-zinc-500 hover:text-zinc-300',
-              )}
-              style={isActive ? { background: '#e54e1b', color: '#fff' } : {}}
+      <nav className="flex-1 overflow-y-auto py-4 px-2 space-y-5" aria-label="Application pages">
+        {visibleSections.map(section => (
+          <div key={section.id}>
+            <p
+              className="px-3 mb-1.5 text-[10px] font-semibold uppercase tracking-widest"
+              style={{ color: '#52525b' }}
             >
-              <Icon className="w-4 h-4" aria-hidden="true" />
-            </NavLink>
-          )
-        })}
+              {section.label}
+              {section.id === 'platform' && (
+                <span className="ml-1 normal-case font-normal" style={{ color: LBRO.orange }}>
+                  (global)
+                </span>
+              )}
+            </p>
+            <div className="space-y-0.5">
+              {section.items.map(item => {
+                if (item.permission && !can(item.permission) && !isPlatformUser) return null
+                if (item.platformOnly && !isPlatformUser) return null
 
-        {/* Project-scoped links — visible when a project is active */}
-        {currentProject && (() => {
-          const intTo = `/projects/${currentProject.id}/integrations`
-          const eventsTo = `/projects/${currentProject.id}/events`
-          const intActive = location.pathname === intTo || location.pathname.startsWith(intTo)
-          const eventsActive = location.pathname === eventsTo || location.pathname.startsWith(eventsTo)
-          return (
-            <>
-              <div className="w-6 border-t my-1" style={{ borderColor: '#2a2a2a' }} />
-              <NavLink
-                to={eventsTo}
-                title="Live Events"
-                aria-label="Live Events"
-                aria-current={eventsActive ? 'page' : undefined}
-                className={cn(
-                  'flex items-center justify-center w-9 h-9 rounded transition-all focus:outline-none focus:ring-2',
-                  eventsActive ? 'text-white' : 'text-zinc-500 hover:text-zinc-300',
-                )}
-                style={eventsActive ? { background: '#e54e1b', color: '#fff' } : {}}
-              >
-                <Activity className="w-4 h-4" aria-hidden="true" />
-              </NavLink>
-              <NavLink
-                to={intTo}
-                title="Integrations"
-                aria-label="Integrations"
-                aria-current={intActive ? 'page' : undefined}
-                className={cn(
-                  'flex items-center justify-center w-9 h-9 rounded transition-all focus:outline-none focus:ring-2',
-                  intActive ? 'text-white' : 'text-zinc-500 hover:text-zinc-300',
-                )}
-                style={intActive ? { background: '#e54e1b', color: '#fff' } : {}}
-              >
-                <Plug2 className="w-4 h-4" aria-hidden="true" />
-              </NavLink>
-            </>
-          )
-        })()}
+                const href = resolveNavHref(item, currentProject?.id)
+                if (item.projectScoped && !href) {
+                  return (
+                    <NavItem
+                      key={item.label}
+                      item={item}
+                      href="#"
+                      active={false}
+                      disabled
+                    />
+                  )
+                }
+                if (!href) return null
+
+                const active = isNavActive(location.pathname, item, href)
+                return (
+                  <NavItem
+                    key={item.label + href}
+                    item={item}
+                    href={href}
+                    active={active}
+                  />
+                )
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
 
-      <div
-        className="flex items-center justify-center py-2 border-t"
-        style={{ borderColor: '#1e1e1e' }}
-        aria-live="polite"
-        aria-label="System live"
-      >
-        <span
-          className="w-1.5 h-1.5 rounded-full animate-pulse"
-          style={{ background: '#4ade80' }}
-          aria-hidden="true"
-        />
-      </div>
-
-      <div className="flex items-center justify-center pb-4 pt-1">
+      <div className="border-t px-2 py-3" style={{ borderColor: '#1e1e1e' }}>
         <button
+          type="button"
           onClick={handleLogout}
-          title="Sign out"
-          aria-label="Sign out of LBRO"
-            className="flex items-center justify-center w-9 h-9 rounded text-zinc-500 hover:text-red-400 transition-all focus:outline-none focus:ring-2 focus:ring-red-500/50"
+          className="flex items-center gap-2.5 w-full px-3 py-2 rounded-md text-sm text-zinc-500 hover:text-red-400 transition-colors focus:outline-none focus:ring-2"
         >
-          <LogOut className="w-4 h-4" aria-hidden="true" />
+          <LogOut className="w-4 h-4" aria-hidden />
+          Sign out
         </button>
       </div>
     </aside>

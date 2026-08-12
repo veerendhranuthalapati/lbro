@@ -90,9 +90,74 @@ class ProjectMemberResponse(BaseModel):
     project_id: uuid.UUID
     user_id: uuid.UUID
     role: str
+    email: str
+    full_name: Optional[str] = None
+    is_owner: bool = False
+    invited_by: Optional[uuid.UUID] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class ProjectMemberUpdate(BaseModel):
+    role: str
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, v: str) -> str:
+        allowed = {"admin", "analyst", "viewer"}
+        if v not in allowed:
+            raise ValueError(f"role must be one of {sorted(allowed)}")
+        return v
+
+
+class ProjectInvitationCreate(BaseModel):
+    email: str
+    role: str = "analyst"
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, v: str) -> str:
+        v = v.strip()
+        if not v or "@" not in v:
+            raise ValueError("A valid email address is required")
+        return v
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, v: str) -> str:
+        allowed = {"admin", "analyst", "viewer"}
+        if v not in allowed:
+            raise ValueError(f"role must be one of {sorted(allowed)}")
+        return v
+
+
+class ProjectInvitationResponse(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    invited_email: str
+    role: str
+    invited_by: Optional[uuid.UUID]
+    status: str
+    expires_at: datetime
+    created_at: datetime
+    project_name: Optional[str] = None
+
+    model_config = {"from_attributes": True}
+
+
+class ProjectInvitationCreatedResponse(ProjectInvitationResponse):
+    """Token returned once for sharing (no email sent unless configured)."""
+    invite_token: str
+
+
+class ProjectInvitationListResponse(BaseModel):
+    items: list[ProjectInvitationResponse]
+    total: int
+
+
+class ProjectInvitationAccept(BaseModel):
+    token: Optional[str] = None
 
 
 class ProjectMemberCreate(BaseModel):

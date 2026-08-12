@@ -16,12 +16,15 @@ import {
 } from 'lucide-react'
 import { projectsApi, apiClient } from '@/api/client'
 import { getProjectApiKey } from '@/lib/projectApiKeys'
-import { getAccessToken } from '@/store/authStore'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { LoadingState } from '@/components/ui/LoadingState'
 
-const BG     = '#080808'
-const CARD   = '#0f0f0f'
-const BORDER = '#1e1e1e'
+const BG     = 'transparent'
+const CARD   = '#ffffff'
+const BORDER = '#c8c2b8'
 const ORANGE = '#e54e1b'
+const TEXT   = '#111111'
+const MUTED  = '#6b6560'
 
 // ── Severity styles ────────────────────────────────────────────────────────
 const SEV_COLOR: Record<string, string> = {
@@ -264,21 +267,12 @@ export default function LiveEventsPage() {
   }[sseState]
 
   return (
-    <div className="min-h-screen" style={{ background: BG }}>
-      <div className="max-w-5xl mx-auto px-6 py-10">
-
-        {/* Header */}
-        <div className="mb-8">
-          <Link to={`/projects/${projectId}`} className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 mb-4 transition-colors">
-            <ArrowLeft className="w-3.5 h-3.5" /> Back to project
-          </Link>
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div>
-              <h1 className="font-display text-3xl text-white">Live Events</h1>
-              <p className="text-sm text-zinc-500 mt-1">{project?.name ?? '—'} · real-time security event stream</p>
-            </div>
-
-            <div className="flex items-center gap-2">
+    <div className="max-w-5xl mx-auto">
+        <PageHeader
+          compact
+          description={`${project?.name ?? '—'} · real-time security event stream`}
+          actions={
+            <div className="flex items-center gap-2 flex-wrap">
               {/* SSE status */}
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs" style={{ background: '#0f0f0f', border: '1px solid #1e1e1e' }}>
                 <div className="w-2 h-2 rounded-full" style={{ background: statusDot, boxShadow: `0 0 6px ${statusDot}` }} />
@@ -303,8 +297,8 @@ export default function LiveEventsPage() {
                 <Trash2 className="w-3 h-3" /> Clear
               </button>
             </div>
-          </div>
-        </div>
+          }
+        />
 
         {/* Stats bar */}
         <div className="grid grid-cols-3 gap-3 mb-6">
@@ -395,6 +389,5 @@ export default function LiveEventsPage() {
           </Link>
         </div>
       </div>
-    </div>
   )
 }

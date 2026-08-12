@@ -53,7 +53,7 @@ class AuthService:
                 suffix += 1
 
         new_user = User(
-            email=data.email,
+            email=data.email.strip().lower(),
             username=username,
             full_name=data.full_name,
             hashed_password=hash_password(data.password),

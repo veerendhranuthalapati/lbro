@@ -31,7 +31,8 @@ Edit `.env` and fill in every value. At minimum:
 |---|---|
 | `POSTGRES_PASSWORD` | `openssl rand -base64 32` |
 | `SECRET_KEY` | `python3 -c "import secrets; print(secrets.token_urlsafe(64))"` |
-| `CORS_ORIGINS` | Your domain, e.g. `https://lbro.example.com` |
+| `CORS_ORIGINS` | Your browser origin, e.g. `http://13.203.164.225` (must match how you open the UI) |
+| `ALLOWED_HOSTS` | Usually `api` only is enough when using prod nginx (see note below) |
 | `SQS_*_URL` | From the AWS Console → SQS → Queue URL |
 
 ### 3. Build images
@@ -142,6 +143,70 @@ docker compose -f docker-compose.prod.yml restart api
 
 ```bash
 docker compose -f docker-compose.prod.yml down
+```
+
+---
+
+## Troubleshooting
+
+### "Invalid host header" in the browser
+
+The API uses `TrustedHostMiddleware`. When nginx forwards the browser's public IP as `Host`, the API rejects it unless that IP is listed in `ALLOWED_HOSTS`.
+
+**Quick fix:** restore `.env` from backup, strip only HTML (do **not** use grep — passwords contain `+`, `/`, etc.), then set host/CORS:
+
+```bash
+cd ~/lbro
+cp .env.broken.backup .env   # or your last good .env backup
+
+# Remove HTML block only (keeps SECRET_KEY, POSTGRES_PASSWORD, etc.)
+python3 << 'PY'
+from pathlib import Path
+text = Path(".env").read_text(errors="replace").splitlines()
+out, skip = [], False
+for line in text:
+    s = line.strip()
+    if s.startswith("<!DOCTYPE") or s.startswith("<html"):
+        skip = True
+    if skip:
+        if "</html>" in s:
+            skip = False
+        continue
+    if s.startswith("<") and not s.startswith("#"):
+        continue
+    out.append(line)
+Path(".env").write_text("\n".join(out) + ("\n" if out else ""))
+PY
+
+PUBLIC_IP=13.203.164.225   # your Elastic IP / public IP
+grep -v '^ALLOWED_HOSTS=' .env | grep -v '^CORS_ORIGINS=' > .env.tmp && mv .env.tmp .env
+printf 'ALLOWED_HOSTS=%s,api\nCORS_ORIGINS=http://%s\n' "$PUBLIC_IP" "$PUBLIC_IP" >> .env
+
+# Must show real values (not empty):
+grep -E '^(SECRET_KEY|POSTGRES_USER|POSTGRES_PASSWORD|POSTGRES_DB)=' .env
+
+docker compose -f docker-compose.prod.yml up -d
+```
+
+To discover public IP from EC2 (metadata URL only — never curl your public IP):
+
+```bash
+curl -s http://169.254.169.254/latest/meta-data/public-ipv4
+```
+
+**Permanent fix (after `git pull`):** prod nginx now sends `Host: api` to the backend, so `ALLOWED_HOSTS=api` is sufficient. Rebuild and restart the frontend:
+
+```bash
+docker compose -f docker-compose.prod.yml build frontend
+docker compose -f docker-compose.prod.yml up -d frontend
+```
+
+You still must set `CORS_ORIGINS` to match how users open the UI (e.g. `http://YOUR_PUBLIC_IP`).
+
+Verify:
+
+```bash
+curl -s "http://localhost/api/v1/health"
 ```
 
 ---

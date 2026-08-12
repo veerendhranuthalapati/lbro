@@ -22,7 +22,7 @@ from app.middleware.rate_limit import RateLimitMiddleware
 from app.routers import (
     auth, incidents, evidence, notifications, compliance,
     users, ml, dashboard, audit, infrastructure,
-    security_score, reports, projects,
+    security_score, reports, projects, invitations,
 )
 from app.routers import demo
 from app.routers import platform as platform_router
@@ -180,6 +180,7 @@ app.include_router(infrastructure.router, prefix="/api/v1")
 app.include_router(security_score.router, prefix="/api/v1")
 app.include_router(reports.router,        prefix="/api/v1")
 app.include_router(projects.router,       prefix="/api/v1")
+app.include_router(invitations.router,      prefix="/api/v1")
 if settings.DEMO_ENDPOINTS_ENABLED:
     app.include_router(demo.router,       prefix="/api/v1")
 app.include_router(platform_router.router, prefix="/api/v1")

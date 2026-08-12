@@ -18,6 +18,7 @@ import { Link } from 'react-router-dom'
 import { projectsApi } from '@/api/client'
 import { useProjectStore } from '@/store/projectStore'
 import { useAuthStore } from '@/store/authStore'
+import { PendingInvitationsBanner } from '@/components/projects/PendingInvitationsBanner'
 import type { ProjectEnvironment } from '@/types'
 
 const ORANGE = '#e54e1b'
@@ -390,6 +391,7 @@ export default function WelcomePage() {
       {/* Content */}
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 24px' }}>
         <div style={{ width: '100%', maxWidth: 640 }}>
+          <PendingInvitationsBanner />
           {step === 0 && (
             <StepWelcome onNext={() => setStep(1)} user={user?.name ?? user?.email ?? 'there'} />
           )}

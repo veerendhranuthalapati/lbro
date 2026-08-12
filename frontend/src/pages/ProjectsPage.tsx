@@ -10,6 +10,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, FolderOpen, Archive, Globe, Code2, Layers, ChevronRight, Key, Loader2 } from 'lucide-react'
 import { projectsApi } from '@/api/client'
 import { useProjectStore } from '@/store/projectStore'
+import { useSwitchProject } from '@/hooks/useSwitchProject'
 import type { Project, ProjectEnvironment } from '@/types'
 
 const ENV_ICONS: Record<ProjectEnvironment, React.ReactNode> = {
@@ -170,7 +171,8 @@ function ProjectCard({ project, onSelect }: { project: Project; onSelect: () => 
 export default function ProjectsPage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
-  const { setCurrentProject, setProjects } = useProjectStore()
+  const { setProjects } = useProjectStore()
+  const switchProject = useSwitchProject()
   const [showCreate, setShowCreate] = useState(false)
 
   const { data, isLoading, error } = useQuery({
@@ -184,16 +186,13 @@ export default function ProjectsPage() {
   }, [data, setProjects])
 
   const handleSelect = (project: Project) => {
-    setCurrentProject(project)
-    navigate('/dashboard')
+    switchProject(project)
   }
 
   const handleCreated = (project: Project) => {
     qc.invalidateQueries({ queryKey: ['projects'] })
-    setCurrentProject(project)
     if (data) setProjects([...data.items, project])
     setShowCreate(false)
-    // Redirect to setup wizard so new users see their API key immediately
     navigate(`/projects/${project.id}/setup`)
   }
 

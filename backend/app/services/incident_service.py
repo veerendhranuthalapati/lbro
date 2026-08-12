@@ -76,12 +76,20 @@ class IncidentService:
 
         An incident is accessible when:
           - its project_id belongs to a project owned by owner_id, OR
+          - its project_id belongs to a project the user is a member of, OR
           - it has no project and was created_by owner_id
         """
         from app.models.project import Project
+        from app.models.project_member import ProjectMember
         project_subq = select(Project.id).where(Project.owner_id == owner_id).scalar_subquery()
+        member_subq = (
+            select(ProjectMember.project_id)
+            .where(ProjectMember.user_id == owner_id)
+            .scalar_subquery()
+        )
         return or_(
             Incident.project_id.in_(project_subq),
+            Incident.project_id.in_(member_subq),
             and_(Incident.project_id.is_(None), Incident.created_by == owner_id),
         )
 

@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.api_keys import api_key_prefix, generate_project_api_key, verify_api_key
-from app.core.exceptions import ConflictError, NotFoundError
+from app.core.exceptions import ConflictError, NotFoundError, LBROException
 from app.models.compliance import ComplianceRecord
 from app.models.evidence import Evidence
 from app.models.incident import Incident, IncidentSeverity, IncidentStatus
@@ -172,13 +172,114 @@ class ProjectService:
         await self.db.flush()
         return member
 
-    async def list_members(self, project_id: uuid.UUID) -> list[ProjectMember]:
+    async def list_members(self, project_id: uuid.UUID) -> list[dict]:
+        project = await self.get(project_id)
         result = await self.db.execute(
-            select(ProjectMember)
+            select(ProjectMember, User)
+            .join(User, User.id == ProjectMember.user_id)
             .where(ProjectMember.project_id == project_id)
             .order_by(ProjectMember.created_at.asc())
         )
-        return list(result.scalars().all())
+        rows = []
+        for member, user in result.all():
+            rows.append(
+                {
+                    "id": member.id,
+                    "project_id": member.project_id,
+                    "user_id": member.user_id,
+                    "role": member.role,
+                    "email": user.email,
+                    "full_name": user.full_name,
+                    "is_owner": project.owner_id == user.id,
+                    "invited_by": member.invited_by,
+                    "created_at": member.created_at,
+                }
+            )
+        return rows
+
+    async def count_project_admins(self, project_id: uuid.UUID) -> int:
+        """Count effective admins: project owner + members with admin role."""
+        project = await self.get(project_id)
+        count = 0
+        if project.owner_id:
+            count += 1
+        result = await self.db.execute(
+            select(ProjectMember).where(
+                ProjectMember.project_id == project_id,
+                ProjectMember.role == "admin",
+            )
+        )
+        for member in result.scalars().all():
+            if member.user_id != project.owner_id:
+                count += 1
+        return count
+
+    async def update_member_role(
+        self,
+        project_id: uuid.UUID,
+        member_id: uuid.UUID,
+        role: str,
+        actor_id: uuid.UUID,
+    ) -> ProjectMember:
+        if role not in ("admin", "analyst", "viewer"):
+            raise ConflictError("Invalid project role")
+        project = await self.get(project_id)
+        member = await self._get_member(member_id, project_id)
+
+        if project.owner_id == member.user_id and role != "admin":
+            raise LBROException(
+                "The project owner cannot be demoted. Transfer ownership first.",
+                400,
+            )
+
+        if member.role == "admin" and role != "admin":
+            admins = await self.count_project_admins(project_id)
+            if admins <= 1:
+                raise LBROException(
+                    "Cannot demote the last project admin. Assign another admin first.",
+                    400,
+                )
+
+        member.role = role
+        await self.db.flush()
+        return member
+
+    async def remove_member(
+        self,
+        project_id: uuid.UUID,
+        member_id: uuid.UUID,
+        actor_id: uuid.UUID,
+    ) -> None:
+        project = await self.get(project_id)
+        member = await self._get_member(member_id, project_id)
+
+        if project.owner_id == member.user_id:
+            raise LBROException("The project owner cannot be removed as a member.", 400)
+
+        if member.role == "admin":
+            admins = await self.count_project_admins(project_id)
+            if admins <= 1:
+                raise LBROException(
+                    "Cannot remove the last project admin.",
+                    400,
+                )
+
+        await self.db.delete(member)
+        await self.db.flush()
+
+    async def _get_member(
+        self, member_id: uuid.UUID, project_id: uuid.UUID
+    ) -> ProjectMember:
+        result = await self.db.execute(
+            select(ProjectMember).where(
+                ProjectMember.id == member_id,
+                ProjectMember.project_id == project_id,
+            )
+        )
+        member = result.scalar_one_or_none()
+        if not member:
+            raise NotFoundError("Project member")
+        return member
 
     async def update(self, project_id: uuid.UUID, data: ProjectUpdate) -> Project:
         project = await self.get(project_id)

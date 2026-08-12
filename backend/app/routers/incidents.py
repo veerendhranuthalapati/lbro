@@ -28,7 +28,7 @@ from app.services.incident_service import IncidentService
 from app.services.compliance_service import ComplianceService
 from app.services.notification_service import NotificationService
 from app.services.project_service import ProjectService
-from app.core.project_access import resolve_project_scope
+from app.core.project_access import resolve_project_scope, assert_project_access, assert_project_role
 
 router = APIRouter(prefix="/incidents", tags=["incidents"])
 
@@ -76,6 +76,9 @@ async def create_incident(
     x_project_key: Annotated[Optional[str], Header(alias="X-Project-Key")] = None,
 ):
     project_id = await _resolve_project_id(db, getattr(data, "project_id", None), x_project_key)
+    if project_id is not None:
+        await assert_project_access(db, project_id, current_user)
+        await assert_project_role(db, project_id, current_user, min_role="analyst")
     svc = IncidentService(db)
     incident = await svc.create(data, current_user, project_id=project_id)
     if incident.affected_jurisdictions or incident.personal_data_involved or incident.health_data_involved:

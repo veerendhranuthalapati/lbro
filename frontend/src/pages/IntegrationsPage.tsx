@@ -14,11 +14,16 @@ import {
 import { projectsApi } from '@/api/client'
 import { getProjectApiKey } from '@/lib/projectApiKeys'
 import { useProjectStore } from '@/store/projectStore'
+import { PageHeader } from '@/components/ui/PageHeader'
+import { LoadingState } from '@/components/ui/LoadingState'
+import { EmptyState } from '@/components/ui/EmptyState'
 
-const BG     = '#080808'
-const CARD   = '#0f0f0f'
-const BORDER = '#1e1e1e'
+const BG     = 'transparent'
+const CARD   = '#ffffff'
+const BORDER = '#c8c2b8'
 const ORANGE = '#e54e1b'
+const TEXT   = '#111111'
+const MUTED  = '#6b6560'
 
 // ── Integration catalog ────────────────────────────────────────────────────
 interface Integration {
@@ -681,70 +686,51 @@ export default function IntegrationsPage() {
   // ── No project selected ────────────────────────────────────────────────
   if (!projectId) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center" style={{ background: BG }}>
-        <div className="text-center max-w-sm">
-          <Plug2 className="w-12 h-12 mx-auto mb-4 text-zinc-700" />
-          <h2 className="font-display text-xl text-white mb-2">No project selected</h2>
-          <p className="text-sm text-zinc-500 mb-6">Select a project to manage its integrations.</p>
+      <EmptyState
+        title="No project selected"
+        description="Select a project to manage integrations and connect your application."
+        action={
           <button
+            type="button"
             onClick={() => navigate('/projects')}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded text-sm font-medium transition-all"
-            style={{ background: ORANGE, color: '#fff' }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded text-sm font-medium text-white"
+            style={{ background: ORANGE }}
           >
             <FolderOpen className="w-4 h-4" /> Go to Projects
           </button>
-        </div>
-      </div>
+        }
+      />
     )
   }
 
-  // ── Loading ────────────────────────────────────────────────────────────
   if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: BG }}>
-        <Loader2 className="w-6 h-6 animate-spin text-zinc-600" />
-      </div>
-    )
+    return <LoadingState label="Loading integrations…" />
   }
 
   return (
-    <div className="min-h-screen" style={{ background: BG }}>
-      <div className="max-w-6xl mx-auto px-6 py-10">
+    <div>
+      <div className="max-w-6xl mx-auto">
 
-        {/* Breadcrumbs */}
-        <nav className="flex items-center gap-1.5 text-xs text-zinc-600 mb-6" aria-label="Breadcrumb">
-          <Link to="/projects" className="hover:text-zinc-400 transition-colors">Projects</Link>
-          <ChevronRight className="w-3 h-3" />
-          <Link to={`/projects/${projectId}`} className="hover:text-zinc-400 transition-colors truncate max-w-[160px]">
-            {project?.name ?? projectId}
-          </Link>
-          <ChevronRight className="w-3 h-3" />
-          <span className="text-zinc-400">Integrations</span>
-        </nav>
-
-        {/* Page header */}
-        <div className="mb-8">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h1 className="font-display text-3xl text-white">Integrations</h1>
-              <p className="text-sm text-zinc-500 mt-1">Connect your application to LBRO in under 5 minutes</p>
-            </div>
+        <PageHeader
+          compact
+          description="Connect your application to this project — API key, SDK download, and code examples."
+          actions={
             <Link
               to={`/projects/${projectId}/events`}
-              className="flex items-center gap-1.5 text-xs px-3 py-2 rounded transition-all shrink-0"
-              style={{ background: '#1a1a1a', color: '#888', border: '1px solid #2a2a2a' }}
+              className="flex items-center gap-1.5 text-xs px-3 py-2 rounded border"
+              style={{ borderColor: BORDER, color: MUTED, background: '#fff' }}
             >
               <Terminal className="w-3.5 h-3.5" /> Live stream
             </Link>
-          </div>
-        </div>
+          }
+        />
 
         {/* API Key panel */}
         <div className="rounded-xl p-5 mb-8" style={{ background: CARD, border: '1px solid ' + BORDER }}>
           <div className="flex items-center gap-2 mb-3">
             <Key className="w-4 h-4" style={{ color: ORANGE }} />
-            <span className="text-sm font-medium text-white">Project API Key</span>
-            <span className="ml-auto text-xs text-zinc-600">Used in every code snippet below</span>
+            <span className="text-sm font-medium" style={{ color: TEXT }}>Project API Key</span>
+            <span className="ml-auto text-xs" style={{ color: MUTED }}>Used in every code snippet below</span>
           </div>
           <div className="flex items-center gap-3">
             <code

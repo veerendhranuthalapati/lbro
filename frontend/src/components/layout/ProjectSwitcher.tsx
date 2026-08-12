@@ -4,6 +4,8 @@ import { ChevronDown, Plus, Settings, Layers } from 'lucide-react'
 import { cn } from '@/utils'
 import { useProjectStore } from '@/store/projectStore'
 import { useSwitchProject } from '@/hooks/useSwitchProject'
+import { RoleBadge } from '@/components/ui/RoleBadge'
+import { LBRO } from '@/lib/tokens'
 
 export function ProjectSwitcher() {
   const navigate = useNavigate()
@@ -29,27 +31,30 @@ export function ProjectSwitcher() {
         type="button"
         onClick={() => setOpen(v => !v)}
         className={cn(
-          'flex items-center gap-2 px-3 py-1.5 text-xs font-medium border rounded transition-colors',
-          currentProject
-            ? 'border-lbro-border bg-white text-lbro-text'
-            : 'border-orange-300 bg-orange-50 text-orange-700',
+          'flex items-center gap-2 px-3 py-1.5 text-xs font-medium border rounded transition-colors max-w-[200px]',
         )}
+        style={
+          currentProject
+            ? { borderColor: LBRO.border, background: '#fff', color: LBRO.black }
+            : { borderColor: LBRO.orange, background: '#fff7ed', color: LBRO.orange }
+        }
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={`Current project: ${label}. Click to switch.`}
       >
-        <Layers className="w-3.5 h-3.5 shrink-0 text-lbro-accent" aria-hidden />
-        <span className="max-w-[140px] truncate">{label}</span>
+        <Layers className="w-3.5 h-3.5 shrink-0" style={{ color: LBRO.orange }} aria-hidden />
+        <span className="truncate">{label}</span>
         <ChevronDown className={cn('w-3.5 h-3.5 shrink-0 transition-transform', open && 'rotate-180')} />
       </button>
 
       {open && (
         <div
-          className="absolute left-0 top-full mt-1 z-50 min-w-[220px] py-1 bg-white border border-lbro-border rounded shadow-lg"
+          className="absolute left-0 top-full mt-1 z-50 min-w-[240px] py-1 bg-white border rounded shadow-lg"
+          style={{ borderColor: LBRO.border }}
           role="listbox"
         >
           {projects.length === 0 ? (
-            <p className="px-3 py-2 text-xs text-lbro-muted">No projects yet</p>
+            <p className="px-3 py-2 text-xs" style={{ color: LBRO.gray }}>No projects yet</p>
           ) : (
             projects.map(p => (
               <button
@@ -58,27 +63,30 @@ export function ProjectSwitcher() {
                 role="option"
                 aria-selected={currentProject?.id === p.id}
                 className={cn(
-                  'w-full text-left px-3 py-2 text-sm hover:bg-lbro-surface transition-colors',
-                  currentProject?.id === p.id && 'bg-orange-50 font-medium',
+                  'w-full text-left px-3 py-2.5 text-sm hover:bg-stone-50 transition-colors',
+                  currentProject?.id === p.id && 'bg-orange-50',
                 )}
                 onClick={() => {
                   switchProject(p)
                   setOpen(false)
                 }}
               >
-                <span className="block truncate">{p.name}</span>
+                <span className="block truncate font-medium" style={{ color: LBRO.black }}>{p.name}</span>
                 {p.my_role && (
-                  <span className="text-[10px] text-lbro-muted uppercase tracking-wide">{p.my_role}</span>
+                  <span className="mt-0.5 inline-block">
+                    <RoleBadge role={p.my_role} />
+                  </span>
                 )}
               </button>
             ))
           )}
 
-          <div className="border-t border-lbro-border my-1" />
+          <div className="border-t my-1" style={{ borderColor: LBRO.border }} />
 
           <button
             type="button"
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-lbro-surface text-left"
+            className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-stone-50 text-left"
+            style={{ color: LBRO.black }}
             onClick={() => { setOpen(false); navigate('/projects') }}
           >
             <Plus className="w-3.5 h-3.5" /> Create project
@@ -87,7 +95,8 @@ export function ProjectSwitcher() {
           {currentProject && (
             <button
               type="button"
-              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-lbro-surface text-left"
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-stone-50 text-left"
+              style={{ color: LBRO.black }}
               onClick={() => {
                 setOpen(false)
                 navigate(`/projects/${currentProject.id}/settings`)

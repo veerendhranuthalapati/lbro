@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PageHeader } from '@/components/ui/PageHeader'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { notificationsApi } from '@/api/client'
 import { useNotifications } from '@/hooks/useApi'
@@ -62,9 +63,7 @@ export default function NotificationsPage() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Bell style={{ width: 20, height: 20, color: ORANGE }} aria-hidden="true" />
-          <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: 48, color: BLACK, letterSpacing: '0.04em', lineHeight: 1 }}>
-            Compliance Alerts
-          </h1>
+          <PageHeader compact description="Regulatory and compliance notifications for this project." />
         </div>
         {counts.overdue > 0 && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, border: `1px solid rgba(229,78,27,0.35)`, background: 'rgba(229,78,27,0.08)', borderRadius: 4, padding: '6px 12px' }}>

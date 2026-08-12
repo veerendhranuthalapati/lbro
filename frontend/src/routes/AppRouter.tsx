@@ -81,16 +81,12 @@ export function AppRouter() {
       <Route path="/register"        element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
 
-      {/* Authenticated — full-screen (no AppLayout) */}
+      {/* Authenticated — full-screen onboarding / project picker only */}
       <Route element={<ProtectedRoute />}>
         <Route path="/welcome"    element={<SuspenseRoute><WelcomePage /></SuspenseRoute>} />
         <Route path="/projects"   element={<SuspenseRoute><ProjectsPage /></SuspenseRoute>} />
-        <Route path="/docs"       element={<SuspenseRoute><ApiDocsPage /></SuspenseRoute>} />
-        <Route path="/projects/:projectId"               element={<SuspenseRoute><ProjectOverviewPage /></SuspenseRoute>} />
-        <Route path="/projects/:projectId/setup"         element={<SuspenseRoute><ProjectSetupWizardPage /></SuspenseRoute>} />
-        <Route path="/projects/:projectId/settings"      element={<SuspenseRoute><ProjectSettingsPage /></SuspenseRoute>} />
-        <Route path="/projects/:projectId/integrations"  element={<SuspenseRoute><IntegrationsPage /></SuspenseRoute>} />
-        <Route path="/projects/:projectId/events"        element={<SuspenseRoute><LiveEventsPage /></SuspenseRoute>} />
+        <Route path="/projects/:projectId/setup" element={<SuspenseRoute><ProjectSetupWizardPage /></SuspenseRoute>} />
+        <Route path="/projects/:projectId" element={<SuspenseRoute><ProjectOverviewPage /></SuspenseRoute>} />
       </Route>
 
       {/* Authenticated — inside AppLayout */}
@@ -110,6 +106,12 @@ export function AppRouter() {
           <Route path="/security-overview" element={<SuspenseRoute><SecurityOverviewPage /></SuspenseRoute>} />
           <Route path="/security-score" element={<Navigate to="/security-overview" replace />} />
           <Route path="/weekly-report"  element={<Navigate to="/security-overview?tab=report" replace />} />
+          <Route path="/docs"           element={<SuspenseRoute><ApiDocsPage /></SuspenseRoute>} />
+
+          {/* ── Project-scoped (inside main chrome) ── */}
+          <Route path="/projects/:projectId/settings"     element={<SuspenseRoute><ProjectSettingsPage /></SuspenseRoute>} />
+          <Route path="/projects/:projectId/integrations" element={<SuspenseRoute><IntegrationsPage /></SuspenseRoute>} />
+          <Route path="/projects/:projectId/events"       element={<SuspenseRoute><LiveEventsPage /></SuspenseRoute>} />
 
           {/* ── Compliance — analyst + admin ── */}
           <Route path="/compliance" element={

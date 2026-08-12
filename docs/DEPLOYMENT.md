@@ -103,8 +103,17 @@ docker tag lbro-frontend:latest lbro-frontend:prev 2>/dev/null || true
 
 ### Deploy a new version
 
+On EC2 after a force-push, `git pull` may fail with divergent branches. Use the upgrade script:
+
 ```bash
-git pull
+bash scripts/ec2_upgrade.sh
+```
+
+Or manually:
+
+```bash
+git fetch origin
+git reset --hard origin/main
 docker compose -f docker-compose.prod.yml build
 docker compose -f docker-compose.prod.yml run --rm api alembic upgrade head
 docker compose -f docker-compose.prod.yml up -d

@@ -1,6 +1,7 @@
 """Incident CRUD and orchestration service."""
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
@@ -14,6 +15,8 @@ from app.models.incident import Incident, IncidentAction, IncidentStatus, Incide
 from app.models.user import User
 from app.schemas.incident import IncidentCreate, IncidentUpdate
 from app.services.sqs_service import sqs_service
+
+logger = logging.getLogger(__name__)
 
 
 class IncidentService:
@@ -66,8 +69,14 @@ class IncidentService:
         if features:
             try:
                 sqs_service.enqueue_incident(str(incident.id), "classify")
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.error(
+                    "SQS enqueue failed for incident %s: %s",
+                    incident.id,
+                    exc,
+                    extra={"incident_id": str(incident.id)},
+                )
+                incident.ml_classification_status = "pending"
 
         return incident
 

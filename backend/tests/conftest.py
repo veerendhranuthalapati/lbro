@@ -32,6 +32,8 @@ os.environ.setdefault("AWS_SECRET_ACCESS_KEY", "test")
 os.environ.setdefault("ALLOW_PUBLIC_REGISTRATION", "true")
 os.environ.setdefault("DEMO_ENDPOINTS_ENABLED", "true")
 os.environ.setdefault("ENVIRONMENT", "test")
+os.environ.setdefault("ML_MODEL_SIGNING_KEY", "test-ml-signing-key-minimum-32-characters-long")
+os.environ.setdefault("ML_ALLOW_UNSIGNED_MODEL", "false")
 
 # Import app AFTER env vars are set
 from app.database import Base, get_db  # noqa: E402

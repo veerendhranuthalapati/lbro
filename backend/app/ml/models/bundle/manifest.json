@@ -1,0 +1,39 @@
+{
+  "created_at": "2026-11-01T15:10:00.865496+00:00",
+  "file_hashes": {
+    "classes.json": "f5ef293a9a6f392b176747fd0fb3d4448930463f76224232e99f5d138b836d5d",
+    "model.joblib": "2fbc791d1d58683a89870703510c0b302abdad903e82ed271d3b630d369a70c0",
+    "preprocessing.json": "c7f6388309ea194b9880dff0c45ad5c7eb269996f972a591b5b3a81d59a5a51c"
+  },
+  "git_commit": "bc100d3c1e0e548ce8b5d8361491292beb20cc70",
+  "library_versions": {
+    "numpy": "2.5.4",
+    "python": "3.12.3",
+    "scikit-learn": "1.7.2"
+  },
+  "metrics_summary": {
+    "algorithm": "HistGradientBoosting",
+    "calibration_method": "isotonic",
+    "headline_evaluation": "realistic_block",
+    "optimistic": {
+      "accuracy": 0.997867803837953,
+      "ece": 0.008006460973879751,
+      "log_loss": 0.012114334060553898,
+      "macro_f1": 0.9940220922677062,
+      "weighted_f1": 0.9978511785267481
+    },
+    "realistic": {
+      "accuracy": 0.98,
+      "ece": 0.00818313150841386,
+      "log_loss": 0.1223648917150647,
+      "macro_f1": 0.9102968501507275,
+      "weighted_f1": 0.978534380909429
+    },
+    "validation_macro_f1": 0.9522198836761945
+  },
+  "status": "demo-synthetic",
+  "training_data_hashes": {
+    "synthetic_generator": "scripts/train_models.py"
+  },
+  "version": "lbro-demo-synthetic-1.0.0"
+}

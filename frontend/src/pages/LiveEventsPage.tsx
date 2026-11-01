@@ -53,6 +53,8 @@ interface LiveEvent {
   incident_id:       string | null
   ml_attack_category: string | null
   ml_confidence:     number | null
+  ml_source?:        string | null
+  ml_needs_review?:  boolean | null
   created_at:        string
   source_ip?:        string
   message?:          string
@@ -63,6 +65,13 @@ interface LiveEvent {
 function timeStr(iso: string) {
   const d = new Date(iso)
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+function mlSourceLabel(source: string | null | undefined): string {
+  if (!source || source === 'model') return 'Model'
+  if (source === 'heuristic') return 'Heuristic — needs review'
+  if (source === 'insufficient_features') return 'Insufficient data'
+  return source
 }
 
 function EventRow({ ev, isNew }: { ev: LiveEvent; isNew: boolean }) {
@@ -89,6 +98,18 @@ function EventRow({ ev, isNew }: { ev: LiveEvent; isNew: boolean }) {
               {ev.ml_attack_category}
             </span>
           )}
+          {ev.ml_source && (
+            <span
+              className="text-xs px-1.5 py-0.5 rounded border"
+              style={{
+                borderColor: BORDER,
+                color: ev.ml_source === 'model' ? '#15803d' : '#b45309',
+              }}
+              title={ev.ml_source === 'model' ? 'Calibrated model output' : 'Requires analyst review'}
+            >
+              {mlSourceLabel(ev.ml_source)}
+            </span>
+          )}
           {ev.incident_id && (
             <span className="text-xs px-1.5 py-0.5 rounded text-zinc-400" style={{ background: '#22222260' }}>
               incident created
@@ -97,7 +118,9 @@ function EventRow({ ev, isNew }: { ev: LiveEvent; isNew: boolean }) {
         </div>
         <p className="text-xs text-zinc-500 mt-0.5 truncate">
           {ev.message ? '[Demo] ' + ev.message.replace('[Demo] ', '') : ev.event_type}
-          {ev.ml_confidence ? ` · ${(ev.ml_confidence * 100).toFixed(0)}% confidence` : ''}
+          {ev.ml_source === 'model' && ev.ml_confidence
+            ? ` · ${(ev.ml_confidence * 100).toFixed(0)}% confidence`
+            : ''}
         </p>
       </div>
       <div className="shrink-0 text-right">

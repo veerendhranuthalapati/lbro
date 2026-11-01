@@ -1,0 +1,7 @@
+{
+  "command": "-c",
+  "git_commit": "bc100d3c1e0e548ce8b5d8361491292beb20cc70",
+  "dataset_hashes": {
+    "synthetic_generator": "scripts/train_models.py"
+  }
+}

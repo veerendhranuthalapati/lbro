@@ -65,6 +65,9 @@ class SecurityEvent(Base):
     ml_attack_category: Mapped[str | None] = mapped_column(String(100), nullable=True)
     ml_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     ml_model_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    ml_source: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    ml_feature_coverage: Mapped[float | None] = mapped_column(Float, nullable=True)
+    ml_needs_review: Mapped[bool] = mapped_column(default=True, nullable=False)
 
     # ── Outcome ────────────────────────────────────────────────────────────
     # Whether this event triggered an incident auto-creation

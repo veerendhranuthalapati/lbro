@@ -105,11 +105,34 @@ class Settings(BaseSettings):
     SQS_WAIT_TIME_SECONDS: int = 20
 
     # ── ML ───────────────────────────────────────────────────────────────────
+    ML_MODEL_BUNDLE_DIR: str = str(Path(__file__).parent / "ml" / "models" / "bundle")
+    # Legacy paths — deprecated; kept so old env files do not crash imports.
     ML_MODEL_PATH: str = str(Path(__file__).parent / "ml" / "models" / "cicids2017_classifier.pkl")
     ML_SCALER_PATH: str = str(Path(__file__).parent / "ml" / "models" / "scaler.pkl")
+    ML_MODEL_SIGNING_KEY: Optional[str] = None
+    ML_ALLOW_UNSIGNED_MODEL: bool = False
     ML_CONFIDENCE_THRESHOLD: float = 0.75
+    ML_REVIEW_THRESHOLD: float = 0.75
     ML_REVIEW_QUEUE_THRESHOLD: float = 0.60
+    ML_MIN_FEATURE_COVERAGE: float = 0.60
+    ML_HEURISTIC_MAX_CONFIDENCE: float = 0.50
+    ML_OOD_MAX_OUTLIER_FRACTION: float = 0.20
+    ML_AUTO_CONTAIN_ENABLED: bool = False
+    ML_AUTO_CONTAIN_THRESHOLD: float = 0.95
     ML_MODEL_VERSION: str = "1.0.0"
+
+    @field_validator("ML_MODEL_SIGNING_KEY", mode="after")
+    @classmethod
+    def validate_ml_signing_key(cls, v: Optional[str]) -> Optional[str]:
+        import os
+
+        env = os.getenv("ENVIRONMENT", "production").lower()
+        if env == "production" and not v and not os.getenv("ML_ALLOW_UNSIGNED_MODEL", "").lower() == "true":
+            raise ValueError(
+                "ML_MODEL_SIGNING_KEY must be set when ENVIRONMENT=production "
+                "(or explicitly allow unsigned bundles only in dev/test)."
+            )
+        return v
 
     # ── CORS ─────────────────────────────────────────────────────────────────
     # Stored as a plain string so pydantic-settings v2 does not attempt to

@@ -26,6 +26,8 @@ CICIDS2017_FEATURES = [
     "idle_mean", "idle_std", "idle_max", "idle_min",
 ]
 
+FEATURE_COUNT = len(CICIDS2017_FEATURES)  # 77 flow features (canonical order for this codebase)
+
 ATTACK_CLASSES = [
     "BENIGN",
     "DoS Hulk",

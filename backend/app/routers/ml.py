@@ -80,6 +80,35 @@ async def model_info(
     return get_active_model_info()
 
 
+class MLStatusResponse(BaseModel):
+    model_version: str
+    status: str
+    signature_verified: bool
+    load_error_reason: str | None = None
+    load_error_code: str | None = None
+    heuristic_fallback_active: bool
+    metrics_summary: dict = {}
+    thresholds: dict = {}
+
+
+@router.get("/status", response_model=MLStatusResponse)
+async def ml_status(
+    current_user: Annotated[User, Depends(require_permission(Permission.VIEW_ML))],
+):
+    """Runtime ML loader status for operators."""
+    snap = await asyncio.to_thread(classifier.status_snapshot)
+    return MLStatusResponse(
+        model_version=snap["model_version"],
+        status=snap.get("bundle_status", "unavailable"),
+        signature_verified=snap.get("signature_verified", False),
+        load_error_reason=snap.get("load_error_reason"),
+        load_error_code=snap.get("load_error_code"),
+        heuristic_fallback_active=snap.get("heuristic_fallback_active", True),
+        metrics_summary=snap.get("metrics_summary") or {},
+        thresholds=snap.get("thresholds") or {},
+    )
+
+
 @router.get("/models")
 async def list_model_versions(
     current_user: Annotated[User, Depends(require_permission(Permission.MANAGE_ML))],
@@ -130,10 +159,10 @@ async def ml_stats(
     # Model info — evaluation metrics only when artifact + registry metrics verified
     active_info = await asyncio.to_thread(get_active_model_info)
     all_models = await asyncio.to_thread(list_models)
-    model_loaded = classifier._model is not None if hasattr(classifier, "_model") else False
+    model_loaded = classifier.bundle is not None
     if not model_loaded:
         classifier._load()
-        model_loaded = classifier._model is not None
+        model_loaded = classifier.bundle is not None
     has_eval = await asyncio.to_thread(has_verified_evaluation)
     evaluation = await asyncio.to_thread(get_evaluation_metrics)
 
@@ -145,7 +174,9 @@ async def ml_stats(
             version=m.get("version", "0.0.0"),
             trained_at=m.get("registered_at") or m.get("trained_at") or datetime.now(timezone.utc).isoformat(),
             accuracy=float(metrics["accuracy"]) if include_eval and metrics.get("accuracy") is not None else None,
-            f1_score=float(metrics.get("f1") or metrics.get("f1_macro") or 0) if include_eval and (metrics.get("f1") or metrics.get("f1_macro")) else None,
+            f1_score=float(metrics.get("macro_f1") or metrics.get("f1") or metrics.get("f1_macro") or 0)
+            if include_eval and (metrics.get("macro_f1") or metrics.get("f1") or metrics.get("f1_macro"))
+            else None,
             is_active=is_active,
             feature_count=m.get("feature_count", 78),
             class_count=m.get("class_count", 15),
@@ -158,16 +189,18 @@ async def ml_stats(
 
     # Top features from classifier (if model loaded)
     top_features: List[Dict[str, Any]] = []
-    if hasattr(classifier, "_model") and classifier._model is not None:
+    if classifier.bundle is not None:
         try:
-            importances = classifier._model.feature_importances_
-            from app.ml.features import CICIDS2017_FEATURES as FEATURE_NAMES
-            pairs = sorted(
-                zip(FEATURE_NAMES, importances),
-                key=lambda x: x[1],
-                reverse=True,
-            )[:10]
-            top_features = [{"name": n, "importance": float(v)} for n, v in pairs]
+            est = classifier.bundle.model
+            if hasattr(est, "feature_importances_"):
+                importances = est.feature_importances_
+                from app.ml.features import CICIDS2017_FEATURES as FEATURE_NAMES
+                pairs = sorted(
+                    zip(FEATURE_NAMES, importances),
+                    key=lambda x: x[1],
+                    reverse=True,
+                )[:10]
+                top_features = [{"name": n, "importance": float(v)} for n, v in pairs]
         except Exception:
             pass
 
@@ -290,17 +323,19 @@ async def ml_metrics(
 
     if not hasattr(classifier, "_loaded") or not classifier._loaded:
         classifier._load()
-    model_loaded = classifier._model is not None
+    model_loaded = classifier.bundle is not None
     has_eval = has_verified_evaluation()
     evaluation = get_evaluation_metrics()
 
     feature_importance: list[dict] = []
-    if model_loaded:
+    if model_loaded and classifier.bundle is not None:
         try:
             from app.ml.features import CICIDS2017_FEATURES as FEATURE_NAMES
-            importances = classifier._model.feature_importances_
-            pairs = sorted(zip(FEATURE_NAMES, importances), key=lambda x: x[1], reverse=True)[:10]
-            feature_importance = [{"feature": n, "importance": float(v)} for n, v in pairs]
+            est = classifier.bundle.model
+            if hasattr(est, "feature_importances_"):
+                importances = est.feature_importances_
+                pairs = sorted(zip(FEATURE_NAMES, importances), key=lambda x: x[1], reverse=True)[:10]
+                feature_importance = [{"feature": n, "importance": float(v)} for n, v in pairs]
         except Exception:
             pass
 

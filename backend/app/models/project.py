@@ -53,6 +53,8 @@ class Project(Base):
     api_key_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     api_key_prefix: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
 
+    allow_ml_auto_contain: Mapped[bool] = mapped_column(default=False, nullable=False)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),

@@ -1,182 +1,231 @@
-"""CICIDS2017 attack classifier with model registry and explainability."""
+"""CICIDS2017 attack classifier — signed bundle + honest confidence contract."""
 from __future__ import annotations
 
 import logging
-import os
-import pickle
+import threading
+from typing import Any
 
 import numpy as np
 
 from app.config import settings
-from app.ml.features import CICIDS2017_FEATURES, ATTACK_CLASSES, SEVERITY_MAP
+from app.ml.bundle_io import BundleLoadError, LoadedBundle, load_verified_bundle
+from app.ml.contract import ClassificationResult, TopClassProbability
+from app.ml.features import ATTACK_CLASSES, CICIDS2017_FEATURES, SEVERITY_MAP
+from app.ml.heuristic import heuristic_classify
+from app.ml.preprocessing import (
+    build_imputation_vector,
+    compute_ood_fraction,
+    count_supplied_features,
+    sanitize_feature_dict,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class AttackClassifier:
-    """Loads a pre-trained sklearn pipeline and classifies network flows."""
+    """Thread-safe singleton that loads one verified bundle per process."""
 
-    # Minimum number of non-zero features required to run the model.
-    # GaussianNB collapses to PortScan (confidence=1.0) when the input vector
-    # is sparse; the heuristic is more accurate than the model below this threshold.
-    MIN_FEATURES_FOR_MODEL = 10
-
-    def __init__(self):
-        self._model = None
-        self._scaler = None
-        self._version: str = ""
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._bundle: LoadedBundle | None = None
+        self._load_error_reason: str | None = None
+        self._load_error_code: str | None = None
         self._loaded = False
 
     def _load(self) -> None:
         if self._loaded:
             return
-        try:
-            if os.path.exists(settings.ML_MODEL_PATH):
-                with open(settings.ML_MODEL_PATH, "rb") as f:
-                    self._model = pickle.load(f)
-                logger.info("ML model loaded from %s", settings.ML_MODEL_PATH)
-            else:
-                logger.warning(
-                    "ML model not found at %s — using heuristic fallback",
-                    settings.ML_MODEL_PATH,
-                )
-        except Exception as exc:
-            logger.error("Failed to load ML model: %s", exc)
-
-        # Load scaler if available
-        try:
-            scaler_path = settings.ML_SCALER_PATH
-            if os.path.exists(scaler_path):
-                with open(scaler_path, "rb") as sf:
-                    self._scaler = pickle.load(sf)
-                logger.info("ML scaler loaded from %s", scaler_path)
-        except Exception as exc:
-            logger.warning("Failed to load scaler: %s", exc)
-
-        # Read version from registry if available
-        import json as _json
-        registry_path = os.path.join(os.path.dirname(settings.ML_MODEL_PATH), "registry.json")
-        if os.path.exists(registry_path):
+        with self._lock:
+            if self._loaded:
+                return
             try:
-                with open(registry_path) as rf:
-                    reg = _json.load(rf)
-                self._version = reg.get("active_version", settings.ML_MODEL_VERSION)
-            except Exception:
-                self._version = settings.ML_MODEL_VERSION
-        else:
-            self._version = settings.ML_MODEL_VERSION
+                self._bundle = load_verified_bundle()
+                self._load_error_reason = None
+                self._load_error_code = None
+                logger.info(
+                    "ML bundle loaded version=%s status=%s verified=%s",
+                    self._bundle.version,
+                    self._bundle.status,
+                    self._bundle.signature_verified,
+                )
+            except BundleLoadError as exc:
+                self._bundle = None
+                self._load_error_code = exc.reason_code
+                self._load_error_reason = str(exc)
+                logger.error(
+                    "ML bundle load failed [%s]: %s — heuristic fallback active",
+                    exc.reason_code,
+                    exc,
+                )
+            except Exception as exc:
+                self._bundle = None
+                self._load_error_code = "unexpected_load_error"
+                self._load_error_reason = str(exc)
+                logger.error("ML bundle load failed: %s", exc)
+            self._loaded = True
 
-        self._loaded = True
-
-    def _features_to_vector(self, features: dict) -> np.ndarray:
-        vec = [float(features.get(f) or 0.0) for f in CICIDS2017_FEATURES]
-        return np.array(vec, dtype=np.float32).reshape(1, -1)
-
-    def predict(self, features: dict) -> dict:
-        """
-        Returns:
-            {
-                "attack_category": str,
-                "confidence": float,
-                "severity": str,
-                "needs_review": bool,
-                "probabilities": dict[str, float],
-                "top_features": list[dict],
-            }
-        """
+    def reload(self) -> None:
+        """Force reload (intended for super-admin tooling only)."""
+        with self._lock:
+            self._loaded = False
+            self._bundle = None
+            self._load_error_reason = None
+            self._load_error_code = None
         self._load()
 
-        if self._model is not None:
-            return self._predict_model(features)
-        return self._heuristic_predict(features)
+    @property
+    def load_error_reason(self) -> str | None:
+        self._load()
+        return self._load_error_reason
 
-    # Alias so callers using clf.classify() work without modification
+    @property
+    def load_error_code(self) -> str | None:
+        self._load()
+        return self._load_error_code
+
+    @property
+    def bundle(self) -> LoadedBundle | None:
+        self._load()
+        return self._bundle
+
+    def status_snapshot(self) -> dict[str, Any]:
+        self._load()
+        b = self._bundle
+        return {
+            "model_version": b.version if b else settings.ML_MODEL_VERSION,
+            "bundle_status": b.status if b else "unavailable",
+            "signature_verified": b.signature_verified if b else False,
+            "load_error_reason": self._load_error_reason,
+            "load_error_code": self._load_error_code,
+            "heuristic_fallback_active": b is None,
+            "metrics_summary": b.metrics_summary if b else {},
+            "thresholds": {
+                "ML_CONFIDENCE_THRESHOLD": settings.ML_CONFIDENCE_THRESHOLD,
+                "ML_REVIEW_THRESHOLD": settings.ML_REVIEW_THRESHOLD,
+                "ML_MIN_FEATURE_COVERAGE": settings.ML_MIN_FEATURE_COVERAGE,
+                "ML_OOD_MAX_OUTLIER_FRACTION": settings.ML_OOD_MAX_OUTLIER_FRACTION,
+                "ML_HEURISTIC_MAX_CONFIDENCE": settings.ML_HEURISTIC_MAX_CONFIDENCE,
+                "ML_AUTO_CONTAIN_ENABLED": settings.ML_AUTO_CONTAIN_ENABLED,
+                "ML_AUTO_CONTAIN_THRESHOLD": settings.ML_AUTO_CONTAIN_THRESHOLD,
+            },
+        }
+
+    def predict(self, features: dict[str, Any]) -> dict[str, Any]:
+        """Return classification dict (legacy-compatible) from ``ClassificationResult``."""
+        return self.predict_result(features).to_dict()
+
     classify = predict
 
-    def _predict_model(self, features: dict) -> dict:
-        vec = self._features_to_vector(features)
+    def predict_result(self, features: dict[str, Any]) -> ClassificationResult:
+        self._load()
+        supplied, coverage = count_supplied_features(features or {})
+        cleaned, sanitize_reasons = sanitize_feature_dict(features or {})
 
-        # Guard: GaussianNB collapses to PortScan (confidence=1.0) on sparse
-        # inputs. Any event without at least MIN_FEATURES_FOR_MODEL non-zero
-        # CICIDS2017 values must use the heuristic instead.
-        non_zero_count = int(np.count_nonzero(vec))
-        if non_zero_count < self.MIN_FEATURES_FOR_MODEL:
-            return self._heuristic_predict(features)
+        if coverage < settings.ML_MIN_FEATURE_COVERAGE:
+            reasons = sanitize_reasons + [f"low_feature_coverage:{coverage:.2f}"]
+            result = heuristic_classify(cleaned or features or {}, feature_coverage=coverage, reasons=reasons)
+            result.source = "insufficient_features"
+            return result
 
-        if self._scaler is not None:
-            try:
-                vec = self._scaler.transform(vec)
-            except Exception:
-                pass  # fall through with raw features if scaler fails
+        if self._bundle is None:
+            reasons = sanitize_reasons + [self._load_error_code or "model_unavailable"]
+            return heuristic_classify(cleaned, feature_coverage=coverage, reasons=reasons)
+
+        return self._predict_with_bundle(cleaned, coverage, sanitize_reasons)
+
+    def _predict_with_bundle(
+        self,
+        cleaned: dict[str, float],
+        coverage: float,
+        sanitize_reasons: list[str],
+    ) -> ClassificationResult:
+        bundle = self._bundle
+        assert bundle is not None
+
+        reasons = list(sanitize_reasons)
+        ood_fraction, ood_flag = compute_ood_fraction(cleaned, bundle.low_bounds, bundle.high_bounds)
+        if ood_fraction > settings.ML_OOD_MAX_OUTLIER_FRACTION:
+            ood_flag = True
+
+        # Uniform dense vectors (e.g. all 1.0 with only port differing) are not real flows.
+        if cleaned and coverage >= settings.ML_MIN_FEATURE_COVERAGE:
+            values = list(cleaned.values())
+            if len(values) >= 10:
+                from collections import Counter
+
+                counts = Counter(values)
+                most_common_count = counts.most_common(1)[0][1]
+                if most_common_count / len(values) >= 0.90:
+                    ood_flag = True
+                    reasons.append("mostly_uniform_feature_vector")
+            if len(set(values)) == 1:
+                ood_flag = True
+                reasons.append("uniform_feature_vector")
+            elif np.std(values) < 1e-6:
+                ood_flag = True
+                reasons.append("near_zero_feature_variance")
+
+        vec = build_imputation_vector(cleaned, bundle.medians)
         try:
-            probas = self._model.predict_proba(vec)[0]
-            class_idx = int(np.argmax(probas))
-            confidence = float(probas[class_idx])
-            attack_category = (
-                ATTACK_CLASSES[class_idx] if class_idx < len(ATTACK_CLASSES) else "Unknown"
-            )
-            proba_map = {
-                ATTACK_CLASSES[i]: float(probas[i])
-                for i in range(min(len(ATTACK_CLASSES), len(probas)))
-            }
+            probas = bundle.model.predict_proba(vec)[0]
         except Exception as exc:
-            logger.error("Model prediction failed: %s", exc)
-            return self._heuristic_predict(features)
+            logger.error("Model predict_proba failed: %s", exc)
+            return heuristic_classify(
+                cleaned,
+                feature_coverage=coverage,
+                reasons=sanitize_reasons + ["predict_proba_failed"],
+            )
 
-        top_features = self._compute_top_features(vec[0], features)
+        class_idx = int(np.argmax(probas))
+        raw_confidence = float(probas[class_idx])
+        classes = bundle.classes or ATTACK_CLASSES
+        attack_category = classes[class_idx] if class_idx < len(classes) else "Unknown"
 
-        return {
-            "attack_category": attack_category,
-            "confidence": confidence,
-            "severity": SEVERITY_MAP.get(attack_category, "medium"),
-            "needs_review": confidence < settings.ML_CONFIDENCE_THRESHOLD,
-            "probabilities": proba_map,
-            "top_features": top_features,
-            "model_version": self._version,
-        }
+        sorted_idx = np.argsort(probas)[::-1][:3]
+        top_k = [
+            TopClassProbability(classes[i] if i < len(classes) else "Unknown", float(probas[i]))
+            for i in sorted_idx
+        ]
 
-    def _heuristic_predict(self, features: dict) -> dict:
-        """Simple rule-based fallback when model is unavailable or input is too sparse."""
-        dst_port = features.get("destination_port", 0) or 0
-        syn_flags = features.get("syn_flag_count", 0) or 0
-        pkt_rate = features.get("flow_packets_per_sec", 0) or 0
+        confidence = raw_confidence
+        needs_review = confidence < settings.ML_REVIEW_THRESHOLD
 
-        if pkt_rate > 10000:
-            category = "DDoS"
-        elif syn_flags > 1000:
-            category = "DoS Hulk"
-        elif dst_port == 21:
-            category = "FTP-Patator"
-        elif dst_port == 22:
-            category = "SSH-Patator"
-        elif dst_port in (80, 443, 8080):
-            category = "Web Attack - Brute Force"
-        else:
-            category = "BENIGN"
+        if ood_flag:
+            reasons.append(f"ood_outlier_fraction:{ood_fraction:.2f}")
+            confidence = min(confidence, settings.ML_HEURISTIC_MAX_CONFIDENCE)
+            needs_review = True
 
-        confidence = 0.65  # Heuristic confidence always below threshold
-        return {
-            "attack_category": category,
-            "confidence": confidence,
-            "severity": SEVERITY_MAP.get(category, "medium"),
-            "needs_review": True,
-            "probabilities": {category: confidence, "BENIGN": 1 - confidence},
-            "top_features": [
-                {"feature": "destination_port", "value": dst_port, "importance": 0.3},
-                {"feature": "syn_flag_count", "value": syn_flags, "importance": 0.25},
-                {"feature": "flow_packets_per_sec", "value": pkt_rate, "importance": 0.2},
-            ],
-            "model_version": "heuristic-fallback",
-        }
+        if coverage >= 0.99 and ood_flag:
+            reasons.append("full_coverage_but_ood")
+            confidence = min(confidence, settings.ML_HEURISTIC_MAX_CONFIDENCE)
+            needs_review = True
 
-    def _compute_top_features(self, vec: np.ndarray, features: dict, top_n: int = 10) -> list[dict]:
-        """Return top contributing features by absolute value (simple explainability)."""
+        top_features = self._compute_top_features(vec[0])
+
+        return ClassificationResult(
+            attack_category=attack_category,
+            is_attack=attack_category != "BENIGN",
+            severity=SEVERITY_MAP.get(attack_category, "medium"),
+            confidence=confidence,
+            top_k=top_k,
+            source="model",
+            model_version=bundle.version,
+            feature_coverage=coverage,
+            ood_score=ood_fraction,
+            ood_flag=ood_flag,
+            needs_review=needs_review,
+            reasons=reasons,
+            top_features=top_features,
+        )
+
+    def _compute_top_features(self, vec: np.ndarray, top_n: int = 10) -> list[dict]:
         sorted_idx = np.argsort(np.abs(vec))[::-1][:top_n]
+        denom = float(np.sum(np.abs(vec)) + 1e-9)
         return [
             {
                 "feature": CICIDS2017_FEATURES[i],
                 "value": float(vec[i]),
-                "importance": float(np.abs(vec[i]) / (np.sum(np.abs(vec)) + 1e-9)),
+                "importance": float(np.abs(vec[i]) / denom),
             }
             for i in sorted_idx
             if i < len(CICIDS2017_FEATURES)
@@ -184,16 +233,8 @@ class AttackClassifier:
 
 
 classifier = AttackClassifier()
-
-# LBROClassifier is the class; classifier is the singleton instance
 LBROClassifier = AttackClassifier
 
 
 def get_classifier() -> AttackClassifier:
-    """Return the singleton classifier instance.
-
-    Used by events.py and platform.py via:
-        from app.ml.classifier import get_classifier
-        clf = get_classifier()
-    """
     return classifier

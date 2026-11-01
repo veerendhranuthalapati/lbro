@@ -242,6 +242,9 @@ async def _ingest_single(
             event.ml_attack_category = ml_attack_category
             event.ml_confidence = ml_confidence
             event.ml_model_version = ml_version
+            event.ml_source = ml_result.get("source")
+            event.ml_feature_coverage = ml_result.get("feature_coverage")
+            event.ml_needs_review = bool(ml_result.get("needs_review", True))
     except Exception:
         pass
 
@@ -267,39 +270,23 @@ async def _ingest_single(
 
 
 async def _classify_event(data: SecurityEventCreate) -> dict | None:
-    """Run ML classification on the event payload."""
+    """Run ML classification on the event payload using canonical feature mapping."""
     try:
         from app.ml.classifier import get_classifier
+        from app.ml.event_mapper import extract_network_features
+
         clf = get_classifier()
-
-        features: dict = {}
-        payload = data.payload or {}
-
-        field_map = {
-            "flow_duration": "flow_duration",
-            "total_fwd_packets": "total_fwd_packets",
-            "total_bwd_packets": "total_bwd_packets",
-            "flow_packets_per_sec": "flow_packets_per_sec",
-            "destination_port": "destination_port",
-            "source_port": "source_port",
-        }
-        for k, v in field_map.items():
-            if k in payload:
-                features[v] = payload[k]
+        features = extract_network_features(data.payload or {})
 
         if not features:
             attack = _SEVERITY_TO_ATTACK.get(data.event_type, "Unknown")
-            return {
-                "attack_category": attack,
-                "confidence": 0.65,
-                "model_version": "heuristic",
-                "needs_review": True,
-                "probabilities": {attack: 0.65},
-                "top_features": [],
-            }
+            from app.ml.heuristic import heuristic_classify
 
-        result = clf.classify(features)
-        return result
+            result = heuristic_classify({}, feature_coverage=0.0, reasons=["no_network_features"])
+            result.attack_category = attack
+            return result.to_dict()
+
+        return clf.classify(features)
     except Exception:
         return None
 
@@ -317,17 +304,23 @@ async def _auto_create_incident(
         data.message
         or f"{data.event_type.replace('_', ' ').title()} from {data.source_ip or 'unknown'}"
     )
+    severity = data.severity
+    if event.ml_source in ("heuristic", "insufficient_features") or event.ml_needs_review:
+        if severity == "critical":
+            severity = "high"
+
     incident = Incident(
         project_id=project.id,
         title=title[:500],
         description=f"Auto-created from security event {event.id}. Source: {data.source_application or 'API'}.",
-        severity=data.severity,
+        severity=severity,
         status="new",
         attack_category=event.ml_attack_category,
         confidence_score=event.ml_confidence,
         ml_model_version=event.ml_model_version,
         source_ip=data.source_ip,
         needs_analyst_review=True,
+        ml_classification_status="pending",
     )
     db.add(incident)
     await db.flush()
@@ -344,6 +337,9 @@ def _event_to_response(e: SecurityEvent) -> dict:
         "incident_id": str(e.incident_id) if e.incident_id else None,
         "ml_attack_category": e.ml_attack_category,
         "ml_confidence": e.ml_confidence,
+        "ml_source": e.ml_source,
+        "ml_feature_coverage": e.ml_feature_coverage,
+        "ml_needs_review": e.ml_needs_review,
         "created_at": e.created_at.isoformat(),
     }
 

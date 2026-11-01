@@ -193,10 +193,15 @@ async def test_ml_metrics_fp_empty_without_evaluation(client: AsyncClient, auth_
 
 @pytest.mark.asyncio
 async def test_ml_metrics_no_fake_accuracy_when_heuristic(client: AsyncClient, auth_headers: dict):
-    if has_verified_evaluation():
-        pytest.skip("Model artifact present — heuristic guard not applicable")
+    if not model_artifact_exists():
+        resp = await client.get("/api/v1/ml/metrics", headers=auth_headers)
+        body = resp.json()
+        assert body["has_evaluation_data"] is False
+        assert body.get("evaluation") is None
+        return
     resp = await client.get("/api/v1/ml/metrics", headers=auth_headers)
     body = resp.json()
-    assert body["has_evaluation_data"] is False
-    assert body.get("evaluation") is None
+    assert body["has_evaluation_data"] == has_verified_evaluation()
+    if body.get("evaluation"):
+        assert body["evaluation"].get("macro_f1") is not None
 

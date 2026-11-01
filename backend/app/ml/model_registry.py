@@ -1,87 +1,65 @@
-"""Model registry — tracks model versions, metrics, and evaluation reports."""
+"""Read active model metadata from signed bundle manifest."""
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
 from app.config import settings
+from app.ml.bundle_io import MANIFEST_NAME, BundleLoadError, verify_bundle_directory
 
-REGISTRY_PATH = Path(settings.ML_MODEL_PATH).parent / "registry.json"
-
-
-def _load_registry() -> dict:
-    if REGISTRY_PATH.exists():
-        with open(REGISTRY_PATH) as f:
-            return json.load(f)
-    return {"models": [], "active_version": None}
+BUNDLE_DIR = Path(settings.ML_MODEL_BUNDLE_DIR)
 
 
-def _save_registry(data: dict) -> None:
-    REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(REGISTRY_PATH, "w") as f:
-        json.dump(data, f, indent=2, default=str)
-
-
-def register_model(
-    version: str,
-    accuracy: float,
-    precision: float,
-    recall: float,
-    f1: float,
-    confusion_matrix: Optional[list] = None,
-    notes: str = "",
-) -> dict:
-    registry = _load_registry()
-    entry = {
-        "version": version,
-        "registered_at": datetime.now(timezone.utc).isoformat(),
-        "metrics": {
-            "accuracy": accuracy,
-            "precision": precision,
-            "recall": recall,
-            "f1": f1,
-        },
-        "confusion_matrix": confusion_matrix,
-        "notes": notes,
-    }
-    registry["models"].append(entry)
-    registry["active_version"] = version
-    _save_registry(registry)
-    return entry
+def _load_manifest_safe() -> dict | None:
+    manifest_path = BUNDLE_DIR / MANIFEST_NAME
+    if not manifest_path.is_file():
+        return None
+    try:
+        return verify_bundle_directory(BUNDLE_DIR)
+    except BundleLoadError:
+        return json.loads(manifest_path.read_text(encoding="utf-8"))
 
 
 def get_active_model_info() -> dict:
-    registry = _load_registry()
-    active = registry.get("active_version")
-    for m in registry.get("models", []):
-        if m["version"] == active:
-            return m
+    manifest = _load_manifest_safe()
+    if not manifest:
+        return {
+            "version": settings.ML_MODEL_VERSION,
+            "metrics": {},
+            "registered_at": None,
+            "notes": "No bundle manifest found",
+            "status": "unavailable",
+        }
+    summary = manifest.get("metrics_summary") or {}
+    realistic = summary.get("realistic") or {}
     return {
-        "version": settings.ML_MODEL_VERSION,
-        "metrics": {},
-        "registered_at": None,
-        "notes": "No registry entry found",
+        "version": manifest.get("version"),
+        "registered_at": manifest.get("created_at"),
+        "status": manifest.get("status"),
+        "metrics": realistic,
+        "metrics_summary": summary,
+        "notes": f"Bundle status={manifest.get('status')}; headline={summary.get('headline_evaluation')}",
     }
 
 
 def list_models() -> list[dict]:
-    return _load_registry().get("models", [])
+    info = get_active_model_info()
+    if info.get("version"):
+        return [info]
+    return []
 
 
 def model_artifact_exists() -> bool:
-    from app.config import settings
-    return Path(settings.ML_MODEL_PATH).exists()
+    return (BUNDLE_DIR / MANIFEST_NAME).is_file() and (BUNDLE_DIR / "model.joblib").is_file()
 
 
 def has_verified_evaluation() -> bool:
-    """True only when the model artifact is loaded AND registry holds evaluation metrics."""
     if not model_artifact_exists():
         return False
     info = get_active_model_info()
     metrics = info.get("metrics") or {}
-    return bool(metrics.get("accuracy") is not None)
+    return metrics.get("macro_f1") is not None
 
 
 def get_evaluation_metrics() -> dict | None:
@@ -89,13 +67,20 @@ def get_evaluation_metrics() -> dict | None:
         return None
     info = get_active_model_info()
     metrics = info.get("metrics") or {}
+    summary = info.get("metrics_summary") or {}
     return {
         "version": info.get("version"),
         "trained_at": info.get("registered_at"),
+        "status": info.get("status"),
         "accuracy": metrics.get("accuracy"),
-        "precision": metrics.get("precision"),
-        "recall": metrics.get("recall"),
-        "f1": metrics.get("f1") or metrics.get("f1_macro"),
-        "mcc": metrics.get("matthews_corrcoef") or metrics.get("mcc"),
-        "confusion_matrix": info.get("confusion_matrix"),
+        "macro_f1": metrics.get("macro_f1"),
+        "weighted_f1": metrics.get("weighted_f1"),
+        "log_loss": metrics.get("log_loss"),
+        "ece": metrics.get("ece"),
+        "optimistic": summary.get("optimistic"),
     }
+
+
+def register_model(*_args, **_kwargs) -> dict:
+    """Deprecated — training pipeline writes manifest.json directly."""
+    raise NotImplementedError("Use scripts/train_models_cli.py to register models via manifest")

@@ -75,6 +75,9 @@ class Incident(Base):
     confidence_score: Mapped[float | None] = mapped_column(Float, nullable=True)
     ml_model_version: Mapped[str | None] = mapped_column(String(50), nullable=True)
     needs_analyst_review: Mapped[bool] = mapped_column(default=False, nullable=False)
+    ml_classification_status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="pending"
+    )
 
     source_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
     destination_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)

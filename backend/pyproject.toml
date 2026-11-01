@@ -38,8 +38,6 @@ omit = [
     "app/services/notification_service.py",
     "app/services/s3_service.py",
     "app/services/sqs_service.py",
-    "app/ml/classifier.py",
-    "app/ml/model_registry.py",
     "app/core/middleware.py",
     "app/core/rate_limit.py",
     "app/middleware/rate_limit.py",

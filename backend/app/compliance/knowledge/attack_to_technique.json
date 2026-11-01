@@ -1,0 +1,199 @@
+{
+  "schema_version": "1.0",
+  "content_version": "2026-11-01",
+  "last_reviewed": "2026-11-01",
+  "attack_enterprise_version": "20.0",
+  "attack_spec_version": "3.3.0",
+  "sources": [
+    {
+      "title": "MITRE ATT&CK Enterprise v20.0",
+      "url": "https://attack.mitre.org/resources/versions/"
+    },
+    {
+      "title": "MITRE ATT&CK Terms of Use",
+      "url": "https://attack.mitre.org/resources/terms-of-use/"
+    }
+  ],
+  "mappings": {
+    "BENIGN": {
+      "techniques": [],
+      "unmapped_reason": "Benign traffic does not imply adversary technique from flow metadata alone."
+    },
+    "DoS Hulk": {
+      "techniques": [
+        {
+          "technique_id": "T1499",
+          "name": "Endpoint Denial of Service",
+          "tactics": ["impact"],
+          "likelihood": "likely",
+          "rationale": "High-rate HTTP-style DoS patterns in flow features align with endpoint resource exhaustion.",
+          "confirms_exfiltration": false
+        }
+      ]
+    },
+    "DoS GoldenEye": {
+      "techniques": [
+        {
+          "technique_id": "T1499",
+          "name": "Endpoint Denial of Service",
+          "tactics": ["impact"],
+          "likelihood": "likely",
+          "rationale": "GoldenEye-style floods produce sustained forward/backward packet imbalance typical of endpoint DoS.",
+          "confirms_exfiltration": false
+        }
+      ]
+    },
+    "DoS slowloris": {
+      "techniques": [
+        {
+          "technique_id": "T1499",
+          "name": "Endpoint Denial of Service",
+          "tactics": ["impact"],
+          "likelihood": "possible",
+          "rationale": "Slowloris-like flows may appear as long-duration low-rate sessions; flow-only evidence is indirect.",
+          "confirms_exfiltration": false
+        }
+      ]
+    },
+    "DoS Slowhttptest": {
+      "techniques": [
+        {
+          "technique_id": "T1499",
+          "name": "Endpoint Denial of Service",
+          "tactics": ["impact"],
+          "likelihood": "possible",
+          "rationale": "Slow HTTP test tools share timing patterns with application-layer DoS; confirm with application logs.",
+          "confirms_exfiltration": false
+        }
+      ]
+    },
+    "DDoS": {
+      "techniques": [
+        {
+          "technique_id": "T1498",
+          "name": "Network Denial of Service",
+          "tactics": ["impact"],
+          "likelihood": "likely",
+          "rationale": "Distributed flood signatures in CICIDS DDoS class indicate network-layer saturation.",
+          "confirms_exfiltration": false
+        }
+      ]
+    },
+    "PortScan": {
+      "techniques": [
+        {
+          "technique_id": "T1046",
+          "name": "Network Service Discovery",
+          "tactics": ["discovery"],
+          "likelihood": "likely",
+          "rationale": "Many short flows to varied destination ports match reconnaissance scanning behaviour.",
+          "confirms_exfiltration": false
+        }
+      ]
+    },
+    "FTP-Patator": {
+      "techniques": [
+        {
+          "technique_id": "T1110",
+          "name": "Brute Force",
+          "tactics": ["credential-access"],
+          "likelihood": "likely",
+          "rationale": "Patator-style FTP classes reflect repeated authentication attempts on FTP service ports.",
+          "confirms_exfiltration": false
+        }
+      ]
+    },
+    "SSH-Patator": {
+      "techniques": [
+        {
+          "technique_id": "T1110",
+          "name": "Brute Force",
+          "tactics": ["credential-access"],
+          "likelihood": "likely",
+          "rationale": "SSH Patator detections indicate repeated SSH login attempts from flow statistics.",
+          "confirms_exfiltration": false
+        }
+      ]
+    },
+    "Bot": {
+      "techniques": [
+        {
+          "technique_id": "T1071",
+          "name": "Application Layer Protocol",
+          "tactics": ["command-and-control"],
+          "likelihood": "possible",
+          "rationale": "Botnet C2 often uses common application protocols; flow features alone cannot confirm C2 content.",
+          "confirms_exfiltration": false
+        }
+      ]
+    },
+    "Web Attack - Brute Force": {
+      "techniques": [
+        {
+          "technique_id": "T1110",
+          "name": "Brute Force",
+          "tactics": ["credential-access"],
+          "likelihood": "likely",
+          "rationale": "Web brute-force class maps to repeated HTTP authentication attempts.",
+          "confirms_exfiltration": false
+        }
+      ]
+    },
+    "Web Attack - XSS": {
+      "techniques": [
+        {
+          "technique_id": "T1189",
+          "name": "Drive-by Compromise",
+          "tactics": ["initial-access"],
+          "likelihood": "possible",
+          "rationale": "XSS payloads may be delivered via web; network flow metadata does not prove script execution.",
+          "confirms_exfiltration": false
+        }
+      ]
+    },
+    "Web Attack - Sql Injection": {
+      "techniques": [
+        {
+          "technique_id": "T1190",
+          "name": "Exploit Public-Facing Application",
+          "tactics": ["initial-access"],
+          "likelihood": "possible",
+          "rationale": "SQLi class suggests exploitation of a web application; confirm with WAF/app logs.",
+          "confirms_exfiltration": false
+        }
+      ]
+    },
+    "Heartbleed": {
+      "techniques": [
+        {
+          "technique_id": "T1190",
+          "name": "Exploit Public-Facing Application",
+          "tactics": ["initial-access"],
+          "likelihood": "possible",
+          "rationale": "Heartbleed-related flows indicate TLS heartbeat abuse against public services.",
+          "confirms_exfiltration": false
+        }
+      ]
+    },
+    "Infiltration": {
+      "techniques": [
+        {
+          "technique_id": "T1021",
+          "name": "Remote Services",
+          "tactics": ["lateral-movement"],
+          "likelihood": "possible",
+          "rationale": "Infiltration class may involve remote service use; flows alone do not prove data theft.",
+          "confirms_exfiltration": false
+        },
+        {
+          "technique_id": "T1048",
+          "name": "Exfiltration Over Alternative Protocol",
+          "tactics": ["exfiltration"],
+          "likelihood": "possible",
+          "rationale": "Infiltration label in CICIDS can include data movement; treat exfiltration as possible not proven.",
+          "confirms_exfiltration": true
+        }
+      ]
+    }
+  }
+}

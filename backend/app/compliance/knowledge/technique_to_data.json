@@ -1,0 +1,67 @@
+{
+  "schema_version": "1.0",
+  "content_version": "2026-11-01",
+  "last_reviewed": "2026-11-01",
+  "sources": [
+    {
+      "title": "MITRE ATT&CK technique impact model (LBRO curated)",
+      "url": "https://attack.mitre.org/"
+    }
+  ],
+  "techniques": {
+    "T1110": {
+      "impact_types": ["confidentiality", "integrity"],
+      "data_categories_at_risk": ["authentication_credentials", "personal_identifiers"],
+      "exposure_assumption": "credentials_only",
+      "rationale": "Successful brute force primarily compromises authentication secrets; further data access requires follow-on actions."
+    },
+    "T1046": {
+      "impact_types": ["confidentiality"],
+      "data_categories_at_risk": ["system_secrets"],
+      "exposure_assumption": "none",
+      "rationale": "Port scanning alone does not demonstrate access to personal data stores."
+    },
+    "T1499": {
+      "impact_types": ["availability"],
+      "data_categories_at_risk": [],
+      "exposure_assumption": "none",
+      "rationale": "Endpoint DoS affects availability; does not by itself imply confidentiality breach."
+    },
+    "T1498": {
+      "impact_types": ["availability"],
+      "data_categories_at_risk": [],
+      "exposure_assumption": "none",
+      "rationale": "Network DoS affects availability without demonstrating data exfiltration."
+    },
+    "T1071": {
+      "impact_types": ["confidentiality", "integrity"],
+      "data_categories_at_risk": ["system_secrets", "personal_identifiers"],
+      "exposure_assumption": "data_in_transit",
+      "rationale": "C2 channels may carry commands or stolen data; flow metadata cannot confirm content."
+    },
+    "T1189": {
+      "impact_types": ["confidentiality", "integrity"],
+      "data_categories_at_risk": ["personal_identifiers", "contact_data"],
+      "exposure_assumption": "data_at_rest_on_accessed_asset",
+      "rationale": "Drive-by style web attacks may lead to client-side compromise affecting users visiting the service."
+    },
+    "T1190": {
+      "impact_types": ["confidentiality", "integrity"],
+      "data_categories_at_risk": ["personal_identifiers", "authentication_credentials", "financial_data", "health_data"],
+      "exposure_assumption": "data_at_rest_on_accessed_asset",
+      "rationale": "Exploitation of a public application may expose backend databases tied to that application."
+    },
+    "T1021": {
+      "impact_types": ["confidentiality", "integrity"],
+      "data_categories_at_risk": ["personal_identifiers", "employee_hr_data", "intellectual_property"],
+      "exposure_assumption": "data_at_rest_on_accessed_asset",
+      "rationale": "Remote service access may reach systems holding business or personal data."
+    },
+    "T1048": {
+      "impact_types": ["confidentiality"],
+      "data_categories_at_risk": ["personal_identifiers", "contact_data", "financial_data", "health_data", "payment_card_data"],
+      "exposure_assumption": "data_in_transit",
+      "rationale": "Exfiltration techniques imply data leaving the environment; treat linked asset categories as at risk when exfiltration is confirmed by class mapping."
+    }
+  }
+}

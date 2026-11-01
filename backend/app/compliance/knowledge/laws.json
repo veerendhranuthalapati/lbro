@@ -1,0 +1,272 @@
+{
+  "schema_version": "1.0",
+  "content_version": "2026-11-01",
+  "last_reviewed": "2026-11-01",
+  "disclaimer": "Decision support only — not legal advice. All rules require counsel review before operational reliance.",
+  "sources": [
+    {
+      "title": "EUR-Lex Regulation (EU) 2016/679 (GDPR)",
+      "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=celex%3A32016R0679"
+    },
+    {
+      "title": "HHS HIPAA Breach Notification Rule",
+      "url": "https://www.hhs.gov/hipaa/for-professionals/breach-notification/index.html"
+    },
+    {
+      "title": "Digital Personal Data Protection Rules, 2025 (Rule 7)",
+      "url": "https://www.meity.gov.in/"
+    },
+    {
+      "title": "CERT-In Directions 28 April 2022",
+      "url": "https://www.cert-in.org.in/PDF/CERT-In_Directions_70B_28.04.2022.pdf"
+    },
+    {
+      "title": "California Civil Code § 1798.82",
+      "url": "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CIV&sectionNum=1798.82"
+    }
+  ],
+  "rules": [
+    {
+      "rule_id": "gdpr_art33_supervisory_authority",
+      "rule_version": "2026-11-01",
+      "law": "GDPR",
+      "jurisdiction_codes": ["EU", "EEA", "UK"],
+      "applies_when": {
+        "requires_personal_data": true,
+        "requires_impact_types": ["confidentiality", "integrity"],
+        "excludes_availability_only": true
+      },
+      "obligations": [
+        {
+          "obligation_id": "gdpr_art33_notify_dpa",
+          "description": "Notify supervisory authority of personal data breach (Article 33)",
+          "recipient_type": "regulator",
+          "recipient": "Competent supervisory authority",
+          "deadline": { "amount": 72, "unit": "hours", "clock_start": "awareness" },
+          "is_conditional_on_risk_assessment": false
+        }
+      ],
+      "citations": [
+        {
+          "section": "GDPR Article 33(1)",
+          "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=celex%3A32016R0679"
+        }
+      ],
+      "verification_status": "verified",
+      "legal_review_status": "unreviewed"
+    },
+    {
+      "rule_id": "gdpr_art34_data_subjects",
+      "rule_version": "2026-11-01",
+      "law": "GDPR",
+      "jurisdiction_codes": ["EU", "EEA", "UK"],
+      "applies_when": {
+        "requires_personal_data": true,
+        "requires_impact_types": ["confidentiality", "integrity"],
+        "excludes_availability_only": true
+      },
+      "obligations": [
+        {
+          "obligation_id": "gdpr_art34_notify_subjects",
+          "description": "Communicate breach to data subjects when high risk to rights and freedoms (Article 34)",
+          "recipient_type": "data_subject",
+          "recipient": "Affected data subjects",
+          "deadline": { "amount": null, "unit": "undue_delay", "clock_start": "awareness" },
+          "is_conditional_on_risk_assessment": true
+        }
+      ],
+      "citations": [
+        {
+          "section": "GDPR Article 34",
+          "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=celex%3A32016R0679"
+        }
+      ],
+      "verification_status": "verified",
+      "legal_review_status": "unreviewed"
+    },
+    {
+      "rule_id": "hipaa_individual_notification",
+      "rule_version": "2026-11-01",
+      "law": "HIPAA",
+      "jurisdiction_codes": ["US"],
+      "applies_when": {
+        "requires_categories_any": ["health_data"],
+        "requires_impact_types": ["confidentiality", "integrity"],
+        "excludes_availability_only": true
+      },
+      "obligations": [
+        {
+          "obligation_id": "hipaa_notify_individuals",
+          "description": "Notify affected individuals without unreasonable delay (45 CFR § 164.404)",
+          "recipient_type": "data_subject",
+          "recipient": "Affected individuals",
+          "deadline": { "amount": null, "unit": "without_unreasonable_delay", "clock_start": "discovery" },
+          "is_conditional_on_risk_assessment": false
+        }
+      ],
+      "citations": [
+        {
+          "section": "45 CFR § 164.404",
+          "url": "https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-D/section-164.404"
+        }
+      ],
+      "verification_status": "verified",
+      "legal_review_status": "unreviewed"
+    },
+    {
+      "rule_id": "hipaa_hhs_breach_report",
+      "rule_version": "2026-11-01",
+      "law": "HIPAA",
+      "jurisdiction_codes": ["US"],
+      "applies_when": {
+        "requires_categories_any": ["health_data"],
+        "requires_impact_types": ["confidentiality", "integrity"],
+        "excludes_availability_only": true
+      },
+      "obligations": [
+        {
+          "obligation_id": "hipaa_notify_hhs",
+          "description": "Notify HHS Secretary (timing depends on breach size; ≤500 may be annual log)",
+          "recipient_type": "regulator",
+          "recipient": "HHS Office for Civil Rights",
+          "deadline": { "amount": 60, "unit": "days", "clock_start": "discovery" },
+          "is_conditional_on_risk_assessment": true
+        }
+      ],
+      "citations": [
+        {
+          "section": "45 CFR § 164.408",
+          "url": "https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-D/section-164.408"
+        }
+      ],
+      "verification_status": "verified",
+      "legal_review_status": "unreviewed"
+    },
+    {
+      "rule_id": "hipaa_media_threshold_500",
+      "rule_version": "2026-11-01",
+      "law": "HIPAA",
+      "jurisdiction_codes": ["US"],
+      "applies_when": {
+        "requires_categories_any": ["health_data"],
+        "requires_impact_types": ["confidentiality", "integrity"],
+        "min_record_count_point": 500,
+        "excludes_availability_only": true
+      },
+      "obligations": [
+        {
+          "obligation_id": "hipaa_notify_media",
+          "description": "Notify prominent media outlets if breach affects more than 500 residents of a state or jurisdiction",
+          "recipient_type": "media",
+          "recipient": "Prominent media outlets",
+          "deadline": { "amount": null, "unit": "without_unreasonable_delay", "clock_start": "discovery" },
+          "is_conditional_on_risk_assessment": false
+        }
+      ],
+      "citations": [
+        {
+          "section": "45 CFR § 164.406",
+          "url": "https://www.ecfr.gov/current/title-45/subtitle-A/subchapter-C/part-164/subpart-D/section-164.406"
+        }
+      ],
+      "verification_status": "verified",
+      "legal_review_status": "unreviewed"
+    },
+    {
+      "rule_id": "dpdp_rule7_board_detail",
+      "rule_version": "2026-11-01",
+      "law": "DPDPA",
+      "jurisdiction_codes": ["IN"],
+      "applies_when": {
+        "requires_personal_data": true,
+        "requires_impact_types": ["confidentiality", "integrity"],
+        "excludes_availability_only": true
+      },
+      "obligations": [
+        {
+          "obligation_id": "dpdp_board_initial",
+          "description": "Intimate Data Protection Board without delay with breach description (Rule 7(2)(a))",
+          "recipient_type": "regulator",
+          "recipient": "Data Protection Board of India",
+          "deadline": { "amount": null, "unit": "without_delay", "clock_start": "awareness" },
+          "is_conditional_on_risk_assessment": false
+        },
+        {
+          "obligation_id": "dpdp_board_detail_72h",
+          "description": "Submit detailed follow-up report to Board within 72 hours of awareness (Rule 7(2)(b))",
+          "recipient_type": "regulator",
+          "recipient": "Data Protection Board of India",
+          "deadline": { "amount": 72, "unit": "hours", "clock_start": "awareness" },
+          "is_conditional_on_risk_assessment": false
+        }
+      ],
+      "citations": [
+        {
+          "section": "Digital Personal Data Protection Rules, 2025, Rule 7",
+          "url": "https://www.meity.gov.in/"
+        }
+      ],
+      "verification_status": "verified",
+      "legal_review_status": "unreviewed",
+      "notes": "Rule commencement dates should be confirmed against official Gazette; engine surfaces legal_review_status."
+    },
+    {
+      "rule_id": "cert_in_cyber_incident_6h",
+      "rule_version": "2026-11-01",
+      "law": "CERT-In Directions",
+      "jurisdiction_codes": ["IN"],
+      "applies_when": {
+        "requires_cyber_incident_reporting": true,
+        "excludes_availability_only": false
+      },
+      "obligations": [
+        {
+          "obligation_id": "cert_in_report_6h",
+          "description": "Report listed cyber security incidents to CERT-In within 6 hours of noticing (Directions para ii)",
+          "recipient_type": "regulator",
+          "recipient": "Indian Computer Emergency Response Team (CERT-In)",
+          "deadline": { "amount": 6, "unit": "hours", "clock_start": "detection" },
+          "is_conditional_on_risk_assessment": false
+        }
+      ],
+      "citations": [
+        {
+          "section": "CERT-In Directions No. 20(3)/2022, paragraph (ii)",
+          "url": "https://www.cert-in.org.in/PDF/CERT-In_Directions_70B_28.04.2022.pdf"
+        }
+      ],
+      "verification_status": "verified",
+      "legal_review_status": "unreviewed",
+      "notes": "Incident reporting duty is distinct from personal-data breach notification; applies to covered entities under the Directions."
+    },
+    {
+      "rule_id": "california_civil_1798_82",
+      "rule_version": "2026-11-01",
+      "law": "California Breach Notification",
+      "jurisdiction_codes": ["US-CA"],
+      "applies_when": {
+        "requires_personal_data": true,
+        "requires_impact_types": ["confidentiality", "integrity"],
+        "excludes_availability_only": true
+      },
+      "obligations": [
+        {
+          "obligation_id": "ca_resident_notice_30d",
+          "description": "Disclose breach to affected California residents within 30 calendar days of discovery (Civil Code § 1798.82(a)(2)(A))",
+          "recipient_type": "data_subject",
+          "recipient": "California residents",
+          "deadline": { "amount": 30, "unit": "days", "clock_start": "discovery" },
+          "is_conditional_on_risk_assessment": false
+        }
+      ],
+      "citations": [
+        {
+          "section": "California Civil Code § 1798.82(a)(2)(A)",
+          "url": "https://leginfo.legislature.ca.gov/faces/codes_displaySection.xhtml?lawCode=CIV&sectionNum=1798.82"
+        }
+      ],
+      "verification_status": "verified",
+      "legal_review_status": "unreviewed"
+    }
+  ]
+}

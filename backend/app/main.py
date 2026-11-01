@@ -65,6 +65,10 @@ logger = structlog.get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("startup", version=settings.APP_VERSION, env=settings.ENVIRONMENT)
+    # Fail fast if compliance knowledge JSON is invalid (all environments including test).
+    from app.compliance.knowledge.loader import load_knowledge_bundle
+
+    load_knowledge_bundle()
     if settings.ENVIRONMENT != "test":
         from app.ml.startup_check import run_ml_startup_check
 

@@ -1,0 +1,89 @@
+{
+  "schema_version": "1.0",
+  "content_version": "2026-11-01",
+  "last_reviewed": "2026-11-01",
+  "sources": [
+    {
+      "title": "LBRO controlled vocabulary (decision support only)",
+      "url": "https://github.com/veerendhranuthalapati/lbro",
+      "note": "Categories describe types of data at risk, not stored personal data."
+    }
+  ],
+  "categories": {
+    "personal_identifiers": {
+      "label": "Personal identifiers",
+      "is_personal_data": true,
+      "is_special_category": false
+    },
+    "contact_data": {
+      "label": "Contact data",
+      "is_personal_data": true,
+      "is_special_category": false
+    },
+    "authentication_credentials": {
+      "label": "Authentication credentials",
+      "is_personal_data": true,
+      "is_special_category": false
+    },
+    "financial_data": {
+      "label": "Financial data",
+      "is_personal_data": true,
+      "is_special_category": false
+    },
+    "payment_card_data": {
+      "label": "Payment card data",
+      "is_personal_data": true,
+      "is_special_category": false
+    },
+    "health_data": {
+      "label": "Health data",
+      "is_personal_data": true,
+      "is_special_category": true
+    },
+    "biometric_data": {
+      "label": "Biometric data",
+      "is_personal_data": true,
+      "is_special_category": true
+    },
+    "genetic_data": {
+      "label": "Genetic data",
+      "is_personal_data": true,
+      "is_special_category": true
+    },
+    "government_ids": {
+      "label": "Government-issued identifiers",
+      "is_personal_data": true,
+      "is_special_category": false
+    },
+    "children_data": {
+      "label": "Children's data",
+      "is_personal_data": true,
+      "is_special_category": true
+    },
+    "special_category_data": {
+      "label": "Other special category personal data",
+      "is_personal_data": true,
+      "is_special_category": true
+    },
+    "location_data": {
+      "label": "Location data",
+      "is_personal_data": true,
+      "is_special_category": false
+    },
+    "employee_hr_data": {
+      "label": "Employee / HR data",
+      "is_personal_data": true,
+      "is_special_category": false
+    },
+    "intellectual_property": {
+      "label": "Intellectual property",
+      "is_personal_data": false,
+      "is_special_category": false
+    },
+    "system_secrets": {
+      "label": "System secrets (keys, tokens)",
+      "is_personal_data": false,
+      "is_special_category": false
+    }
+  }
+}

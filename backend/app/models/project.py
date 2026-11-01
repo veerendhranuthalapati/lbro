@@ -54,6 +54,10 @@ class Project(Base):
     api_key_prefix: Mapped[str] = mapped_column(String(16), nullable=False, index=True)
 
     allow_ml_auto_contain: Mapped[bool] = mapped_column(default=False, nullable=False)
+    # manual | hybrid | inferred — controls compliance inference engine (default hybrid)
+    compliance_inference_mode: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="hybrid"
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -76,6 +80,9 @@ class Project(Base):
     )
     compliance_assessments: Mapped[list["ComplianceAssessment"]] = relationship(
         "ComplianceAssessment", back_populates="project", cascade="all, delete-orphan"
+    )
+    assets: Mapped[list] = relationship(
+        "Asset", back_populates="project", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:

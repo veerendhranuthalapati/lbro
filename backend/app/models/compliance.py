@@ -33,6 +33,19 @@ class ComplianceRecord(Base):
     is_met: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     met_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source: Mapped[str] = mapped_column(String(20), nullable=False, default="manual")
+    rule_id: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    rule_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    assessment_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("incident_exposure_assessments.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
+    clock_start_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    analyst_decision: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    decision_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    provisional: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
     )

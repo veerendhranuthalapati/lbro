@@ -15,6 +15,7 @@ from app.database import Base
 if TYPE_CHECKING:
     from app.models.user import User
     from app.models.project import Project
+    from app.models.asset import IncidentAsset
 
 import enum
 
@@ -139,6 +140,15 @@ class Incident(Base):
         cascade="all, delete-orphan", lazy="selectin"
     )
     compliance_records: Mapped[list] = relationship("ComplianceRecord", back_populates="incident")
+    linked_assets: Mapped[list["IncidentAsset"]] = relationship(
+        "IncidentAsset", back_populates="incident", cascade="all, delete-orphan"
+    )
+    exposure_assessments: Mapped[list] = relationship(
+        "IncidentExposureAssessment",
+        back_populates="incident",
+        cascade="all, delete-orphan",
+        order_by="IncidentExposureAssessment.computed_at.desc()",
+    )
     notes: Mapped[list] = relationship(
         "InvestigationNote", back_populates="incident",
         cascade="all, delete-orphan", lazy="select",

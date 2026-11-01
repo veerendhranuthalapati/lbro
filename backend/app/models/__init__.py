@@ -5,6 +5,7 @@ from app.models.evidence import Evidence, ChainOfCustody
 from app.models.notification import Notification, NotificationRecipient
 from app.models.audit import AuditLog
 from app.models.compliance import ComplianceRecord, ComplianceObligation, ComplianceAssessment
+from app.models.asset import Asset, AssetResidency, IncidentAsset, IncidentExposureAssessment
 from app.models.revoked_token import RevokedToken
 from app.models.investigation_note import InvestigationNote
 
@@ -21,6 +22,10 @@ __all__ = [
     "ComplianceRecord",
     "ComplianceObligation",
     "ComplianceAssessment",
+    "Asset",
+    "AssetResidency",
+    "IncidentAsset",
+    "IncidentExposureAssessment",
     "RevokedToken",
     "InvestigationNote",
 ]

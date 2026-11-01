@@ -80,6 +80,11 @@ class Permission(str, Enum):
     VIEW_COMPLIANCE   = "compliance:read"
     MANAGE_COMPLIANCE = "compliance:manage"
 
+    # ── Asset data map & exposure ───────────────────────────────────────────
+    VIEW_ASSETS = "asset:read"
+    MANAGE_ASSETS = "asset:manage"
+    CONFIRM_EXPOSURE = "exposure:confirm"
+
     # ── System ────────────────────────────────────────────────────────────
     SYSTEM_SETTINGS = "system:settings"
     VIEW_DASHBOARD  = "dashboard:read"
@@ -106,6 +111,7 @@ _VIEWER_PERMISSIONS: Set[Permission] = {
     Permission.VIEW_COMPLIANCE,
     Permission.VIEW_REPORT,
     Permission.VIEW_ML,
+    Permission.VIEW_ASSETS,
 }
 
 _ANALYST_PERMISSIONS: Set[Permission] = _VIEWER_PERMISSIONS | {
@@ -120,6 +126,8 @@ _ANALYST_PERMISSIONS: Set[Permission] = _VIEWER_PERMISSIONS | {
     Permission.APPROVE_NOTIFICATION,
     Permission.DISPATCH_NOTIFICATION,
     Permission.MANAGE_COMPLIANCE,
+    Permission.MANAGE_ASSETS,
+    Permission.CONFIRM_EXPOSURE,
     Permission.VIEW_INFRASTRUCTURE,
 }
 

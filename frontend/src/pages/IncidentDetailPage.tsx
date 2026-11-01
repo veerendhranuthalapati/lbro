@@ -36,6 +36,7 @@ import { EvidenceTab  } from '@/components/incidents/tabs/EvidenceTab'
 import { NotesTab     } from '@/components/incidents/tabs/NotesTab'
 import { IOCTab       } from '@/components/incidents/tabs/IOCTab'
 import { RelatedTab   } from '@/components/incidents/tabs/RelatedTab'
+import { ExposureTab  } from '@/components/incidents/tabs/ExposureTab'
 
 // Shared
 const ORANGE = '#e54e1b'
@@ -57,6 +58,7 @@ const TABS: Tab[] = [
   { id: 'evidence',  label: 'Evidence',   icon: <Lock      style={{ width: 12, height: 12 }} /> },
   { id: 'notes',     label: 'Notes',      icon: <StickyNote style={{ width: 12, height: 12 }} /> },
   { id: 'ioc',       label: 'IOC',        icon: <Globe     style={{ width: 12, height: 12 }} /> },
+  { id: 'exposure',  label: 'Exposure & Obligations', icon: <Target    style={{ width: 12, height: 12 }} /> },
   { id: 'related',   label: 'Related',    icon: <Users     style={{ width: 12, height: 12 }} /> },
 ]
 
@@ -390,6 +392,7 @@ export default function IncidentDetailPage() {
           {activeTab === 'evidence' && <EvidenceTab incidentId={id!} />}
           {activeTab === 'notes'    && <NotesTab    incidentId={id!} />}
           {activeTab === 'ioc'      && <IOCTab      incidentId={id!} />}
+          {activeTab === 'exposure' && id && <ExposureTab incidentId={id} />}
           {activeTab === 'related'  && <RelatedTab  incidentId={id!} />}
         </div>
 

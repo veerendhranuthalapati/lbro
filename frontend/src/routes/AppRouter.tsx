@@ -25,6 +25,7 @@ const IncidentsPage       = lazy(() => import('@/pages/IncidentsPage'))
 const IncidentDetailPage  = lazy(() => import('@/pages/IncidentDetailPage'))
 const CreateIncidentPage  = lazy(() => import('@/pages/CreateIncidentPage'))
 const CompliancePage      = lazy(() => import('@/pages/CompliancePage'))
+const DataMapPage         = lazy(() => import('@/pages/DataMapPage'))
 const EvidencePage        = lazy(() => import('@/pages/EvidencePage'))
 const InfrastructurePage  = lazy(() => import('@/pages/InfrastructurePage'))
 const ThreatIntelPage     = lazy(() => import('@/pages/ThreatIntelPage'))
@@ -122,6 +123,11 @@ export function AppRouter() {
           <Route path="/compliance/audit" element={
             <ProtectedRoute requiredPermission={Permission.VIEW_COMPLIANCE}>
               <SuspenseRoute><ComplianceAuditPage /></SuspenseRoute>
+            </ProtectedRoute>
+          } />
+          <Route path="/data-map" element={
+            <ProtectedRoute requiredPermission={Permission.VIEW_ASSETS}>
+              <SuspenseRoute><DataMapPage /></SuspenseRoute>
             </ProtectedRoute>
           } />
 

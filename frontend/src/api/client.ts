@@ -350,7 +350,11 @@ export const notificationsApi = {
 export interface ComplianceRecord {
   id: string; incident_id: string; regulation: string; jurisdiction: string
   obligation: string; deadline: string; is_met: boolean; met_at: string | null
-  notes: string | null; created_at: string; updated_at: string
+  notes: string | null
+  source?: string
+  analyst_decision?: string | null
+  provisional?: boolean
+  created_at: string; updated_at: string
 }
 export interface ComplianceSummary {
   regulation: string
@@ -787,6 +791,52 @@ export interface IncidentIOC {
 }
 
 // ---- Investigation workspace API methods ------------------------------------
+
+export interface AssetRecord {
+  id: string
+  project_id: string
+  name: string
+  asset_type: string
+  classification: string
+  data_categories: string[]
+  residency: { jurisdiction_code: string; record_count: number | null; count_basis: string }[]
+}
+
+export interface ExposureAssessment {
+  id: string
+  incident_id: string
+  status: string
+  overall_confidence: number
+  results: Record<string, unknown>
+  trace: { step: string; detail: Record<string, unknown> }[]
+  disclaimer?: string
+}
+
+export const assetsApi = {
+  list: (projectId: string, params?: { page?: number; page_size?: number }) =>
+    apiClient
+      .get<{ items: AssetRecord[]; total: number }>('/api/v1/assets', {
+        params: { project_id: projectId, ...params },
+      })
+      .then((r) => r.data),
+}
+
+export const exposureApi = {
+  get: (incidentId: string) =>
+    apiClient.get<ExposureAssessment>(`/api/v1/incidents/${incidentId}/exposure`).then((r) => r.data),
+  recompute: (incidentId: string) =>
+    apiClient.post<ExposureAssessment>(`/api/v1/incidents/${incidentId}/exposure`).then((r) => r.data),
+  obligations: (incidentId: string) =>
+    apiClient.get<ComplianceRecord[]>(`/api/v1/incidents/${incidentId}/obligations`).then((r) => r.data),
+  accept: (incidentId: string, recordId: string, reason?: string) =>
+    apiClient
+      .post<ComplianceRecord>(`/api/v1/incidents/${incidentId}/obligations/${recordId}/accept`, { reason })
+      .then((r) => r.data),
+  dismiss: (incidentId: string, recordId: string, reason: string) =>
+    apiClient
+      .post<ComplianceRecord>(`/api/v1/incidents/${incidentId}/obligations/${recordId}/dismiss`, { reason })
+      .then((r) => r.data),
+}
 
 export const investigationApi = {
   timeline: (incidentId: string): Promise<{ incident_id: string; events: TimelineEvent[] }> =>

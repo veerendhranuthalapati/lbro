@@ -62,6 +62,10 @@ export const Permission = {
   VIEW_COMPLIANCE:   'compliance:read',
   MANAGE_COMPLIANCE: 'compliance:manage',
 
+  VIEW_ASSETS: 'asset:read',
+  MANAGE_ASSETS: 'asset:manage',
+  CONFIRM_EXPOSURE: 'exposure:confirm',
+
   // System
   SYSTEM_SETTINGS: 'system:settings',
   VIEW_DASHBOARD:  'dashboard:read',
@@ -88,6 +92,7 @@ const _VIEWER: readonly PermissionValue[] = [
   Permission.VIEW_COMPLIANCE,
   Permission.VIEW_REPORT,
   Permission.VIEW_ML,
+  Permission.VIEW_ASSETS,
 ]
 
 const _ANALYST: readonly PermissionValue[] = [
@@ -103,6 +108,8 @@ const _ANALYST: readonly PermissionValue[] = [
   Permission.APPROVE_NOTIFICATION,
   Permission.DISPATCH_NOTIFICATION,
   Permission.MANAGE_COMPLIANCE,
+  Permission.MANAGE_ASSETS,
+  Permission.CONFIRM_EXPOSURE,
   Permission.VIEW_INFRASTRUCTURE,
 ]
 

@@ -3,7 +3,7 @@ import type { LucideProps } from 'lucide-react'
 import {
   LayoutDashboard, FolderKanban, ShieldAlert, Activity, Lock,
   Brain, FileText, BarChart3, Plug2, Settings, Bell, User,
-  Users, ClipboardList, ShieldCheck, BookOpen, Cloud,
+  Users, ClipboardList, ShieldCheck, BookOpen, Cloud, Database,
 } from 'lucide-react'
 import { Permission, type PermissionValue } from '@/types/rbac'
 
@@ -51,6 +51,7 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { to: '/ml-insights', label: 'ML Analysis', icon: Brain, permission: Permission.VIEW_ML },
       { to: '/compliance', label: 'Compliance', icon: FileText, permission: Permission.VIEW_COMPLIANCE },
+      { to: '/data-map', label: 'Data Map', icon: Database, permission: Permission.VIEW_ASSETS },
       { to: '/security-overview', label: 'Reports', icon: BarChart3 },
     ],
   },

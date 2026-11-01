@@ -93,6 +93,57 @@ async def seed():
             print()
             print("⚠  API keys were generated but not logged in full — rotate via POST /auth/api-key/rotate to obtain a key.")
 
+        if os.environ.get("LBRO_SEED_DEMO_ASSETS", "").lower() in ("1", "true", "yes"):
+            await _seed_demo_data_map(db)
+
+
+async def _seed_demo_data_map(db) -> None:
+    """Fictional demo assets — only when LBRO_SEED_DEMO_ASSETS is set (never production by default)."""
+    from app.models.project import Project
+    from app.models.asset import Asset, AssetResidency
+
+    proj = (
+        await db.execute(select(Project).where(Project.slug == "demo-compliance"))
+    ).scalar_one_or_none()
+    if not proj:
+        print("⊘ Skipping demo data map (no project slug demo-compliance)")
+        return
+    existing = (
+        await db.execute(select(Asset.id).where(Asset.project_id == proj.id).limit(1))
+    ).scalar_one_or_none()
+    if existing:
+        print("✓ Demo data map assets already present")
+        return
+    assets = [
+        Asset(
+            project_id=proj.id,
+            name="[DEMO] Customer DB",
+            asset_type="database",
+            classification="confidential",
+            data_categories=["personal_identifiers", "health_data", "contact_data"],
+            identifiers=[{"type": "hostname", "value": "cust-db.demo.local"}],
+            description="Fictional counts only",
+        ),
+        Asset(
+            project_id=proj.id,
+            name="[DEMO] Auth Identity Store",
+            asset_type="database",
+            classification="restricted",
+            data_categories=["authentication_credentials", "personal_identifiers"],
+            identifiers=[{"type": "hostname", "value": "auth.demo.local"}],
+        ),
+    ]
+    for a in assets:
+        db.add(a)
+    await db.flush()
+    db.add(AssetResidency(asset_id=assets[0].id, jurisdiction_code="EU", record_count=1200, count_basis="estimated"))
+    db.add(AssetResidency(asset_id=assets[0].id, jurisdiction_code="IN", record_count=800, count_basis="estimated"))
+    db.add(AssetResidency(asset_id=assets[0].id, jurisdiction_code="US-CA", record_count=400, count_basis="estimated"))
+    db.add(AssetResidency(asset_id=assets[1].id, jurisdiction_code="EU", record_count=500, count_basis="exact"))
+    db.add(AssetResidency(asset_id=assets[1].id, jurisdiction_code="IN", record_count=300, count_basis="exact"))
+    await db.commit()
+    print("✓ Seeded fictional demo data map assets")
+
 
 if __name__ == "__main__":
     asyncio.run(seed())

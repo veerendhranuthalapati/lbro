@@ -200,6 +200,8 @@ When an incident is created with `jurisdictions` set, LBRO automatically:
 | HIPAA | 60 days (60 × 24h) | HHS Office for Civil Rights |
 | DPDPA | 72 hours | Data Protection Board of India |
 
+**Threat-to-obligation inference:** ML attack class → MITRE techniques → data categories → asset residency → rule-pack obligations (suggested, not auto-dispatched). See [docs/COMPLIANCE_INFERENCE.md](docs/COMPLIANCE_INFERENCE.md).
+
 ---
 
 ## AWS Deployment

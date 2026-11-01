@@ -82,6 +82,7 @@ class ProjectResponse(BaseModel):
     updated_at: datetime
     my_role: Optional[str] = None
     allow_ml_auto_contain: bool = False
+    compliance_inference_mode: str = "hybrid"
 
     model_config = {"from_attributes": True}
 
@@ -90,6 +91,18 @@ class ProjectMlPolicyUpdate(BaseModel):
     """Project-level opt-in for ML auto-containment (global flag must also be enabled)."""
 
     allow_ml_auto_contain: bool
+
+
+class ProjectComplianceInferenceUpdate(BaseModel):
+    compliance_inference_mode: str
+
+    @field_validator("compliance_inference_mode")
+    @classmethod
+    def validate_mode(cls, v: str) -> str:
+        allowed = {"manual", "hybrid", "inferred"}
+        if v not in allowed:
+            raise ValueError(f"compliance_inference_mode must be one of {sorted(allowed)}")
+        return v
 
 
 class ProjectMemberResponse(BaseModel):

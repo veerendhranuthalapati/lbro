@@ -30,6 +30,7 @@ from app.schemas.project import (
     ProjectMemberResponse,
     ProjectMemberUpdate,
     ProjectMlPolicyUpdate,
+    ProjectComplianceInferenceUpdate,
     ProjectResponse,
     ProjectUpdate,
 )
@@ -149,6 +150,50 @@ async def update_project_ml_policy(
     )
     await db.commit()
     await db.refresh(project)
+    from app.core.project_access import get_effective_project_role
+
+    role = await get_effective_project_role(db, current_user, project)
+    return _project_response(project, role)
+
+
+@router.get("/{project_id}/compliance-inference", response_model=ProjectResponse)
+async def get_compliance_inference(
+    project_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_permission(Permission.VIEW_COMPLIANCE))],
+):
+    await assert_project_access(db, project_id, current_user)
+    svc = ProjectService(db)
+    project = await svc.get(project_id)
+    from app.core.project_access import get_effective_project_role
+
+    role = await get_effective_project_role(db, current_user, project)
+    return _project_response(project, role)
+
+
+@router.patch("/{project_id}/compliance-inference", response_model=ProjectResponse)
+async def update_compliance_inference(
+    project_id: uuid.UUID,
+    body: ProjectComplianceInferenceUpdate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_permission(Permission.MANAGE_COMPLIANCE))],
+):
+    await assert_project_admin(db, project_id, current_user)
+    svc = ProjectService(db)
+    project = await svc.update_compliance_inference_mode(
+        project_id, body.compliance_inference_mode
+    )
+    db.add(
+        AuditLog(
+            user_id=current_user.id,
+            user_email=current_user.email,
+            project_id=project_id,
+            action="project.compliance_inference_updated",
+            resource_type="project",
+            resource_id=str(project_id),
+            details={"compliance_inference_mode": body.compliance_inference_mode},
+        )
+    )
     from app.core.project_access import get_effective_project_role
 
     role = await get_effective_project_role(db, current_user, project)

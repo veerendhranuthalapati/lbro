@@ -312,6 +312,15 @@ class ProjectService:
         await self.db.flush()
         return project
 
+    async def update_compliance_inference_mode(
+        self, project_id: uuid.UUID, mode: str
+    ) -> Project:
+        project = await self.get(project_id)
+        project.compliance_inference_mode = mode
+        project.updated_at = datetime.now(timezone.utc)
+        await self.db.flush()
+        return project
+
     async def regenerate_api_key(self, project_id: uuid.UUID) -> tuple[Project, str]:
         project = await self.get(project_id)
         full_key, prefix, key_hash = generate_project_api_key()

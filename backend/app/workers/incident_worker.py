@@ -32,6 +32,10 @@ async def process_incident_message(body: dict) -> None:
 
     if action == "classify":
         await classify_incident(uuid.UUID(str(incident_id)), dedupe_key=message_id)
+    elif action == "exposure_recompute":
+        from app.services.exposure_service import run_exposure_recompute_job
+
+        await run_exposure_recompute_job(uuid.UUID(str(incident_id)))
     else:
         logger.warning("Unknown incident action: %s", action)
 
@@ -116,6 +120,12 @@ async def classify_incident(incident_id: uuid.UUID, dedupe_key: str | None = Non
                 prediction.source,
                 prediction.confidence,
             )
+            try:
+                from app.services.exposure_service import enqueue_exposure_recompute
+
+                enqueue_exposure_recompute(incident.id)
+            except Exception as exc:
+                logger.warning("Exposure enqueue after classify failed: %s", exc)
         except Exception as exc:
             await db.rollback()
             logger.error("Failed to classify incident %s: %s", incident_id, exc)

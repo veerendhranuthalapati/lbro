@@ -852,6 +852,46 @@ async def _generate_compliance_pdf(
         story.append(reg_tbl)
         story.append(Spacer(1, 10))
 
+    # Exposure & obligations (inferred pipeline summary)
+    from sqlalchemy import false as sa_false
+    from xml.sax.saxutils import escape as xml_escape
+    from app.models.asset import IncidentExposureAssessment
+    from app.models.incident import Incident
+
+    story.append(Paragraph("Exposure and Obligations (inference)", S["h2"]))
+    assess_q = select(IncidentExposureAssessment).join(
+        Incident, IncidentExposureAssessment.incident_id == Incident.id
+    ).order_by(IncidentExposureAssessment.computed_at.desc()).limit(5)
+    if scope_ids is not None:
+        if not scope_ids:
+            assess_q = assess_q.where(sa_false())
+        else:
+            assess_q = assess_q.where(Incident.project_id.in_(scope_ids))
+    assessments = (await db.execute(assess_q)).scalars().all()
+    if not assessments:
+        story.append(Paragraph("No exposure assessments recorded in scope.", S["body"]))
+    else:
+        for a in assessments:
+            res = a.results or {}
+            disc = xml_escape(str(res.get("disclaimer", "")))
+            story.append(Paragraph(f"Assessment {xml_escape(str(a.id))} — status {xml_escape(a.status)}", S["h3"]))
+            story.append(Paragraph(disc, S["small"]))
+            for t in res.get("techniques") or []:
+                story.append(Paragraph(
+                    xml_escape(f"{t.get('technique_id', '')}: {t.get('name', '')} ({t.get('likelihood', '')})"),
+                    S["body"],
+                ))
+            for j in res.get("jurisdiction_exposure") or []:
+                story.append(Paragraph(
+                    xml_escape(
+                        f"{j.get('jurisdiction_code')}: lower={j.get('lower_bound')} upper={j.get('upper_bound')}"
+                    ),
+                    S["body"],
+                ))
+            for w in res.get("warnings") or []:
+                story.append(Paragraph(xml_escape(f"Warning: {w.get('code')} — {w.get('message')}"), S["small"]))
+    story.append(Spacer(1, 8))
+
     # Footer note
     story.append(Spacer(1, 20))
     hr()

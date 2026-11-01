@@ -22,6 +22,14 @@ class ComplianceRecordResponse(BaseModel):
     is_met: bool
     met_at: Optional[datetime] = None
     notes: Optional[str] = None
+    source: str = "manual"
+    rule_id: Optional[str] = None
+    rule_version: Optional[str] = None
+    assessment_id: Optional[uuid.UUID] = None
+    clock_start_at: Optional[datetime] = None
+    analyst_decision: Optional[str] = None
+    decision_reason: Optional[str] = None
+    provisional: bool = False
     created_at: datetime
     updated_at: datetime
 

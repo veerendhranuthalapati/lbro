@@ -23,6 +23,7 @@ from app.routers import (
     auth, incidents, evidence, notifications, compliance,
     users, ml, dashboard, audit, infrastructure,
     security_score, reports, projects, invitations,
+    assets, knowledge, exposure,
 )
 from app.routers import demo
 from app.routers import platform as platform_router
@@ -183,6 +184,9 @@ app.include_router(incidents.router,      prefix="/api/v1")
 app.include_router(evidence.router,       prefix="/api/v1")
 app.include_router(notifications.router,  prefix="/api/v1")
 app.include_router(compliance.router,     prefix="/api/v1")
+app.include_router(assets.router,           prefix="/api/v1")
+app.include_router(knowledge.router,      prefix="/api/v1")
+app.include_router(exposure.router,         prefix="/api/v1")
 app.include_router(users.router,          prefix="/api/v1")
 app.include_router(ml.router,             prefix="/api/v1")
 app.include_router(dashboard.router,      prefix="/api/v1")

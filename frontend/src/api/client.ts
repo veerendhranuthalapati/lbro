@@ -509,6 +509,9 @@ export const mlApi = {
   classify: (features: Record<string, number>): Promise<Record<string, unknown>> =>
     apiClient.post('/api/v1/ml/classify', features).then(r => r.data),
 
+  status: (): Promise<Record<string, unknown>> =>
+    apiClient.get('/api/v1/ml/status').then(r => r.data),
+
   /** MISSING: live classified network flows */
   flows: (): Promise<CICIDSFlow[]> =>
     apiClient.get<CICIDSFlow[]>('/api/v1/ml/flows').then(r => r.data),
@@ -648,6 +651,11 @@ export const projectsApi = {
 
   update: (id: string, data: ProjectUpdate): Promise<Project> =>
     apiClient.patch<Project>(`/api/v1/projects/${id}`, data).then(r => r.data),
+
+  updateMlPolicy: (id: string, allowMlAutoContain: boolean): Promise<Project> =>
+    apiClient.patch<Project>(`/api/v1/projects/${id}/ml-policy`, {
+      allow_ml_auto_contain: allowMlAutoContain,
+    }).then(r => r.data),
 
   delete: (id: string): Promise<void> =>
     apiClient.delete(`/api/v1/projects/${id}`).then(() => undefined),

@@ -224,6 +224,7 @@ class IncidentResponse(BaseModel):
     confidence_score: Optional[float] = None
     ml_model_version: Optional[str] = None
     needs_analyst_review: bool
+    ml_classification_status: str = "pending"
     source_ip: Optional[str] = None
     destination_ip: Optional[str] = None
     source_port: Optional[int] = None

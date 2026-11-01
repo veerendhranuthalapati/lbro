@@ -32,6 +32,19 @@ async def _heartbeat_loop() -> None:
         await asyncio.sleep(HEARTBEAT_INTERVAL_SECONDS)
 
 
+async def _ml_pending_retry_loop() -> None:
+    from app.workers.ml_retry_sweep import sweep_pending_ml_classifications
+
+    while not _shutdown:
+        try:
+            count = await sweep_pending_ml_classifications()
+            if count:
+                logger.info("ML pending sweep retried %s incidents", count)
+        except Exception as exc:
+            logger.error("ML pending sweep error: %s", exc)
+        await asyncio.sleep(settings.ML_PENDING_SWEEP_INTERVAL_SECONDS)
+
+
 def _handle_signal(sig, frame):
     global _shutdown
     logger.info("Received signal %s, shutting down gracefully...", sig)
@@ -64,11 +77,17 @@ async def poll_queue(queue_url: str, handler) -> None:
 
 async def main() -> None:
     global _shutdown
+    from app.ml.startup_check import run_ml_startup_check
+
+    if settings.ENVIRONMENT != "test":
+        run_ml_startup_check(fail_fast_in_production=settings.ENVIRONMENT.lower() == "production")
+
     signal.signal(signal.SIGTERM, _handle_signal)
     signal.signal(signal.SIGINT, _handle_signal)
 
     _touch_heartbeat()
     heartbeat_task = asyncio.create_task(_heartbeat_loop())
+    retry_sweep_task = asyncio.create_task(_ml_pending_retry_loop())
 
     tasks = []
     if settings.SQS_INCIDENT_QUEUE_URL:
@@ -87,8 +106,13 @@ async def main() -> None:
     finally:
         _shutdown = True
         heartbeat_task.cancel()
+        retry_sweep_task.cancel()
         try:
             await heartbeat_task
+        except asyncio.CancelledError:
+            pass
+        try:
+            await retry_sweep_task
         except asyncio.CancelledError:
             pass
 

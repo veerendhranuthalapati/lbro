@@ -28,13 +28,14 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -r requirements.txt ruff mypy types-passlib
+        run: pip install -r requirements.txt -r requirements-dev.txt
 
-      - name: Ruff lint
-        run: ruff check app/ --select E,F,I,N,W,UP --ignore E501
+      - name: Ruff lint (ML hardening paths)
+        run: |
+          ruff check app/ml/bundle_io.py app/ml/classifier.py app/ml/signing_policy.py app/ml/startup_check.py app/ml/metrics_public.py app/ml/event_mapper.py app/ml/model_registry.py app/workers/incident_worker.py app/workers/ml_retry_sweep.py app/workers/main.py app/routers/ml.py --select E,F,I,W,UP --ignore E501
 
       - name: Ruff format check
-        run: ruff format --check app/
+        run: ruff format --check app/ml/bundle_io.py app/ml/classifier.py app/ml/signing_policy.py app/workers/
 
   backend-test:
     name: Backend — Pytest
@@ -53,22 +54,56 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: pip install -r requirements.txt -r requirements-dev.txt
 
-      - name: Run tests
+      - name: Sign test bundle & verify
         env:
-          # conftest.py overrides these via os.environ.setdefault() before app import,
-          # but set them here too for explicitness and any CI-level inspection.
+          ML_MODEL_SIGNING_KEY: test-ml-signing-key-minimum-32-characters-long
+          ML_MODEL_BUNDLE_DIR: app/ml/models/bundle
+        run: |
+          python ../scripts/sign_model.py --bundle-dir app/ml/models/bundle
+          python ../scripts/verify_model.py --load-model
+
+      - name: Run tests (default, excludes slow)
+        env:
           DATABASE_URL: sqlite+aiosqlite:///:memory:
           SECRET_KEY: test-secret-key-minimum-32-characters-ci
           ENVIRONMENT: test
+          ML_MODEL_SIGNING_KEY: test-ml-signing-key-minimum-32-characters-long
           ALLOW_PUBLIC_REGISTRATION: "true"
           AWS_DEFAULT_REGION: us-east-1
           AWS_ACCESS_KEY_ID: test
           AWS_SECRET_ACCESS_KEY: test
           S3_BUCKET_EVIDENCE: lbro-test-evidence
           SQS_INCIDENT_QUEUE_URL: ""
-        run: pytest tests/ -v --tb=short --cov=app --cov-report=term-missing
+        run: pytest tests/ -v --tb=short --cov=app.ml.classifier --cov=app.ml.bundle_io --cov=app.ml.signing_policy --cov=app.ml.event_mapper --cov=app.ml.startup_check --cov=app.ml.metrics_public --cov-report=term-missing
+
+  backend-test-slow:
+    name: Backend — Pytest (slow ML training)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run slow ML training test
+        env:
+          DATABASE_URL: sqlite+aiosqlite:///:memory:
+          SECRET_KEY: test-secret-key-minimum-32-characters-ci
+          ENVIRONMENT: test
+          ML_MODEL_SIGNING_KEY: test-ml-signing-key-minimum-32-characters-long
+          ALLOW_PUBLIC_REGISTRATION: "true"
+        run: pytest tests/test_ml_training.py -v --tb=short -m slow
 
   backend-build:
     name: Backend — Docker Build
@@ -85,6 +120,8 @@ jobs:
           context: .
           file: docker/Dockerfile.api
           push: false
+          build-args: |
+            ML_MODEL_SIGNING_KEY=ci-release-signing-key-minimum-32-characters-long
           cache-from: type=gha
           cache-to: type=gha,mode=max
           tags: lbro-api:ci
@@ -124,6 +161,28 @@ jobs:
 
       - name: ESLint
         run: npm run lint
+
+  frontend-test:
+    name: Frontend — Vitest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Vitest
+        run: npm run test -- --run
 
   frontend-build:
     name: Frontend — Vite Build
@@ -215,8 +274,10 @@ jobs:
     needs:
       - backend-lint
       - backend-test
+      - backend-test-slow
       - backend-build
       - frontend-lint
+      - frontend-test
       - frontend-build
       - terraform-validate
     runs-on: ubuntu-latest

@@ -12,6 +12,7 @@ from app.ml.bundle_io import BundleLoadError, LoadedBundle, load_verified_bundle
 from app.ml.contract import ClassificationResult, TopClassProbability
 from app.ml.features import ATTACK_CLASSES, CICIDS2017_FEATURES, SEVERITY_MAP
 from app.ml.heuristic import heuristic_classify
+from app.ml.metrics_public import sanitize_metrics_summary_for_public
 from app.ml.preprocessing import (
     build_imputation_vector,
     compute_ood_fraction,
@@ -98,7 +99,9 @@ class AttackClassifier:
             "load_error_reason": self._load_error_reason,
             "load_error_code": self._load_error_code,
             "heuristic_fallback_active": b is None,
-            "metrics_summary": b.metrics_summary if b else {},
+            "metrics_summary": sanitize_metrics_summary_for_public(b.manifest)
+            if b
+            else {},
             "thresholds": {
                 "ML_CONFIDENCE_THRESHOLD": settings.ML_CONFIDENCE_THRESHOLD,
                 "ML_REVIEW_THRESHOLD": settings.ML_REVIEW_THRESHOLD,

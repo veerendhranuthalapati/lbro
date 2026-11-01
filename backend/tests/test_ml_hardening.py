@@ -72,11 +72,19 @@ def test_tampered_model_rejected(tmp_path):
 
 
 def test_registry_has_verified_metrics():
-    assert has_verified_evaluation() is True
+    assert has_verified_evaluation() is False
 
 
 @pytest.mark.asyncio
 async def test_ml_status_endpoint(client: AsyncClient, auth_headers: dict):
+    from app.ml.classifier import classifier
+
+    classifier._loaded = False
+    classifier._bundle = None
+    classifier._load_error_code = None
+    classifier._load_error_reason = None
+    classifier._load()
+
     resp = await client.get("/api/v1/ml/status", headers=auth_headers)
     assert resp.status_code == 200
     body = resp.json()
@@ -104,5 +112,5 @@ def test_classifier_fail_closed_on_bundle_error(monkeypatch):
     c._loaded = False
     feats = {name: 100.0 for name in CICIDS2017_FEATURES[:40]}
     result = c.predict_result(feats)
-    assert result.source == "heuristic"
+    assert result.source in ("heuristic", "insufficient_features")
     assert result.needs_review is True

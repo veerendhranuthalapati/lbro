@@ -19,13 +19,20 @@ RUN pip install --no-cache-dir --upgrade pip \
 
 COPY backend/ .
 
-# backend/alembic/ was a migration config directory whose name conflicts with
-# the installed alembic Python package when PYTHONPATH=/app is set.
-# It has been deleted from source; this guard prevents any accidental
-# reintroduction from breaking alembic imports.
+ARG ML_MODEL_SIGNING_KEY=""
+
+# backend/alembic/ conflicts with the installed alembic package when PYTHONPATH=/app.
 RUN rm -rf /app/alembic
 
 RUN mkdir -p /app/ml/models && chown -R lbro:lbro /app
+
+# Sign bundle at image build when release pipeline passes ML_MODEL_SIGNING_KEY build-arg.
+ENV ML_MODEL_BUNDLE_DIR="/app/app/ml/models/bundle"
+COPY scripts/sign_model.py /tmp/ml-scripts/sign_model.py
+RUN if [ -n "$ML_MODEL_SIGNING_KEY" ]; then \
+      PYTHONPATH=/app ML_MODEL_BUNDLE_DIR=/app/app/ml/models/bundle ENVIRONMENT=production \
+      python /tmp/ml-scripts/sign_model.py --bundle-dir /app/app/ml/models/bundle ; \
+    fi && rm -rf /tmp/ml-scripts
 
 ENV PYTHONPATH="/app" \
     PYTHONDONTWRITEBYTECODE=1 \

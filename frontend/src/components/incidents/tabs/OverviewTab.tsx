@@ -7,6 +7,9 @@ import { StatusBadge } from '@/components/ui/StatusBadge'
 import type { IncidentDetail } from '@/types'
 import type { IncidentSeverity, IncidentStatus } from '@/types'
 import { formatDate, timeAgo } from '@/utils'
+import { MlClassificationBadge } from '@/components/ml/MlClassificationBadge'
+import { incidentMlBadgeProps } from '@/lib/mlClassification'
+import { useMlStatus } from '@/hooks/useApi'
 import {
   ORANGE, BLACK, BORDER, GRAY, CREAM, PARCH, GREEN, BLUE,
   Card, CardHead, KV, Tag,
@@ -25,6 +28,9 @@ const SEV_COLOR: Record<string, string> = {
 }
 
 export function OverviewTab({ incident }: Props) {
+  const { data: mlStatus } = useMlStatus()
+  const bundleStatus = typeof mlStatus?.status === 'string' ? mlStatus.status : null
+  const mlBadge = incidentMlBadgeProps(incident)
   const conf = incident.confidence_score != null
     ? Math.round(incident.confidence_score * 100)
     : null
@@ -62,7 +68,10 @@ export function OverviewTab({ incident }: Props) {
           <KV label="Last Updated"  value={formatDate(incident.updated_at)} mono />
           <KV label="Closed At"     value={incident.closed_at ? formatDate(incident.closed_at) : '—'} mono />
           <KV label="ML Model"      value={incident.ml_model_version ?? '—'} mono />
-          <KV label="Needs Review"  value={incident.needs_analyst_review ? 'YES' : 'No'} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+            <span style={{ fontSize: 9, color: GRAY, textTransform: 'uppercase', letterSpacing: '0.07em' }}>Classification</span>
+            <MlClassificationBadge {...mlBadge} bundleStatus={bundleStatus} />
+          </div>
         </Card>
 
         {/* Network Details */}

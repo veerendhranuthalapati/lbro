@@ -3,13 +3,14 @@ from __future__ import annotations
 
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import settings
 from app.core.exceptions import NotFoundError, ConflictError
 from app.models.incident import Incident, IncidentAction, IncidentStatus, IncidentSeverity
 from app.models.user import User
@@ -77,6 +78,10 @@ class IncidentService:
                     extra={"incident_id": str(incident.id)},
                 )
                 incident.ml_classification_status = "pending"
+                incident.ml_classification_attempts = 1
+                incident.ml_classification_next_retry_at = datetime.now(timezone.utc) + timedelta(
+                    seconds=settings.ML_PENDING_RETRY_BASE_SECONDS
+                )
 
         return incident
 

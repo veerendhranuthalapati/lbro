@@ -17,7 +17,9 @@ import {
 import { projectsApi, apiClient } from '@/api/client'
 import { getProjectApiKey } from '@/lib/projectApiKeys'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { MlClassificationBadge } from '@/components/ml/MlClassificationBadge'
 import { LoadingState } from '@/components/ui/LoadingState'
+import { useMlStatus } from '@/hooks/useApi'
 
 const BG     = 'transparent'
 const CARD   = '#ffffff'
@@ -55,6 +57,7 @@ interface LiveEvent {
   ml_confidence:     number | null
   ml_source?:        string | null
   ml_needs_review?:  boolean | null
+  ml_ood_flag?:      boolean | null
   created_at:        string
   source_ip?:        string
   message?:          string
@@ -67,14 +70,15 @@ function timeStr(iso: string) {
   return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
 }
 
-function mlSourceLabel(source: string | null | undefined): string {
-  if (!source || source === 'model') return 'Model'
-  if (source === 'heuristic') return 'Heuristic — needs review'
-  if (source === 'insufficient_features') return 'Insufficient data'
-  return source
-}
-
-function EventRow({ ev, isNew }: { ev: LiveEvent; isNew: boolean }) {
+function EventRow({
+  ev,
+  isNew,
+  bundleStatus,
+}: {
+  ev: LiveEvent
+  isNew: boolean
+  bundleStatus?: string | null
+}) {
   const color = SEV_COLOR[ev.severity] ?? '#888'
   const bg    = SEV_BG[ev.severity]   ?? '#88888818'
 
@@ -99,16 +103,13 @@ function EventRow({ ev, isNew }: { ev: LiveEvent; isNew: boolean }) {
             </span>
           )}
           {ev.ml_source && (
-            <span
-              className="text-xs px-1.5 py-0.5 rounded border"
-              style={{
-                borderColor: BORDER,
-                color: ev.ml_source === 'model' ? '#15803d' : '#b45309',
-              }}
-              title={ev.ml_source === 'model' ? 'Calibrated model output' : 'Requires analyst review'}
-            >
-              {mlSourceLabel(ev.ml_source)}
-            </span>
+            <MlClassificationBadge
+              source={ev.ml_source}
+              needsReview={ev.ml_needs_review ?? true}
+              oodFlag={ev.ml_ood_flag ?? false}
+              bundleStatus={bundleStatus}
+              confidence={ev.ml_confidence}
+            />
           )}
           {ev.incident_id && (
             <span className="text-xs px-1.5 py-0.5 rounded text-zinc-400" style={{ background: '#22222260' }}>
@@ -152,6 +153,8 @@ export default function LiveEventsPage() {
     queryFn:  () => projectsApi.get(projectId!),
     enabled:  !!projectId,
   })
+  const { data: mlStatus } = useMlStatus()
+  const bundleStatus = typeof mlStatus?.status === 'string' ? mlStatus.status : null
 
   // ── Flush buffer into state ──────────────────────────────────────────────
   const flush = useCallback((incoming: LiveEvent[]) => {
@@ -396,7 +399,7 @@ export default function LiveEventsPage() {
           ) : (
             <div className="max-h-[600px] overflow-y-auto">
               {events.map(ev => (
-                <EventRow key={ev.id} ev={ev} isNew={newIds.has(ev.id)} />
+                <EventRow key={ev.id} ev={ev} isNew={newIds.has(ev.id)} bundleStatus={bundleStatus} />
               ))}
             </div>
           )}

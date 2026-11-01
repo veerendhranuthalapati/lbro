@@ -16,6 +16,7 @@ collect_ignore = ["integration/test_incidents.py"]
 
 import asyncio
 import os
+from pathlib import Path
 from typing import AsyncGenerator
 
 import pytest
@@ -36,6 +37,8 @@ os.environ.setdefault("ML_MODEL_SIGNING_KEY", "test-ml-signing-key-minimum-32-ch
 os.environ.setdefault("ML_ALLOW_UNSIGNED_MODEL", "false")
 
 # Import app AFTER env vars are set
+from app.ml.bundle_io import MANIFEST_NAME, SIGNATURE_NAME, compute_manifest_hmac  # noqa: E402
+from app.config import settings as _settings  # noqa: E402
 from app.database import Base, get_db  # noqa: E402
 from app.main import app as fastapi_app  # noqa: E402
 import app.models  # noqa: F401 — ensures all models register with Base.metadata  # noqa: E402
@@ -62,6 +65,21 @@ TestSessionLocal = async_sessionmaker(
 def _run(coro):
     """Run a coroutine synchronously; safe to call from session-scope fixtures."""
     return asyncio.get_event_loop().run_until_complete(coro)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def sign_test_ml_bundle():
+    """Ensure committed bundle has manifest.sig matching the test signing key."""
+    bundle = Path(_settings.ML_MODEL_BUNDLE_DIR)
+    manifest_path = bundle / MANIFEST_NAME
+    if not manifest_path.is_file():
+        yield
+        return
+    key = os.environ.get("ML_MODEL_SIGNING_KEY", "")
+    manifest_bytes = manifest_path.read_bytes()
+    sig = compute_manifest_hmac(manifest_bytes, key)
+    (bundle / SIGNATURE_NAME).write_text(sig, encoding="utf-8")
+    yield
 
 
 @pytest.fixture(scope="session", autouse=True)

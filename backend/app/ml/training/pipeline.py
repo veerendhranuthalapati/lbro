@@ -228,12 +228,18 @@ def train_and_export(cfg: TrainConfig | None = None) -> dict:
     (cfg.bundle_dir / CLASSES_NAME).write_text(json.dumps({"classes": class_names}, indent=2), encoding="utf-8")
 
     metrics_summary = {
-        "headline_evaluation": "realistic_block",
+        "headline_evaluation": "n/a - demo-synthetic" if bundle_status == "demo-synthetic" else "realistic_block",
         "algorithm": algo_name,
         "calibration_method": best_method,
-        "validation_macro_f1": val_f1,
-        "realistic": {k: realistic_metrics[k] for k in ("accuracy", "macro_f1", "weighted_f1", "log_loss", "ece")},
-        "optimistic": {k: optimistic_metrics[k] for k in ("accuracy", "macro_f1", "weighted_f1", "log_loss", "ece")},
+        "validation_macro_f1": "n/a - demo-synthetic"
+        if bundle_status == "demo-synthetic"
+        else val_f1,
+        "realistic": "n/a - demo-synthetic"
+        if bundle_status == "demo-synthetic"
+        else {k: realistic_metrics[k] for k in ("accuracy", "macro_f1", "weighted_f1", "log_loss", "ece")},
+        "optimistic": "n/a - demo-synthetic"
+        if bundle_status == "demo-synthetic"
+        else {k: optimistic_metrics[k] for k in ("accuracy", "macro_f1", "weighted_f1", "log_loss", "ece")},
     }
 
     write_bundle_manifest(

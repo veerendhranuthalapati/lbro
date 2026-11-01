@@ -6,9 +6,8 @@ import hmac
 import json
 import logging
 import platform
-import sys
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -180,7 +179,7 @@ def write_bundle_manifest(
 
     manifest: dict[str, Any] = {
         "version": version,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
         "git_commit": git_commit,
         "status": status,
         "training_data_hashes": dataset_hashes,

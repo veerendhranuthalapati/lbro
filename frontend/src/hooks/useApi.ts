@@ -343,6 +343,15 @@ export function useMlModelInfo() {
   })
 }
 
+export function useMlStatus() {
+  return useQuery({
+    queryKey: [...qk.ml.stats, 'status'],
+    queryFn: () => mlApi.status(),
+    staleTime: 60_000,
+    retry: 1,
+  })
+}
+
 // ---- ML flows (MISSING endpoint) ------------------------------------------
 export function useMlFlows() {
   return useQuery({

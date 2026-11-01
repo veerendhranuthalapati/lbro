@@ -81,8 +81,15 @@ class ProjectResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     my_role: Optional[str] = None
+    allow_ml_auto_contain: bool = False
 
     model_config = {"from_attributes": True}
+
+
+class ProjectMlPolicyUpdate(BaseModel):
+    """Project-level opt-in for ML auto-containment (global flag must also be enabled)."""
+
+    allow_ml_auto_contain: bool
 
 
 class ProjectMemberResponse(BaseModel):

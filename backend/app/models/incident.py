@@ -78,6 +78,10 @@ class Incident(Base):
     ml_classification_status: Mapped[str] = mapped_column(
         String(32), nullable=False, default="pending"
     )
+    ml_classification_attempts: Mapped[int] = mapped_column(default=0, nullable=False)
+    ml_classification_next_retry_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     source_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)
     destination_ip: Mapped[str | None] = mapped_column(String(45), nullable=True)

@@ -81,6 +81,7 @@ export interface Incident {
   readonly confidence_score: number | null
   readonly ml_model_version: string | null
   readonly needs_analyst_review: boolean
+  readonly ml_classification_status?: string
   readonly source_ip: string | null
   readonly destination_ip: string | null
   readonly source_port: number | null
@@ -399,6 +400,7 @@ export interface Project {
   readonly owner_id: UUID | null
   readonly api_key_prefix: string
   readonly my_role?: 'admin' | 'analyst' | 'viewer' | null
+  readonly allow_ml_auto_contain?: boolean
   readonly created_at: ISODateString
   readonly updated_at: ISODateString
 }

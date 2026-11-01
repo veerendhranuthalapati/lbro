@@ -1,0 +1,5 @@
+# Dev-only tools (CI and local lint/type check)
+-r requirements.txt
+ruff==0.8.4
+mypy==1.13.0
+types-passlib

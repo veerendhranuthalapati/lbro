@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Optional
 
 from app.config import settings
 from app.ml.bundle_io import MANIFEST_NAME, BundleLoadError, verify_bundle_directory
+from app.ml.metrics_public import sanitize_metrics_summary_for_public
 
 BUNDLE_DIR = Path(settings.ML_MODEL_BUNDLE_DIR)
 
@@ -32,12 +32,15 @@ def get_active_model_info() -> dict:
             "status": "unavailable",
         }
     summary = manifest.get("metrics_summary") or {}
-    realistic = summary.get("realistic") or {}
+    if manifest.get("status") == "demo-synthetic":
+        summary = sanitize_metrics_summary_for_public(manifest)
     return {
         "version": manifest.get("version"),
         "registered_at": manifest.get("created_at"),
         "status": manifest.get("status"),
-        "metrics": realistic,
+        "metrics": summary.get("realistic")
+        if isinstance(summary.get("realistic"), dict)
+        else {},
         "metrics_summary": summary,
         "notes": f"Bundle status={manifest.get('status')}; headline={summary.get('headline_evaluation')}",
     }
@@ -58,6 +61,8 @@ def has_verified_evaluation() -> bool:
     if not model_artifact_exists():
         return False
     info = get_active_model_info()
+    if info.get("status") == "demo-synthetic":
+        return False
     metrics = info.get("metrics") or {}
     return metrics.get("macro_f1") is not None
 

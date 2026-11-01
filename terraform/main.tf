@@ -64,6 +64,17 @@ resource "aws_secretsmanager_secret_version" "app_secret_key" {
   secret_string = var.app_secret_key
 }
 
+resource "aws_secretsmanager_secret" "ml_model_signing_key" {
+  name                    = "${local.name_prefix}/ml-model-signing-key"
+  recovery_window_in_days = 7
+  description             = "HMAC key for verifying ML model bundle manifest.sig"
+}
+
+resource "aws_secretsmanager_secret_version" "ml_model_signing_key" {
+  secret_id     = aws_secretsmanager_secret.ml_model_signing_key.id
+  secret_string = var.ml_model_signing_key
+}
+
 resource "aws_secretsmanager_secret" "db_password" {
   name                    = "${local.name_prefix}/db-password"
   recovery_window_in_days = 7
@@ -143,6 +154,7 @@ module "iam" {
     aws_secretsmanager_secret.app_secret_key.arn,
     aws_secretsmanager_secret.db_password.arn,
     aws_secretsmanager_secret.db_url.arn,
+    aws_secretsmanager_secret.ml_model_signing_key.arn,
   ]
 }
 
@@ -180,11 +192,13 @@ module "ecs" {
     # CORS_ORIGINS can't reference module.ecs.alb_dns_name (self-reference).
     # Set via var.cors_origins; after first deploy, run: terraform apply -var cors_origins=https://your-alb-dns
     { name = "CORS_ORIGINS", value = var.cors_origins },
+    { name = "ML_MODEL_BUNDLE_DIR", value = "/app/app/ml/models/bundle" },
+    { name = "ML_ALLOW_UNSIGNED_MODEL", value = "false" },
   ]
   api_secrets = [
     { name = "SECRET_KEY", valueFrom = aws_secretsmanager_secret.app_secret_key.arn },
-    # DATABASE_URL secret contains the full asyncpg connection string (not just the password)
     { name = "DATABASE_URL", valueFrom = aws_secretsmanager_secret.db_url.arn },
+    { name = "ML_MODEL_SIGNING_KEY", valueFrom = aws_secretsmanager_secret.ml_model_signing_key.arn },
   ]
 
   worker_env_vars = [
@@ -193,10 +207,13 @@ module "ecs" {
     { name = "S3_BUCKET_EVIDENCE", value = module.s3.evidence_bucket_name },
     { name = "SQS_INCIDENT_QUEUE_URL", value = module.sqs.incident_queue_url },
     { name = "SQS_NOTIFICATION_QUEUE_URL", value = module.sqs.notification_queue_url },
+    { name = "ML_MODEL_BUNDLE_DIR", value = "/app/app/ml/models/bundle" },
+    { name = "ML_ALLOW_UNSIGNED_MODEL", value = "false" },
   ]
   worker_secrets = [
     { name = "SECRET_KEY", valueFrom = aws_secretsmanager_secret.app_secret_key.arn },
     { name = "DATABASE_URL", valueFrom = aws_secretsmanager_secret.db_url.arn },
+    { name = "ML_MODEL_SIGNING_KEY", valueFrom = aws_secretsmanager_secret.ml_model_signing_key.arn },
   ]
 
   # No depends_on [module.rds] — that created a circular dependency:

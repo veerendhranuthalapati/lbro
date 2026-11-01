@@ -1,4 +1,5 @@
-import { useMlStats } from '@/hooks/useApi'
+import { useMlStats, useMlStatus } from '@/hooks/useApi'
+import { MlClassificationBadge } from '@/components/ml/MlClassificationBadge'
 import { Brain, TrendingUp, AlertCircle, CheckCircle, BarChart2, Cpu, Wifi } from 'lucide-react'
 
 const ORANGE = '#e54e1b'
@@ -35,7 +36,12 @@ function confColor(score: number) {
 
 export default function MLInsightsPage() {
   const { data: rawStats, isLoading, isError } = useMlStats()
+  const { data: mlStatus } = useMlStatus()
   const stats = rawStats as unknown as MLStats | undefined
+  const bundleStatus = typeof mlStatus?.status === 'string' ? mlStatus.status : null
+  const headlineEval =
+    (mlStatus?.metrics_summary as { headline_evaluation?: string } | undefined)?.headline_evaluation
+      ?? (bundleStatus === 'demo-synthetic' ? 'n/a - demo-synthetic' : null)
 
   const maxAttackCount = stats ? Math.max(...Object.values(stats.attack_distribution)) : 1
 
@@ -67,13 +73,23 @@ export default function MLInsightsPage() {
         </div>
       ) : stats ? (
         <>
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+            <MlClassificationBadge
+              source={stats.runtime_mode === 'model' ? 'model' : 'heuristic'}
+              needsReview={stats.low_confidence_count > 0}
+              bundleStatus={bundleStatus}
+            />
+            {headlineEval && (
+              <span style={{ fontSize: 11, color: GRAY }}>Evaluation: {headlineEval}</span>
+            )}
+          </div>
           {/* KPIs */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
             {[
               { icon: <Cpu style={{ width: 14, height: 14, color: ORANGE }} />, label: 'Predictions today', value: stats.predictions_today.toLocaleString(), color: ORANGE },
               { icon: <TrendingUp style={{ width: 14, height: 14, color: '#3a7a50' }} />, label: 'Avg confidence', value: `${(stats.avg_confidence * 100).toFixed(1)}%`, color: confColor(stats.avg_confidence) },
               { icon: <AlertCircle style={{ width: 14, height: 14, color: '#d97706' }} />, label: 'Needs review', value: stats.low_confidence_count.toString(), color: stats.low_confidence_count > 0 ? '#d97706' : '#3a7a50' },
-              { icon: <CheckCircle style={{ width: 14, height: 14, color: '#3b82f6' }} />, label: 'Model accuracy', value: stats.has_evaluation_data && stats.active_model?.accuracy != null ? `${(stats.active_model.accuracy * 100).toFixed(1)}%` : 'N/A', color: BLACK },
+              { icon: <CheckCircle style={{ width: 14, height: 14, color: '#3b82f6' }} />, label: 'Model accuracy', value: stats.has_evaluation_data && stats.active_model?.accuracy != null ? `${(stats.active_model.accuracy * 100).toFixed(1)}%` : (headlineEval ?? 'N/A'), color: BLACK },
             ].map(k => (
               <div key={k.label} style={{ background: CREAM, border: `1px solid ${BORDER}`, borderRadius: 4, padding: '14px 16px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 10, color: GRAY, marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.1em' }}>

@@ -8,6 +8,8 @@ from typing import List, Optional
 from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.ml.signing_policy import validate_signing_key_for_environment
+
 # Sentinel value used as the default SECRET_KEY.
 # In production: startup fails if this value is detected.
 # In dev/test: replaced with a fixed (but still insecure) fallback so that
@@ -106,6 +108,7 @@ class Settings(BaseSettings):
 
     # ── ML ───────────────────────────────────────────────────────────────────
     ML_MODEL_BUNDLE_DIR: str = str(Path(__file__).parent / "ml" / "models" / "bundle")
+
     # Legacy paths — deprecated; kept so old env files do not crash imports.
     ML_MODEL_PATH: str = str(Path(__file__).parent / "ml" / "models" / "cicids2017_classifier.pkl")
     ML_SCALER_PATH: str = str(Path(__file__).parent / "ml" / "models" / "scaler.pkl")
@@ -120,6 +123,9 @@ class Settings(BaseSettings):
     ML_AUTO_CONTAIN_ENABLED: bool = False
     ML_AUTO_CONTAIN_THRESHOLD: float = 0.95
     ML_MODEL_VERSION: str = "1.0.0"
+    ML_PENDING_MAX_ATTEMPTS: int = 5
+    ML_PENDING_RETRY_BASE_SECONDS: int = 30
+    ML_PENDING_SWEEP_INTERVAL_SECONDS: int = 60
 
     @field_validator("ML_MODEL_SIGNING_KEY", mode="after")
     @classmethod
@@ -127,11 +133,16 @@ class Settings(BaseSettings):
         import os
 
         env = os.getenv("ENVIRONMENT", "production").lower()
-        if env == "production" and not v and not os.getenv("ML_ALLOW_UNSIGNED_MODEL", "").lower() == "true":
-            raise ValueError(
-                "ML_MODEL_SIGNING_KEY must be set when ENVIRONMENT=production "
-                "(or explicitly allow unsigned bundles only in dev/test)."
-            )
+        try:
+            validate_signing_key_for_environment(v, env)
+        except ValueError:
+            if env == "production" and not os.getenv("ML_ALLOW_UNSIGNED_MODEL", "").lower() == "true":
+                if not v:
+                    raise ValueError(
+                        "ML_MODEL_SIGNING_KEY must be set when ENVIRONMENT=production "
+                        "(or explicitly allow unsigned bundles only in dev/test)."
+                    )
+            raise
         return v
 
     # ── CORS ─────────────────────────────────────────────────────────────────

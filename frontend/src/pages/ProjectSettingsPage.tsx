@@ -43,6 +43,7 @@ export default function ProjectSettingsPage() {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [environment, setEnvironment] = useState<ProjectEnvironment>('production')
+  const [allowMlAutoContain, setAllowMlAutoContain] = useState(false)
   const [keyCopied, setKeyCopied] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [deleteText, setDeleteText] = useState('')
@@ -52,6 +53,7 @@ export default function ProjectSettingsPage() {
       setName(project.name)
       setDescription(project.description ?? '')
       setEnvironment(project.environment)
+      setAllowMlAutoContain(project.allow_ml_auto_contain ?? false)
       if (currentProject?.id !== project.id) setCurrentProject(project)
     }
   }, [project, currentProject?.id, setCurrentProject])
@@ -67,6 +69,15 @@ export default function ProjectSettingsPage() {
     onSuccess: (updated) => {
       qc.invalidateQueries({ queryKey: ['project', projectId] })
       qc.invalidateQueries({ queryKey: ['projects'] })
+      if (currentProject?.id === projectId) setCurrentProject(updated)
+    },
+  })
+
+  const mlPolicyMutation = useMutation({
+    mutationFn: (enabled: boolean) => projectsApi.updateMlPolicy(projectId!, enabled),
+    onSuccess: (updated) => {
+      setAllowMlAutoContain(updated.allow_ml_auto_contain ?? false)
+      qc.invalidateQueries({ queryKey: ['project', projectId] })
       if (currentProject?.id === projectId) setCurrentProject(updated)
     },
   })
@@ -191,6 +202,27 @@ export default function ProjectSettingsPage() {
                   </button>
                 ))}
               </div>
+            </div>
+            <div
+              className="rounded-lg border p-4"
+              style={{ borderColor: LBRO.border, background: '#fff' }}
+            >
+              <div className="text-sm font-medium mb-1" style={{ color: LBRO.black }}>
+                ML auto-containment
+              </div>
+              <p className="text-xs mb-3" style={{ color: LBRO.gray }}>
+                When enabled, critical model classifications may recommend containment for this project.
+                Platform-wide auto-containment remains off unless operators enable it in deployment config.
+              </p>
+              <label className="inline-flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={allowMlAutoContain}
+                  disabled={!canManage || mlPolicyMutation.isPending}
+                  onChange={e => mlPolicyMutation.mutate(e.target.checked)}
+                />
+                Allow ML auto-containment for this project
+              </label>
             </div>
             {canManage && (
               <button

@@ -19,6 +19,10 @@ disallow_untyped_defs = false
 asyncio_mode = "auto"
 testpaths = ["tests"]
 filterwarnings = ["ignore::DeprecationWarning"]
+markers = [
+    "slow: long-running ML training pipeline integration test",
+]
+addopts = "-m 'not slow'"
 
 [tool.coverage.run]
 source = ["app"]

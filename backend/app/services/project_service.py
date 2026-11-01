@@ -303,6 +303,15 @@ class ProjectService:
         await self.db.flush()
         return project
 
+    async def update_ml_policy(
+        self, project_id: uuid.UUID, *, allow_ml_auto_contain: bool
+    ) -> Project:
+        project = await self.get(project_id)
+        project.allow_ml_auto_contain = allow_ml_auto_contain
+        project.updated_at = datetime.now(timezone.utc)
+        await self.db.flush()
+        return project
+
     async def regenerate_api_key(self, project_id: uuid.UUID) -> tuple[Project, str]:
         project = await self.get(project_id)
         full_key, prefix, key_hash = generate_project_api_key()

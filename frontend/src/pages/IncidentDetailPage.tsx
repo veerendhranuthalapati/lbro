@@ -15,6 +15,9 @@ import {
 } from 'lucide-react'
 import { SeverityBadge } from '@/components/ui/SeverityBadge'
 import { StatusBadge } from '@/components/ui/StatusBadge'
+import { MlClassificationBadge } from '@/components/ml/MlClassificationBadge'
+import { incidentMlBadgeProps } from '@/lib/mlClassification'
+import { useMlStatus } from '@/hooks/useApi'
 import type { IncidentSeverity, IncidentStatus } from '@/types'
 import {
   useIncident, useIncidentExplanation, useNotifications,
@@ -289,6 +292,9 @@ export default function IncidentDetailPage() {
 
   const isNew = id === 'new' || !id
   const { data: incident, isLoading, isError } = useIncident(isNew ? '' : id!)
+  const { data: mlStatus } = useMlStatus()
+  const bundleStatus = typeof mlStatus?.status === 'string' ? mlStatus.status : null
+  const mlBadge = incident ? incidentMlBadgeProps(incident) : null
 
   if (isNew) { navigate('/incidents/new', { replace: true }); return null }
   if (isLoading) return <Skeleton />
@@ -337,6 +343,9 @@ export default function IncidentDetailPage() {
             <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#5a5450' }}>
               {Math.round(incident.confidence_score * 100)}% confidence
             </span>
+          )}
+          {mlBadge && (
+            <MlClassificationBadge {...mlBadge} bundleStatus={bundleStatus} />
           )}
           <span style={{ fontFamily: 'JetBrains Mono, monospace', fontSize: 9, color: '#5a5450', marginLeft: 'auto' }}>
             {timeAgo(incident.detected_at)}

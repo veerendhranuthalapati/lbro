@@ -29,9 +29,11 @@ from app.schemas.project import (
     ProjectMemberListResponse,
     ProjectMemberResponse,
     ProjectMemberUpdate,
+    ProjectMlPolicyUpdate,
     ProjectResponse,
     ProjectUpdate,
 )
+from app.models.audit import AuditLog
 from app.services.project_service import ProjectService
 from app.services.invitation_service import InvitationService
 from app.services.sdk_generator import build_python_sdk_zip
@@ -116,6 +118,41 @@ async def delete_project(
     await assert_project_admin(db, project_id, current_user)
     svc = ProjectService(db)
     await svc.delete(project_id)
+
+
+@router.patch("/{project_id}/ml-policy", response_model=ProjectResponse)
+async def update_project_ml_policy(
+    project_id: uuid.UUID,
+    body: ProjectMlPolicyUpdate,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_permission(Permission.VIEW_DASHBOARD))],
+):
+    """Update project ML auto-containment opt-in (audit logged)."""
+    await assert_project_admin(db, project_id, current_user)
+    svc = ProjectService(db)
+    project = await svc.update_ml_policy(
+        project_id, allow_ml_auto_contain=body.allow_ml_auto_contain
+    )
+    db.add(
+        AuditLog(
+            user_id=current_user.id,
+            user_email=current_user.email,
+            project_id=project_id,
+            action="project.ml_policy_updated",
+            resource_type="project",
+            resource_id=str(project_id),
+            details={
+                "allow_ml_auto_contain": body.allow_ml_auto_contain,
+                "updated_by": str(current_user.id),
+            },
+        )
+    )
+    await db.commit()
+    await db.refresh(project)
+    from app.core.project_access import get_effective_project_role
+
+    role = await get_effective_project_role(db, current_user, project)
+    return _project_response(project, role)
 
 
 # ── Project API key ───────────────────────────────────────────────────────────

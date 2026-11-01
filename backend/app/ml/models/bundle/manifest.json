@@ -14,22 +14,10 @@
   "metrics_summary": {
     "algorithm": "HistGradientBoosting",
     "calibration_method": "isotonic",
-    "headline_evaluation": "realistic_block",
-    "optimistic": {
-      "accuracy": 0.997867803837953,
-      "ece": 0.008006460973879751,
-      "log_loss": 0.012114334060553898,
-      "macro_f1": 0.9940220922677062,
-      "weighted_f1": 0.9978511785267481
-    },
-    "realistic": {
-      "accuracy": 0.98,
-      "ece": 0.00818313150841386,
-      "log_loss": 0.1223648917150647,
-      "macro_f1": 0.9102968501507275,
-      "weighted_f1": 0.978534380909429
-    },
-    "validation_macro_f1": 0.9522198836761945
+    "headline_evaluation": "n/a - demo-synthetic",
+    "optimistic": "n/a - demo-synthetic",
+    "realistic": "n/a - demo-synthetic",
+    "validation_macro_f1": "n/a - demo-synthetic"
   },
   "status": "demo-synthetic",
   "training_data_hashes": {

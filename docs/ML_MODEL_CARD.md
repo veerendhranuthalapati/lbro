@@ -29,9 +29,9 @@
 
 Structured classification (`ClassificationResult`): `attack_category`, `confidence` (calibrated when `source=model`), `source`, `feature_coverage`, `ood_flag`, `needs_review`, `reasons`, `top_k`.
 
-## Metrics
+## Metrics (headline)
 
-See `ML_MODEL_EVALUATION.md` — headline **realistic block macro-F1 ≈ 0.91** on synthetic fast train only.
+**n/a - demo-synthetic** — numeric evaluation metrics are not claimed for the shipped bundle. See **Appendix** in `ML_MODEL_EVALUATION.md` for labelled synthetic lab numbers only.
 
 ## Ethical considerations
 
@@ -45,4 +45,4 @@ See `ML_MODEL_EVALUATION.md` — headline **realistic block macro-F1 ≈ 0.91** 
 3. Deploy bundle read-only (Docker volume `:ro`).
 4. Rotate key: generate new `ML_MODEL_SIGNING_KEY`, run `scripts/sign_model.py`, redeploy API/workers together.
 
-See runbook section in `ML_FIX_REPORT.md`.
+See `docs/DEPLOY_ML_SIGNING.md` and runbook section in `ML_FIX_REPORT.md`.

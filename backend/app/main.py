@@ -65,6 +65,13 @@ logger = structlog.get_logger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("startup", version=settings.APP_VERSION, env=settings.ENVIRONMENT)
+    if settings.ENVIRONMENT != "test":
+        from app.ml.startup_check import run_ml_startup_check
+
+        ml_report = run_ml_startup_check(
+            fail_fast_in_production=settings.ENVIRONMENT.lower() == "production"
+        )
+        logger.info("ml_startup_check", **ml_report)
     if settings.ENVIRONMENT not in ("test",) and (settings.AWS_ENDPOINT_URL or settings.AWS_ACCESS_KEY_ID):
         try:
             from app.services.s3_service import s3_service

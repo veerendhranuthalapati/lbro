@@ -96,6 +96,16 @@ variable "app_secret_key" {
   }
 }
 
+variable "ml_model_signing_key" {
+  description = "HMAC key for ML bundle manifest.sig (min 32 chars, not a test key)"
+  type        = string
+  sensitive   = true
+  validation {
+    condition     = length(var.ml_model_signing_key) >= 32
+    error_message = "ml_model_signing_key must be at least 32 characters."
+  }
+}
+
 variable "alert_email" {
   description = "Email address for CloudWatch alarm notifications"
   type        = string

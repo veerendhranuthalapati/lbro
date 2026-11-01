@@ -36,6 +36,8 @@ x-common-env: &common-env
   CORS_ORIGINS: ${CORS_ORIGINS:-http://13.203.164.225}
   ALLOWED_HOSTS: ${ALLOWED_HOSTS:-13.203.164.225,api}
   ALLOW_PUBLIC_REGISTRATION: "true"
+  ML_MODEL_BUNDLE_DIR: /app/app/ml/models/bundle
+  ML_ALLOW_UNSIGNED_MODEL: "false"
 
 services:
 
@@ -64,15 +66,17 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile.api
+      args:
+        ML_MODEL_SIGNING_KEY: ${ML_MODEL_SIGNING_KEY:-}
     image: lbro-api:prod
     container_name: lbro-api
     environment:
       <<: *common-env
+      ML_MODEL_SIGNING_KEY: ${ML_MODEL_SIGNING_KEY}
     depends_on:
       postgres:
         condition: service_healthy
     healthcheck:
-      # Use Host: api because TrustedHostMiddleware allows "api" in production.
       test: ["CMD", "curl", "-f", "-H", "Host: api", "http://localhost:8000/health"]
       interval: 15s
       timeout: 5s
@@ -80,7 +84,7 @@ services:
       start_period: 30s
     restart: unless-stopped
     volumes:
-      - ml_models:/app/ml/models
+      - ./backend/app/ml/models/bundle:/app/app/ml/models/bundle:ro
 
   # ── Worker ────────────────────────────────────────────────────────────────
   # Reuses lbro-api:prod — no separate build, zero duplicate layers.
@@ -91,6 +95,7 @@ services:
     command: ["python", "-m", "app.workers.main"]
     environment:
       <<: *common-env
+      ML_MODEL_SIGNING_KEY: ${ML_MODEL_SIGNING_KEY}
     depends_on:
       postgres:
         condition: service_healthy
@@ -111,7 +116,7 @@ services:
       start_period: 30s
     restart: unless-stopped
     volumes:
-      - ml_models:/app/ml/models
+      - ./backend/app/ml/models/bundle:/app/app/ml/models/bundle:ro
 
   # ── Frontend (nginx) ──────────────────────────────────────────────────────
   # Nginx proxies /api/* to the api container (same Docker network).
@@ -140,7 +145,6 @@ services:
 
 volumes:
   postgres_data:
-  ml_models:
 
 networks:
   default:

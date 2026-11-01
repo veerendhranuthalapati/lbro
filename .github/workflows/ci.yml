@@ -78,6 +78,42 @@ jobs:
           SQS_INCIDENT_QUEUE_URL: ""
         run: pytest tests/ -v --tb=short --cov=app.ml.classifier --cov=app.ml.bundle_io --cov=app.ml.signing_policy --cov=app.ml.event_mapper --cov=app.ml.startup_check --cov=app.ml.metrics_public --cov-report=term-missing
 
+  backend-migration-postgres:
+    name: Backend — Alembic 017 on Postgres 16
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: lbro
+          POSTGRES_PASSWORD: lbro
+          POSTGRES_DB: lbro
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Upgrade, downgrade, upgrade migration 017
+        env:
+          DATABASE_URL: postgresql+asyncpg://lbro:lbro@localhost:5432/lbro
+        run: |
+          alembic upgrade head
+          alembic downgrade 016_ml_classification_retry
+          alembic upgrade head
+          alembic heads
+
   backend-test-slow:
     name: Backend — Pytest (slow ML training)
     runs-on: ubuntu-latest
@@ -275,6 +311,7 @@ jobs:
       - backend-lint
       - backend-test
       - backend-test-slow
+      - backend-migration-postgres
       - backend-build
       - frontend-lint
       - frontend-test

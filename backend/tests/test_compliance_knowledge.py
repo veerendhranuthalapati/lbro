@@ -1,8 +1,6 @@
 """Knowledge base validation — every file, cross-refs, ATTACK_CLASSES coverage."""
 from __future__ import annotations
 
-import pytest
-
 from app.compliance.knowledge.loader import load_knowledge_bundle, reload_knowledge_for_tests
 from app.ml.features import ATTACK_CLASSES
 

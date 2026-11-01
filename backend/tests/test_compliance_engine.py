@@ -1,9 +1,7 @@
 """Pure inference engine golden scenarios."""
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
-import pytest
+from datetime import UTC, datetime
 
 from app.compliance.engine.pipeline import run_exposure_assessment
 from app.compliance.engine.types import (
@@ -16,7 +14,7 @@ from app.compliance.engine.types import (
 
 
 def _ts() -> datetime:
-    return datetime(2026, 6, 1, 12, 0, tzinfo=timezone.utc)
+    return datetime(2026, 6, 1, 12, 0, tzinfo=UTC)
 
 
 def test_benign_produces_no_techniques_or_obligations():

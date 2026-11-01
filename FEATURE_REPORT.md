@@ -8,7 +8,7 @@
 |-------|---------|--------|
 | Alembic head | `backend\.venv\Scripts\alembic.exe heads` | `017_threat_to_obligation (head)` |
 | Backend tests (before) | Phase 0 baseline | `710 passed, 1 deselected` |
-| Backend tests (after) | `backend\.venv\Scripts\pytest.exe tests/ -q` | `730 passed, 1 deselected` |
+| Backend tests (after) | `backend\.venv\Scripts\pytest.exe tests/ -q` | `738 passed, 1 deselected` (commit `4f8f207` fixes hour-boundary flake in SQS history test) |
 | Frontend (after) | `npm run type-check`; `npm run test -- --run` | pass; `60 passed` (was `58`) |
 | `app/compliance` coverage | `pytest tests/test_compliance_*.py tests/test_asset_matching.py --cov=app/compliance --cov-report=term-missing -q` | **90%** total (531 stmts, 54 miss) |
 
@@ -87,7 +87,7 @@ Screenshots: not captured (no headless browser in this run).
 
 - All rule packs require **legal review** before operational reliance.
 - Technique mapping is **curated**, not learned.
-- Full suite may flake on SQS history integration timing.
+- Full suite may flake on SQS history integration timing — **fixed** in `4f8f207` (assert sum of buckets, pin `created_at`).
 - Demo seed assets require `LBRO_SEED_DEMO_ASSETS=1` and project slug `demo-compliance`.
 
 ## Decisions for product/legal

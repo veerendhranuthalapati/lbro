@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.compliance.engine.types import (
+    AssessmentStatus,
     AssetInput,
     ClassificationInput,
     EngineConfigInput,
@@ -206,14 +207,14 @@ def run_exposure_assessment(
     for rule in kb.laws.rules:
         if not _rule_applies(rule, impact_types, exposed_categories, personal_data, incident, jurisdiction_exposure, availability_only):
             continue
-        for ob in rule.obligations:
-            deadline_at = _compute_deadline(ob.deadline.amount, ob.deadline.unit, clock_start)
+        for ob_spec in rule.obligations:
+            deadline_at = _compute_deadline(ob_spec.deadline.amount, ob_spec.deadline.unit, clock_start)
             trace.append(
                 TraceStep(
                     step="rule_obligation",
                     detail={
                         "rule_id": rule.rule_id,
-                        "obligation_id": ob.obligation_id,
+                        "obligation_id": ob_spec.obligation_id,
                         "deadline_at": deadline_at.isoformat() if deadline_at else None,
                     },
                 )
@@ -222,16 +223,16 @@ def run_exposure_assessment(
                 InferredObligation(
                     rule_id=rule.rule_id,
                     rule_version=rule.rule_version,
-                    obligation_id=ob.obligation_id,
+                    obligation_id=ob_spec.obligation_id,
                     law=rule.law,
-                    description=ob.description,
-                    recipient_type=ob.recipient_type,
-                    recipient=ob.recipient,
+                    description=ob_spec.description,
+                    recipient_type=ob_spec.recipient_type,
+                    recipient=ob_spec.recipient,
                     deadline_at=deadline_at,
                     clock_start_at=clock_start,
                     clock_start_source=clock_source,
                     provisional=False,
-                    requires_assessment=ob.is_conditional_on_risk_assessment,
+                    requires_assessment=ob_spec.is_conditional_on_risk_assessment,
                     origin="inferred",
                     verification_status=rule.verification_status,
                     legal_review_status=rule.legal_review_status,
@@ -252,12 +253,12 @@ def run_exposure_assessment(
         trace.append(TraceStep(step="no_breach_notification_trigger", detail={"explanation": no_breach_explanation}))
 
     _apply_ml_gating(classification, config, provisional_reasons)
-    for ob in obligations:
-        if provisional_reasons:
-            ob.provisional = True
+    if provisional_reasons:
+        for inf_ob in obligations:
+            inf_ob.provisional = True
 
     overall_confidence = _overall_confidence(classification, assets, jurisdiction_exposure)
-    status = "provisional" if provisional_reasons else "confirmed"
+    status: AssessmentStatus = "provisional" if provisional_reasons else "confirmed"
 
     if config.inference_mode in ("hybrid", "inferred") and incident.manual_jurisdictions:
         trace.append(

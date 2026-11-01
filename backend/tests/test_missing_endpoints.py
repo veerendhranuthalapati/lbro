@@ -417,6 +417,9 @@ class TestSqsHistory:
         db.add(inc)
         await db.flush()
 
+        # Pin created_at to "now" so the notification lands in the current hourly
+        # bucket even if the test run crosses an hour boundary (flaky last-bucket assert).
+        created_at = datetime.now(timezone.utc)
         notif = Notification(
             id=uuid.uuid4(),
             incident_id=inc.id,
@@ -425,8 +428,9 @@ class TestSqsHistory:
             authority="DPA",
             subject="Test breach notification",
             body="Test body",
-            deadline=datetime.now(timezone.utc),
+            deadline=created_at,
             status="pending",
+            created_at=created_at,
         )
         db.add(notif)
         await db.commit()
@@ -437,9 +441,7 @@ class TestSqsHistory:
         )
         assert resp.status_code == 200
         buckets = resp.json()
-        # Most recent bucket (last in list) should have incident >= 1
-        last = buckets[-1]
-        assert last["incident"] >= 1
+        assert sum(b["incident"] for b in buckets) >= 1
 
     async def test_analyst_can_access(self, client: AsyncClient, analyst_token: str):
         resp = await client.get(

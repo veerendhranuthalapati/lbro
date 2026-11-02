@@ -15,11 +15,32 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def hash_password(password: str) -> str:
+    """Synchronous bcrypt hash — use hash_password_async from async request handlers."""
     return pwd_context.hash(password)
 
 
 def verify_password(plain: str, hashed: str) -> bool:
+    """Synchronous verify — prefer verify_password_async in the event loop."""
     return pwd_context.verify(plain, hashed)
+
+
+def password_needs_rehash(hashed: str) -> bool:
+    """True when stored hash uses deprecated bcrypt parameters (passlib needs_update)."""
+    return pwd_context.needs_update(hashed)
+
+
+async def verify_password_async(plain: str, hashed: str) -> bool:
+    """Run bcrypt in a worker thread so the asyncio loop stays responsive under login load."""
+    import asyncio
+
+    return await asyncio.to_thread(verify_password, plain, hashed)
+
+
+async def hash_password_async(password: str) -> str:
+    """Thread-pool bcrypt for registration/profile updates from async handlers."""
+    import asyncio
+
+    return await asyncio.to_thread(hash_password, password)
 
 
 def create_access_token(subject: Any, extra: dict | None = None) -> str:

@@ -12,10 +12,12 @@ from app.core.security import (
     create_refresh_token,
     decode_token,
     hash_password,
-    verify_password,
+    hash_password_async,
+    password_needs_rehash,
+    verify_password_async,
 )
 from app.models.user import User
-from app.schemas.auth import LoginRequest, ProfileUpdateRequest, RegisterRequest, TokenResponse
+from app.schemas.auth import LoginRequest, LoginUserBootstrap, ProfileUpdateRequest, RegisterRequest, TokenResponse
 from app.core.exceptions import ConflictError, LBROException, NotFoundError
 
 # Pre-computed bcrypt hash used as a constant-time dummy when the login email
@@ -82,16 +84,16 @@ class AuthService:
 
     async def login(self, data: LoginRequest) -> TokenResponse:
         from app.config import settings
-        result = await self.db.execute(select(User).where(User.email == data.email))
+
+        email_norm = data.email.strip().lower()
+        result = await self.db.execute(select(User).where(User.email == email_norm))
         user = result.scalar_one_or_none()
 
         if user and user.locked_until and user.locked_until > datetime.now(timezone.utc):
             raise LBROException("Account temporarily locked. Try again later.", 403)
 
-        # Always call verify_password even when the user doesn't exist.
-        # Skipping the bcrypt work when the user is absent creates a measurable
-        # timing difference that allows user enumeration via response latency.
-        password_ok = verify_password(
+        # Always verify (dummy hash when user missing) — bcrypt runs off the event loop.
+        password_ok = await verify_password_async(
             data.password,
             user.hashed_password if user else _DUMMY_HASH,
         )
@@ -101,6 +103,7 @@ class AuthService:
                 user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
                 if user.failed_login_attempts >= settings.MAX_LOGIN_ATTEMPTS:
                     from datetime import timedelta
+
                     user.locked_until = datetime.now(timezone.utc) + timedelta(
                         minutes=settings.LOCKOUT_DURATION_MINUTES
                     )
@@ -113,22 +116,42 @@ class AuthService:
         user.failed_login_attempts = 0
         user.locked_until = None
         user.last_login = datetime.now(timezone.utc)
+
+        # Rehash only when passlib reports outdated parameters — never every login.
+        if password_needs_rehash(user.hashed_password):
+            user.hashed_password = await hash_password_async(data.password)
+
         await self.db.flush()
 
         from app.core.rbac import Role as RbacRole, get_permissions_for_role
+
         permissions = get_permissions_for_role(RbacRole(user.role))
-        access_token = create_access_token(str(user.id), extra={
-            "role": user.role,
-            "email": user.email,
-            "permissions": permissions,
-        })
+        access_token = create_access_token(
+            str(user.id),
+            extra={
+                "role": user.role,
+                "email": user.email,
+                "permissions": permissions,
+            },
+        )
         refresh_token = create_refresh_token(str(user.id))
+
+        bootstrap = LoginUserBootstrap(
+            id=str(user.id),
+            email=user.email,
+            username=user.username,
+            full_name=user.full_name,
+            role=user.role,
+            permissions=list(permissions),
+            last_login=user.last_login.isoformat() if user.last_login else None,
+        )
 
         return TokenResponse(
             access_token=access_token,
             refresh_token=refresh_token,
             token_type="bearer",
             expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+            user=bootstrap,
         )
 
     async def refresh(self, refresh_token: str) -> TokenResponse:
@@ -169,9 +192,9 @@ class AuthService:
         if data.new_password:
             if not data.current_password:
                 raise LBROException("Current password is required to set a new password", 400)
-            if not verify_password(data.current_password, user.hashed_password):
+            if not await verify_password_async(data.current_password, user.hashed_password):
                 raise LBROException("Current password is incorrect", 400)
-            user.hashed_password = hash_password(data.new_password)
+            user.hashed_password = await hash_password_async(data.new_password)
         if data.full_name is not None:
             user.full_name = data.full_name
         if data.email is not None and data.email != user.email:

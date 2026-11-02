@@ -20,11 +20,24 @@ class LoginRequest(BaseModel):
     password: str = Field(min_length=1)
 
 
+class LoginUserBootstrap(BaseModel):
+    """Optional payload on login so the SPA can skip GET /auth/me on the critical path."""
+
+    id: str
+    email: str
+    username: str
+    full_name: str
+    role: str
+    permissions: list[str]
+    last_login: str | None = None
+
+
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str | None = None
     token_type: str = "bearer"
     expires_in: int
+    user: LoginUserBootstrap | None = None
 
 
 class RefreshRequest(BaseModel):

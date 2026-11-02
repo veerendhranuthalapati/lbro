@@ -17,6 +17,8 @@ from sqlalchemy.orm import selectinload
 from app.config import settings
 from app.core.exceptions import NotFoundError, ConflictError
 from app.core.project_access import incident_access_scope, is_privileged_user
+from app.models.compliance import ComplianceRecord
+from app.models.asset import IncidentExposureAssessment
 from app.models.notification import Notification
 from app.models.incident import Incident
 from app.models.user import User
@@ -120,6 +122,43 @@ class NotificationService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
+    async def _ensure_regulatory_dispatch_allowed(self, incident_id: uuid.UUID) -> None:
+        """Block regulatory send/dispatch while inferred obligations are pending or assessment is provisional."""
+        inferred = (
+            await self.db.execute(
+                select(ComplianceRecord).where(
+                    ComplianceRecord.incident_id == incident_id,
+                    ComplianceRecord.source == "inferred",
+                )
+            )
+        ).scalars().all()
+        if not inferred:
+            return
+        for rec in inferred:
+            if rec.analyst_decision == "pending":
+                raise ConflictError(
+                    "Cannot dispatch regulatory notification: inferred obligations await analyst review"
+                )
+            if rec.analyst_decision == "accepted" and rec.provisional:
+                raise ConflictError(
+                    "Cannot dispatch: inferred obligation is still marked provisional"
+                )
+        latest = (
+            await self.db.execute(
+                select(IncidentExposureAssessment)
+                .where(
+                    IncidentExposureAssessment.incident_id == incident_id,
+                    IncidentExposureAssessment.status != "superseded",
+                )
+                .order_by(IncidentExposureAssessment.computed_at.desc())
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        if latest and latest.status == "provisional":
+            raise ConflictError(
+                "Cannot dispatch regulatory notification: exposure assessment is provisional"
+            )
+
     async def generate_for_incident(self, incident: Incident) -> list[Notification]:
         notifications = []
         now = datetime.now(timezone.utc)
@@ -205,6 +244,7 @@ class NotificationService:
 
     async def send(self, notification_id: uuid.UUID, user: Optional[User] = None) -> Notification:
         n = await self.get(notification_id, user=user)
+        await self._ensure_regulatory_dispatch_allowed(n.incident_id)
         if n.status not in ("approved", "failed"):
             raise ConflictError(f"Cannot send notification in status '{n.status}'")
 

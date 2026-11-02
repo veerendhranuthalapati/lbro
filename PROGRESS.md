@@ -1,19 +1,19 @@
-# Production run progress
+# Production run progress — session 3
 
-**Branch:** `release/production-ready`  
-**Updated:** 2026-11-02 session 2 (~90 min box)  
+**Branch:** `release/production-ready` | **HEAD:** see `git log -1`
 
 | Item | Status | Evidence |
 |------|--------|----------|
-| AUD-010 MD5 → SHA-256 | **done** | Bandit High 0; `test_aud010_flow_id_sha256.py` |
-| AUD-011 / axios | **partial** | axios 1.13.2; zod blocker documented |
-| G9 matrix + roles | **done** | `g9_openapi_matrix.json` |
-| G11 send-path tests | **done** | `test_g11_notification_send_paths.py` |
-| G12 STIX + Flesch | **done** | scratch STIX; min Flesch 50.6 |
-| gitleaks | **done** | 0 leaks / 59 commits |
-| Backend suite | **done** | **763 passed** |
-| Compose G5 | **build done; smoke NOT RUN** | `compose_build.log` exit **0** (~234s); lifecycle smoke + `down -v` still pending |
+| urllib3 / pip-audit | partial | urllib3 fixed; python-jose transitive open |
+| npm zod 4 + axios | **done** | lint/tsc/test/build green |
+| ESLint | **done** | `.eslintrc.cjs`, `npm run lint` |
+| Ruff CI paths | **done** | All checks passed |
+| G11 dispatch gate | **done** | `notification_service._ensure_regulatory_dispatch_allowed` |
+| Backend suite | **done** | **763 passed** (`pytest_session3_full.log`) |
+| gitleaks | **done** | 68 commits, 0 leaks |
+| G9 ops | **16** | `G9_OPENAPI_PROJECT_SCOPED_OPS=16` |
+| Compose G5 | **partial** | `up -d` + ready/ui 200; full smoke **NOT RUN** |
 | G14/G15 | **NOT RUN** | |
-| FINAL_REPORT + zip | **pending commit** | |
+| Alembic PG16 cycle | **NOT RUN** this session | |
 
-**Git hygiene:** pytest writes only under `..\lbro-run-scratch\`; tracked tree unchanged by tests (verify `git status` before/after).
+Tests do not modify tracked files (artifacts under `..\lbro-run-scratch\` only).

@@ -1,16 +1,19 @@
 # Production run progress
 
 **Branch:** `release/production-ready`  
-**Updated:** 2026-11-02 ~20:35 +05:30  
+**Updated:** 2026-11-02 session 2 (~90 min box)  
 
-| Phase | Status | Evidence |
-|-------|--------|----------|
-| G9/G10/G11 gates | **done** | `pytest_gates.log` (11 passed); full suite `pytest_full_after_gates.log` (756 passed) |
-| Attack UX + library | **done** | Explainer tabs, AttackLibraryPage, Vitest +6 |
-| FINAL_REPORT reconcile | **done** | Gates strict PASS/FAIL/NOT RUN |
-| Security scans | **partial** | Bandit + npm audit logged; gitleaks **NOT RUN** |
-| Compose full smoke | **NOT RUN** | Partial curl 200 only |
-| Playwright Integrations | **NOT RUN** | |
-| Zip rebuild | **done** | `lbro_production_run.zip` (report docs bundle) |
+| Item | Status | Evidence |
+|------|--------|----------|
+| AUD-010 MD5 → SHA-256 | **done** | Bandit High 0; `test_aud010_flow_id_sha256.py` |
+| AUD-011 / axios | **partial** | axios 1.13.2; zod blocker documented |
+| G9 matrix + roles | **done** | `g9_openapi_matrix.json` |
+| G11 send-path tests | **done** | `test_g11_notification_send_paths.py` |
+| G12 STIX + Flesch | **done** | scratch STIX; min Flesch 50.6 |
+| gitleaks | **done** | 0 leaks / 59 commits |
+| Backend suite | **done** | **763 passed** |
+| Compose G5 | **in progress / NOT RUN smoke** | `compose_build.log` |
+| G14/G15 | **NOT RUN** | |
+| FINAL_REPORT + zip | **pending commit** | |
 
-**Next (owner):** triage AUD-010/011; place STIX in scratch for MITRE pin; full compose smoke when time allows.
+**Git hygiene:** pytest writes only under `..\lbro-run-scratch\`; tracked tree unchanged by tests (verify `git status` before/after).

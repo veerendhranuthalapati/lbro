@@ -466,6 +466,19 @@ export function useIncidentExplanation(incidentId: string) {
   })
 }
 
+export function useIncidentAttackExplanation(
+  incidentId: string,
+  audience: 'executive' | 'analyst' = 'analyst',
+) {
+  return useQuery({
+    queryKey: ['incidents', 'attack-explanation', incidentId, audience],
+    queryFn:  () => incidentsApi.attackExplanation(incidentId, audience),
+    enabled:  !!incidentId,
+    staleTime: 5 * 60_000,
+    retry: 1,
+  })
+}
+
 // ---- Weekly Report ---------------------------------------------------------
 export function useWeeklyReport() {
   const pid = useProjectStore(s => s.currentProject?.id)

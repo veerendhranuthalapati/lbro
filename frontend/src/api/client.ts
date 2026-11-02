@@ -299,9 +299,9 @@ export const incidentsApi = {
   attackExplanation: (
     id: string,
     audience: 'executive' | 'analyst' = 'analyst',
-  ): Promise<Record<string, unknown>> =>
+  ): Promise<IncidentAttackExplanation> =>
     apiClient
-      .get(`/api/v1/incidents/${id}/explanation`, { params: { audience } })
+      .get<IncidentAttackExplanation>(`/api/v1/incidents/${id}/explanation`, { params: { audience } })
       .then(r => r.data),
 }
 
@@ -615,6 +615,28 @@ export interface IncidentExplanation {
   recommended_fixes: string[]
   severity_hint: string
   learn_more_url: string | null
+}
+
+export interface IncidentAttackExplanation {
+  incident_id: string
+  class_id: string
+  audience: string
+  content_version: string
+  disclaimer: string
+  uncertainty_banner: { level: string; title: string; messages: string[] } | null
+  why_flagged: string[]
+  guide: {
+    title?: string
+    summary_plain?: string
+    immediate_actions?: string[]
+    containment?: string[]
+    recovery?: string[]
+    prevention?: Record<string, string[]>
+    detection_tips?: string[]
+    mitre_techniques?: { technique_id: string; name: string }[]
+    references?: string[]
+    data_at_risk_hint?: string
+  }
 }
 
 // ---- Weekly Report ---------------------------------------------------------

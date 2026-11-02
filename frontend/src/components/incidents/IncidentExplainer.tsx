@@ -9,7 +9,7 @@ import {
   Sparkles, ChevronDown, ChevronUp, ExternalLink,
   AlertTriangle, Shield, Zap, Wrench, BookOpen, Target,
 } from 'lucide-react'
-import { useIncidentExplanation } from '@/hooks/useApi'
+import { useIncidentExplanation, useIncidentAttackExplanation } from '@/hooks/useApi'
 
 const BLACK  = '#111111'
 const ORANGE = '#e54e1b'
@@ -73,8 +73,12 @@ interface Props {
 
 export function IncidentExplainer({ incidentId }: Props) {
   const [open, setOpen] = useState(false)
-  const { data, isLoading, isError } = useIncidentExplanation(
-    open ? incidentId : ''   // only fetch when panel is opened
+  const [audience, setAudience] = useState<'executive' | 'analyst'>('analyst')
+  const enabled = open && !!incidentId
+  const { data, isLoading, isError } = useIncidentExplanation(enabled ? incidentId : '')
+  const { data: guideData, isLoading: guideLoading } = useIncidentAttackExplanation(
+    enabled ? incidentId : '',
+    audience,
   )
 
   const likelihoodColor = data ? (LIKELIHOOD_COLOR[data.likelihood] ?? ORANGE) : ORANGE
@@ -119,8 +123,57 @@ export function IncidentExplainer({ incidentId }: Props) {
       {open && (
         <div style={{ padding: '16px 18px', background: CREAM, borderTop: `1px solid ${BORDER}` }}>
 
+          {/* Decision-support disclaimer + uncertainty from composed guide */}
+          {(guideData?.disclaimer || guideData?.uncertainty_banner) && (
+            <div
+              role="status"
+              style={{
+                fontSize: 11,
+                lineHeight: 1.55,
+                color: BLACK,
+                background: '#fff7ed',
+                border: `1px solid ${ORANGE}55`,
+                borderRadius: 3,
+                padding: '10px 12px',
+                marginBottom: 14,
+              }}
+            >
+              {guideData?.uncertainty_banner && (
+                <p style={{ margin: '0 0 6px', fontWeight: 600, color: ORANGE }}>
+                  {guideData.uncertainty_banner.title}
+                </p>
+              )}
+              <p style={{ margin: 0 }}>{String(guideData?.disclaimer ?? '')}</p>
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: 8, marginBottom: 12 }} role="tablist" aria-label="Explanation audience">
+            {(['analyst', 'executive'] as const).map(mode => (
+              <button
+                key={mode}
+                type="button"
+                role="tab"
+                aria-selected={audience === mode}
+                onClick={() => setAudience(mode)}
+                style={{
+                  fontSize: 10,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.08em',
+                  padding: '4px 10px',
+                  borderRadius: 2,
+                  border: `1px solid ${audience === mode ? ORANGE : BORDER}`,
+                  background: audience === mode ? `${ORANGE}12` : '#fff',
+                  color: audience === mode ? ORANGE : GRAY,
+                  cursor: 'pointer',
+                }}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
+
           {/* Loading */}
-          {isLoading && (
+          {(isLoading || guideLoading) && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {[80, 60, 90, 50].map((w, i) => (
                 <div key={i} style={{ height: 12, background: PARCH, borderRadius: 2, width: `${w}%` }} />
@@ -236,6 +289,26 @@ export function IncidentExplainer({ incidentId }: Props) {
                     <ExternalLink style={{ width: 10, height: 10 }} />
                   </a>
                 </div>
+              )}
+
+              {guideData?.guide?.immediate_actions && (
+                <Section icon={<Wrench style={{ width: 12, height: 12, color: ORANGE }} />} title="What to do now">
+                  <ol style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {(guideData.guide.immediate_actions ?? []).map((step, i) => (
+                      <li key={i} style={{ fontSize: 11, color: BLACK, lineHeight: 1.6 }}>{step}</li>
+                    ))}
+                  </ol>
+                </Section>
+              )}
+
+              {guideData?.why_flagged && (
+                <Section icon={<BookOpen style={{ width: 12, height: 12, color: GRAY }} />} title="Why we flagged it">
+                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 11, color: BLACK, lineHeight: 1.6 }}>
+                    {(guideData.why_flagged ?? []).map((line, i) => (
+                      <li key={i}>{line}</li>
+                    ))}
+                  </ul>
+                </Section>
               )}
             </div>
           )}

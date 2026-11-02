@@ -11,6 +11,6 @@
 | Security scans | **partial** | Bandit + npm audit logged; gitleaks **NOT RUN** |
 | Compose full smoke | **NOT RUN** | Partial curl 200 only |
 | Playwright Integrations | **NOT RUN** | |
-| Zip rebuild | **pending** | `lbro_production_run.zip` after commits |
+| Zip rebuild | **done** | `lbro_production_run.zip` (report docs bundle) |
 
 **Next (owner):** triage AUD-010/011; place STIX in scratch for MITRE pin; full compose smoke when time allows.

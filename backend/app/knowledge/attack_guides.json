@@ -9,7 +9,7 @@
     "BENIGN": {
       "class_id": "BENIGN",
       "title": "Benign / normal traffic",
-      "summary_plain": "This traffic was flagged by the ML model but is likely normal application activity.",
+      "summary_plain": "LBRO flagged unusual traffic stats. This is often normal app traffic. Check your logs before you treat it as an attack.",
       "how_it_works": "This traffic was flagged by the ML model but is likely normal application activity. No real attack was detected. No systems are at risk from this event.",
       "why_it_matters": "No business impact expected.",
       "typical_indicators": [
@@ -118,7 +118,7 @@
     "PortScan": {
       "class_id": "PortScan",
       "title": "PortScan",
-      "summary_plain": "An attacker (or automated tool) systematically tried to find open doors into your server.",
+      "summary_plain": "A host probed many ports on your server to find open services. Review firewall logs and close ports you do not need.",
       "how_it_works": "An attacker (or automated tool) systematically tried to find open doors into your server. Think of it like a burglar testing every lock on your building before deciding where to break in. The attacker now knows which services and ports are exposed on this host. Any unpatched service discovered during the scan becomes a potential entry point.",
       "why_it_matters": "A port scan is reconnaissance \u2014 it means someone is actively mapping your infrastructure before attempting a deeper attack. Left unresponded, it often precedes a targeted intrusion attempt.",
       "typical_indicators": [
@@ -175,7 +175,7 @@
     "DDoS": {
       "class_id": "DDoS",
       "title": "DDoS",
-      "summary_plain": "Thousands of different machines (often infected computers in a botnet) are simultaneously sending traffic to overwhelm your application.",
+      "summary_plain": "Many sources sent traffic at once to overload your app. LBRO saw a volume spike; confirm with network logs before you act.",
       "how_it_works": "Thousands of different machines (often infected computers in a botnet) are simultaneously sending traffic to overwhelm your application. Unlike a regular DoS, the attack comes from many sources at once \u2014 making it much harder to block. Your network bandwidth, server CPU, and connection tables are saturated. Even upstream providers (CDN, DNS) can be affected. All services on the same infrastructure are at risk.",
       "why_it_matters": "Your application goes offline for real users. A sustained DDoS can last hours or days. For revenue-generating applications this is an emergency-level event. It may also be a distraction while attackers attempt a secondary breach.",
       "typical_indicators": [
@@ -232,7 +232,7 @@
     "DoS GoldenEye": {
       "class_id": "DoS GoldenEye",
       "title": "DoS GoldenEye",
-      "summary_plain": "An attacker used the GoldenEye tool to send many simultaneous HTTP GET/POST requests, keeping connections open and waiting \u2014 slowly draining your server's connection capacity.",
+      "summary_plain": "GoldenEye sends slow HTTP requests to tie up web server connections. Watch connection counts and rate limits if this pattern continues.",
       "how_it_works": "An attacker used the GoldenEye tool to send many simultaneous HTTP GET/POST requests, keeping connections open and waiting \u2014 slowly draining your server's connection capacity. It's designed to be harder to detect than volume-based attacks. Your HTTP server's connection pool is depleted. Each open connection holds server memory and a thread/process. New requests queue and eventually time out.",
       "why_it_matters": "Your application becomes progressively slower until it can no longer accept new connections. Legitimate users see timeouts and errors.",
       "typical_indicators": [
@@ -288,7 +288,7 @@
     "FTP-Patator": {
       "class_id": "FTP-Patator",
       "title": "FTP-Patator",
-      "summary_plain": "An attacker used an automated tool called Patator to guess username and password combinations on your FTP server.",
+      "summary_plain": "A tool tried many FTP username and password pairs. Lock out repeated failures and use strong credentials on FTP.",
       "how_it_works": "An attacker used an automated tool called Patator to guess username and password combinations on your FTP server. This is a brute-force credential attack. FTP credentials compromised. Attacker can download, upload, or delete files. FTP sends credentials in plaintext \u2014 any successful login also exposes the password on the network.",
       "why_it_matters": "If successful, the attacker gains access to files stored on your FTP server. This could expose customer data, source code, backups, or proprietary files.",
       "typical_indicators": [
@@ -346,7 +346,7 @@
     "SSH-Patator": {
       "class_id": "SSH-Patator",
       "title": "SSH-Patator",
-      "summary_plain": "An automated tool tried thousands of username/password combinations on your SSH server \u2014 the remote access system that lets developers log into your server.",
+      "summary_plain": "A tool tried many SSH login pairs on your server. Use keys instead of passwords and limit who can reach SSH.",
       "how_it_works": "An automated tool tried thousands of username/password combinations on your SSH server \u2014 the remote access system that lets developers log into your server. This is a brute-force attack targeting server access. Full or partial server access depending on the compromised account. Attackers typically attempt to escalate to root. The entire server and any connected services are at risk.",
       "why_it_matters": "If successful, the attacker gets a shell (terminal) on your server with the compromised user's permissions. From there they can steal data, install malware, create backdoors, or pivot to other internal systems.",
       "typical_indicators": [
@@ -404,7 +404,7 @@
     "DoS slowloris": {
       "class_id": "DoS slowloris",
       "title": "DoS slowloris",
-      "summary_plain": "The Slowloris attack works by opening many connections to your server and sending HTTP headers very slowly \u2014 just fast enough to avoid timeout, but never completing the request.",
+      "summary_plain": "Slowloris opens many HTTP connections and sends headers very slowly. Your web tier may run out of slots; check idle connections.",
       "how_it_works": "The Slowloris attack works by opening many connections to your server and sending HTTP headers very slowly \u2014 just fast enough to avoid timeout, but never completing the request. This ties up server connections until no new users can connect. Apache and older web servers are especially vulnerable. Connection tables fill up and the server stops accepting new requests, even though CPU and memory usage remain low.",
       "why_it_matters": "Your site becomes inaccessible to real users as the attacker's zombie connections consume all available connection slots.",
       "typical_indicators": [
@@ -461,7 +461,7 @@
     "DoS Slowhttptest": {
       "class_id": "DoS Slowhttptest",
       "title": "DoS Slowhttptest",
-      "summary_plain": "Similar to Slowloris, this attack sends very slow HTTP request bodies to keep connections open and exhaust your server.",
+      "summary_plain": "Slow HTTP bodies keep connections open to exhaust the web server. Tune timeouts and front-door rate limits if you see this often.",
       "how_it_works": "Similar to Slowloris, this attack sends very slow HTTP request bodies to keep connections open and exhaust your server. It uses a tool called slowhttptest that can simulate several types of slow-HTTP attacks. Server connection pool exhaustion. Application threads blocked waiting for request bodies that never arrive.",
       "why_it_matters": "Application slowdown or complete unavailability for real users.",
       "typical_indicators": [
@@ -518,7 +518,7 @@
     "Bot": {
       "class_id": "Bot",
       "title": "Bot",
-      "summary_plain": "Automated bot traffic was detected.",
+      "summary_plain": "Traffic looks like a compromised host talking to command servers. Verify the source host and scan it for malware if the alert repeats.",
       "how_it_works": "Automated bot traffic was detected. Bots can be benign (search engine crawlers) or malicious (scrapers, credential stuffers, spam bots). This traffic pattern indicates non-human automated behaviour targeting your application. API rate limits hit prematurely. Database queries from bot traffic consume resources. If credential stuffing, user accounts may be compromised.",
       "why_it_matters": "Malicious bots can scrape your content, abuse your APIs, overload your infrastructure, create fake accounts, or probe for vulnerabilities. They inflate your hosting costs and can degrade performance for real users.",
       "typical_indicators": [
@@ -575,7 +575,7 @@
     "Web Attack - Brute Force": {
       "class_id": "Web Attack - Brute Force",
       "title": "Web Attack - Brute Force",
-      "summary_plain": "An attacker made many repeated login attempts to guess a user's password.",
+      "summary_plain": "Many login tries hit your web app in a short time. Enable lockouts or MFA on exposed login pages.",
       "how_it_works": "An attacker made many repeated login attempts to guess a user's password. Automated tools can try hundreds of common passwords per second until they find one that works. Account takeover for affected users. Possible lateral movement if compromised accounts have elevated permissions. Auth systems under load from attack volume.",
       "why_it_matters": "User accounts can be hijacked. If any account is compromised, the attacker can access that user's data, make purchases, or use the account as a foothold. For admin accounts, this is a critical risk.",
       "typical_indicators": [
@@ -633,7 +633,7 @@
     "Web Attack - XSS": {
       "class_id": "Web Attack - XSS",
       "title": "Web Attack - XSS",
-      "summary_plain": "An attacker tried to inject malicious JavaScript code into your web pages.",
+      "summary_plain": "Input may include script meant to run in a user's browser. Sanitize output and review the flagged request in your WAF or app logs.",
       "how_it_works": "An attacker tried to inject malicious JavaScript code into your web pages. If successful, this script runs in the browsers of other users who visit the affected page \u2014 like planting a spy inside every visitor's browser session. Session hijacking, cookie theft, credential harvesting from active users. The attacker runs arbitrary code in the context of your domain \u2014 bypassing same-origin protections for everything the victim can access.",
       "why_it_matters": "XSS can steal user session cookies (logging attackers in as victims), redirect users to phishing sites, capture keystrokes including passwords, or deface your website. This directly damages user trust and can trigger GDPR/CCPA breach notification obligations.",
       "typical_indicators": [
@@ -690,7 +690,7 @@
     "Infiltration": {
       "class_id": "Infiltration",
       "title": "Infiltration",
-      "summary_plain": "An attacker has bypassed perimeter defences and gained a foothold inside your network or application.",
+      "summary_plain": "LBRO saw signs that someone may already be inside your network. Save logs now and follow your incident runbook.",
       "how_it_works": "An attacker has bypassed perimeter defences and gained a foothold inside your network or application. They are now attempting to move deeper \u2014 accessing internal systems, stealing data, or installing persistent backdoors. Potential full network compromise depending on segmentation. Internal APIs, databases, admin panels, and other services are all exposed to the attacker. Backdoors may already be installed for persistent access.",
       "why_it_matters": "This is a high-severity breach scenario. The attacker is already inside. They may be exfiltrating customer data, IP, financial records, or credentials. Regulatory breach notification timelines (72 hours for GDPR) may already be running.",
       "typical_indicators": [
@@ -752,7 +752,7 @@
     "Web Attack - Sql Injection": {
       "class_id": "Web Attack - Sql Injection",
       "title": "Web Attack - Sql Injection",
-      "summary_plain": "Someone attempted to manipulate your application's database by sending malicious SQL commands through a form field, URL parameter, or API input.",
+      "summary_plain": "A request may have carried SQL meant to harm your database. Use bound parameters and check the flagged field in app logs.",
       "how_it_works": "Someone attempted to manipulate your application's database by sending malicious SQL commands through a form field, URL parameter, or API input. If successful, they can read, modify, or delete any data in your database. Complete database compromise. Attacker can bypass authentication, extract all table data, modify or delete records, and in some configurations execute commands on the database server. Entire data confidentiality, integrity and availability is at risk.",
       "why_it_matters": "SQL injection is one of the most damaging attacks possible. The attacker can exfiltrate your entire customer database, user credentials, payment records, or proprietary business data. A successful attack almost certainly triggers mandatory breach notifications under GDPR, CCPA, and HIPAA.",
       "typical_indicators": [

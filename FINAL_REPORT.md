@@ -13,7 +13,7 @@
 | G2 Backend | **PASS** | **`763 passed, 1 skipped, 1 deselected`** — `pytest_session3_full.log` |
 | G3 Frontend | **PASS** | `npm run lint` exit 0; type-check; **75** Vitest; build OK |
 | G4 / G4b | **NOT RUN** this session | Prior `alembic_cycle.txt` only — re-run before push if stale |
-| G5 Compose | **FAIL** | `compose up -d` OK; `compose_smoke_full.txt`: ready/ui **200**; full SHA/PDF/SSE/429 script **NOT RUN** |
+| G5 Compose | **FAIL** | `up -d` OK; smoke: `/health/ready` **200**, UI **200**, admin login **200** (`compose_smoke_full.txt`); full lifecycle **NOT RUN** |
 | G6 | **FAIL** | pip-audit **python-jose** transitive — `PIP_AUDIT_CLASSIFICATION.md` |
 | G7 npm/pip | **PARTIAL** | urllib3 **fixed**; zod **4.6.6** + axios latest **1.x**; AUD-011 runtime **closed**; 3 dev npm on `--omit=dev` |
 | G8b Bandit | **PASS** | **0 High**, 5 Medium — `bandit_after_aud010.txt` |

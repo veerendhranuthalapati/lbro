@@ -1,0 +1,11 @@
+title = "LBRO gitleaks allowlist"
+[allowlist]
+description = "Documented AWS example keys and test fixtures only"
+paths = [
+  '''\.env\.prod\.example$''',
+  '''backend/tests/''',
+  '''README\.md$''',
+]
+regexes = [
+  '''AKIAIOSFODNN7EXAMPLE''',
+]

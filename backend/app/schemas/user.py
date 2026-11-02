@@ -31,8 +31,14 @@ class UserUpdate(BaseModel):
     is_active: Optional[bool] = None
 
 
-class UserResponse(UserBase):
+class UserResponse(BaseModel):
+    # Plain str: seed/dev addresses like admin@lbro.local must serialize on /auth/me
+    # without failing strict EmailStr TLD rules (.local is special-use).
     id: uuid.UUID
+    email: str
+    username: str
+    full_name: str
+    role: str
     is_active: bool
     is_verified: bool
     mfa_enabled: bool

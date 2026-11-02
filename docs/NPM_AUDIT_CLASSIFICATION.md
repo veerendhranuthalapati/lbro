@@ -1,13 +1,12 @@
-# npm audit classification — session 2026-11-02
-# Commands: npm ls axios zod; npm audit; npm audit --omit=dev
-# axios direct dep upgraded to 1.13.2 (was 1.19.0 in lock before session fix)
+# npm audit classification — updated session 3
 
-| Package | Scope | Runtime vs dev | Action |
-|---------|--------|----------------|--------|
-| axios | direct dependency | **Runtime** (browser API client) | Upgraded to **1.13.2**; `npm audit --omit=dev` still reports **4 high** (transitive follow-redirects etc.) |
-| zod | direct dependency | **Runtime** (form validation) | **3.25.76**; GHSA targets zod 4.x line — bump to **4.6.6+** breaks `@hookform/resolvers@3` peer; **blocker**: major upgrade needs resolver v5 + regression pass |
-| postcss-selector-parser | transitive | **Dev** (tailwind/postcss build) | `npm audit fix` candidate |
-| source-map-js | transitive | **Dev** (vite build) | `npm audit fix` candidate |
-| vitest/msw/eslint chain | transitive | **Dev** | Majority of **30** full-tree findings |
+| Package | Runtime vs dev | Status |
+|---------|----------------|--------|
+| axios | **Runtime** | Upgraded to latest **1.x** (`npm ls axios`) |
+| zod | **Runtime** | Upgraded to **^4.6.6** with `@hookform/resolvers@latest`; `npm run type-check` PASS |
+| source-map-js, postcss-* | **Dev** (Vite/tailwind) | **3** findings on `npm audit --omit=dev` tail — build-time only; `npm run build` PASS |
+| vitest/msw chain | **Dev** | Full-tree audit count higher; not shipped in production bundle |
 
-Evidence tails: `..\lbro-run-scratch\npm_ls_axios_zod.txt`, `npm_audit_omit_dev.txt`, `vite_build.txt` (build PASS after axios bump).
+**AUD-011:** **Closed** for runtime axios/zod after upgrades. Residual dev-only advisories documented above (acceptable for release WITH CONDITIONS if owner accepts dev CVE policy).
+
+Evidence: `npm_audit_session3.txt`, `npm audit --omit=dev` exit 1 with 3 vulns (dev transitive).

@@ -1,7 +1,6 @@
 import { http, HttpResponse, delay } from 'msw'
 import { MOCK_USERS } from '../data'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const users: any[] = MOCK_USERS.map(u => ({ ...u }))
 
 export const userHandlers = [

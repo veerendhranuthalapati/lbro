@@ -1,7 +1,6 @@
 import { http, HttpResponse, delay } from 'msw'
 import { MOCK_COMPLIANCE } from '../data'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const records: any[] = MOCK_COMPLIANCE.records.map(r => ({ ...r }))
 
 export const complianceHandlers = [

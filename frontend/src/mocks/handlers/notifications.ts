@@ -1,7 +1,6 @@
 import { http, HttpResponse, delay } from 'msw'
 import { MOCK_NOTIFICATIONS } from '../data'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const notifications: any[] = MOCK_NOTIFICATIONS.map(n => ({ ...n }))
 
 export const notificationHandlers = [

@@ -1,9 +1,6 @@
 name: Deploy
 
 on:
-  push:
-    branches: [main]
-    tags: ["v*"]
   workflow_dispatch:
     inputs:
       environment:
@@ -12,6 +9,8 @@ on:
         default: staging
         type: choice
         options: [staging, production]
+  push:
+    tags: ["v*"]
 
 concurrency:
   group: deploy-${{ github.ref }}

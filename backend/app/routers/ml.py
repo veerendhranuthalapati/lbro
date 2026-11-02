@@ -266,8 +266,8 @@ async def ml_flows(
     flows = []
     for inc in incidents:
         nf = inc.network_features or {}
-        # Derive a stable flow_id from incident id
-        flow_id = hashlib.md5(str(inc.id).encode()).hexdigest()[:12]
+        # Derive a stable flow_id from incident id (non-cryptographic fingerprint)
+        flow_id = hashlib.sha256(str(inc.id).encode()).hexdigest()[:12]
         # Extract or default network feature values
         total_fwd = int(nf.get("total_fwd_packets", 0) or 0)
         total_bwd = int(nf.get("total_bwd_packets", 0) or 0)

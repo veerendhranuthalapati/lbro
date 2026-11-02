@@ -1,16 +1,17 @@
 # Production run progress
 
 **Started:** 2026-11-02 15:05:56 +05:30  
+**Ended:** 2026-11-02 ~15:46 +05:30  
 **Branch:** `release/production-ready` (from `perf/login-and-ux` @ 7635ee9)  
-**Why this base:** Single lineage containing ML hardening (22a005a+), compliance inference (017 head), and perf/UX commits; no merge required.
+**HEAD:** `53445d1`
 
-| Phase | Status | Commit | Notes |
-|-------|--------|--------|-------|
-| 0 Setup | in progress | 7635ee9 | Scratch `..\lbro-run-scratch\`, tag `backup/pre-production-run-*`, bundle created |
-| 1 Audit | pending | | |
-| 2 Fixes | pending | | |
-| 3 Attack guides | pending | | |
-| 4 Smoothness | pending | | |
-| 5 Deliverables | pending | | |
+| Phase | Status | Notes |
+|-------|--------|-------|
+| 0 Setup | done | Tag + bundle backup; branch created |
+| 1 Audit | done | AUDIT_REPORT.md (9 findings) |
+| 2 Fixes | done | ready probe, conftest, Bandit CI |
+| 3 Attack guides | done | 15 guides, API, docs/ATTACK_GUIDES.md |
+| 4 Smoothness | skipped | Inherited perf/login-and-ux; see SKIPPED.md |
+| 5 Deliverables | done | FINAL_REPORT, zip, PUSH_CHECKLIST |
 
-**Next step:** Finish Phase 0 baseline logs; begin AUDIT_REPORT.md static findings.
+**Next step for owner:** Postgres cycle + compose smoke; review attack guide content; merge per PUSH_CHECKLIST.md.

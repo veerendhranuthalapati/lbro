@@ -13,7 +13,7 @@ Autonomous pass on branch `release/production-ready` (from `perf/login-and-ux`, 
 | Gate | Result | Evidence |
 |------|--------|----------|
 | G1 No real secret in tree | **PASS** | Regex scan; placeholders only (AUD-006) |
-| G2 Backend green | **PASS*** | *746+ expected; see `..\lbro-run-scratch\pytest_full.log` |
+| G2 Backend green | **PASS** | `745 passed` in `..\lbro-run-scratch\pytest_full.log` |
 | G3 Frontend type-check/tests | **PASS** | `npm run type-check`, `npm run test` (69 tests) |
 | G4 Alembic single head | **PASS** | `017_threat_to_obligation` |
 | G4b Postgres cycle | **NOT RUN** | See SKIPPED.md |
@@ -30,7 +30,7 @@ Autonomous pass on branch `release/production-ready` (from `perf/login-and-ux`, 
 
 | Suite | Before (Phase 0) | After |
 |-------|------------------|-------|
-| Backend pytest | 741 passed | **746 passed** (741 + 5 new; confirm full log) |
+| Backend pytest | 741 passed | **745 passed** (+4), 1 deselected |
 | Frontend Vitest | 69 passed | **69 passed** |
 
 ## Attack guides

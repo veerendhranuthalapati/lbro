@@ -16,7 +16,7 @@ _lock = asyncio.Lock()  # async-safe; threading.Lock would block the event loop
 _last_purge: float = 0.0   # track when we last pruned empty keys
 _PURGE_INTERVAL = 300       # purge stale keys every 5 minutes
 
-EXEMPT_PATHS = {"/health", "/metrics", "/docs", "/openapi.json", "/redoc"}
+EXEMPT_PATHS = {"/health", "/health/ready", "/metrics", "/docs", "/openapi.json", "/redoc"}
 
 # Auth endpoints are high-value targets — apply strict per-IP limits.
 # Key is a path prefix (matched with startswith) → max requests per 60s window.

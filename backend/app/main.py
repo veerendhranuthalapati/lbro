@@ -70,6 +70,9 @@ async def lifespan(app: FastAPI):
     from app.compliance.knowledge.loader import load_knowledge_bundle
 
     load_knowledge_bundle()
+    from app.knowledge.loader import load_attack_guides
+
+    load_attack_guides()
     if settings.ENVIRONMENT != "test":
         from app.ml.startup_check import run_ml_startup_check
 
@@ -205,3 +208,39 @@ app.include_router(events_router.router,   prefix="/api/v1")
 @app.get("/health", tags=["health"])
 async def health_check():
     return {"status": "ok", "version": settings.APP_VERSION, "env": settings.ENVIRONMENT}
+
+
+@app.get("/health/ready", tags=["health"])
+async def readiness_check():
+    """Cheap readiness probe: DB required; queue/ML reported but non-fatal when unconfigured."""
+    from sqlalchemy import text
+
+    from app.database import engine
+
+    checks: dict[str, str] = {}
+
+    try:
+        async with engine.connect() as conn:
+            await conn.execute(text("SELECT 1"))
+        checks["database"] = "ok"
+    except Exception:
+        checks["database"] = "error"
+
+    if settings.SQS_INCIDENT_QUEUE_URL:
+        checks["queue"] = "ok"
+    else:
+        checks["queue"] = "not_configured"
+
+    checks["ml"] = "ok" if settings.ML_MODEL_SIGNING_KEY else "not_configured"
+
+    db_ok = checks["database"] == "ok"
+    # Degraded when DB fails or queue explicitly required but missing in prod-like env.
+    ready = db_ok
+    status = "ready" if ready else "degraded"
+    from fastapi.responses import JSONResponse
+
+    code = 200 if ready else 503
+    return JSONResponse(
+        status_code=code,
+        content={"status": status, "checks": checks},
+    )

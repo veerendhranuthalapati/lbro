@@ -1,14 +1,13 @@
 # Push checklist (owner — nothing was pushed by agent)
 
-- [ ] Review `git log release/production-ready` vs `main`
-- [ ] Install and run **gitleaks** (or trufflehog) on full git history + working tree
-- [ ] Confirm no `lbro-run-scratch/`, `.env`, or tokens in staged files
-- [ ] Re-run with clean env: `Remove-Item Env:DATABASE_URL`; `backend/.venv/Scripts/pytest -q` (expect **756+** passed)
-- [ ] `cd frontend && npm ci && npm run type-check && npm run test -- --run` (expect **75+** passed)
-- [ ] Triage **Bandit** High (AUD-010) and **npm audit** (AUD-011) or document acceptance
-- [ ] Run full **docker compose** smoke per RUNBOOK (SHA-256 evidence, SSE, PDFs, 429, logs)
-- [ ] Optional: drop MITRE Enterprise STIX JSON into `../lbro-run-scratch/` and run `python scripts/verify_attack_guides_mitre.py`
-- [ ] Merge locally: `git checkout main; git merge --no-ff release/production-ready`
-- [ ] Push only when G5/G6/G7/G13 gates you accept: `git push origin main`
+- [ ] `git log release/production-ready` vs `main`
+- [ ] `gitleaks detect --source . --config .gitleaks.toml` → expect **no leaks** (59+ commits)
+- [ ] `Remove-Item Env:DATABASE_URL`; `backend/.venv/Scripts/pytest -q` → expect **763+** passed
+- [ ] `cd frontend && npm ci && npm run build && npm run test -- --run`
+- [ ] Resolve **pip-audit** urllib3 and **npm** zod/axios (see `docs/NPM_AUDIT_CLASSIFICATION.md`)
+- [ ] Run **full compose smoke** (seed, SHA-256 evidence, PDFs, SSE, 429, logs) then `down -v`
+- [ ] Optional: G14 Playwright + G15 perf per RUNBOOK
+- [ ] Merge: `git checkout main && git merge --no-ff release/production-ready`
+- [ ] Push when you accept open gates: `git push origin main`
 
-**PUSH BLOCKED if:** real secrets found, unresolved Critical findings you care about, or migrations fail on Postgres.
+**Not READY until you accept:** G5 smoke, G7 urllib3/npm, and any mypy/ruff policy you enforce.

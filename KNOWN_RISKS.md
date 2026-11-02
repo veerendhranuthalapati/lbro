@@ -9,10 +9,10 @@
 | Real EC2/SSM isolation | Terraform validated only, never applied |
 | CICIDS2017 retraining | Shipped model is demo/synthetic; operational use needs retrain |
 | Compliance rule legal sign-off | Inference engine rules are `review_status: unreviewed` |
-| Bandit B324 (AUD-010) | `ml.py:270` MD5 for synthetic flow_id — replace or `# nosec` with rationale |
-| npm audit (AUD-011) | axios/zod/source-map-js — mostly dev/build; zod major bump needed for GHSA |
-| Compose smoke | Full lifecycle smoke not run on this session — do before prod cutover |
+| npm / pip deps (G7) | **AUD-011**: zod 4.x needed for some GHSA — blocked on `@hookform/resolvers@3`; **pip-audit**: urllib3 2.7.0 → 2.8.0 |
+| Compose smoke (G5) | Full lifecycle smoke **NOT RUN** after rebuild — required before prod |
+| Static analysis | `ruff` / `mypy` / ESLint config gaps — CI may differ; triage before calling release clean |
 
-Attack guide content is **defensive** and **unreviewed**; legal/comms review before customer-facing release.
+Attack guide summaries rewritten for readability; content still **unreviewed** for legal/comms.
 
-**Secret scanning:** gitleaks not run on full history — run locally before push (see PUSH_CHECKLIST).
+**Secrets:** gitleaks **0 leaks** on 59 commits with `.gitleaks.toml` allowlist for AWS doc example key.

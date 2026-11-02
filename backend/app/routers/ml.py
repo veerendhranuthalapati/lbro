@@ -1,10 +1,11 @@
 """ML classification and model registry router."""
+
 from __future__ import annotations
 
 import asyncio
 import uuid
-from datetime import datetime, timezone
-from typing import Annotated, Any, Dict, List, Optional
+from datetime import UTC, datetime
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
@@ -21,7 +22,6 @@ from app.ml.model_registry import (
     get_evaluation_metrics,
     has_verified_evaluation,
     list_models,
-    model_artifact_exists,
 )
 from app.models.incident import Incident
 from app.models.user import User
@@ -30,7 +30,7 @@ from app.schemas.incident import NetworkFeaturesInput
 router = APIRouter(prefix="/ml", tags=["ml"])
 
 
-def _apply_project_scope(q, scope_ids: Optional[list[uuid.UUID]]):
+def _apply_project_scope(q, scope_ids: list[uuid.UUID] | None):
     if scope_ids is None:
         return q
     if not scope_ids:
@@ -42,8 +42,8 @@ class ModelInfo(BaseModel):
     model_id: str
     version: str
     trained_at: str
-    accuracy: Optional[float] = None
-    f1_score: Optional[float] = None
+    accuracy: float | None = None
+    f1_score: float | None = None
     is_active: bool
     feature_count: int
     class_count: int
@@ -51,16 +51,16 @@ class ModelInfo(BaseModel):
 
 
 class MLStats(BaseModel):
-    active_model: Optional[ModelInfo]
-    registry: List[ModelInfo]
+    active_model: ModelInfo | None
+    registry: list[ModelInfo]
     predictions_today: int
     avg_confidence: float
     low_confidence_count: int
-    attack_distribution: Dict[str, int]
-    top_features: List[Dict[str, Any]]
+    attack_distribution: dict[str, int]
+    top_features: list[dict[str, Any]]
     has_evaluation_data: bool = False
     runtime_mode: str = "heuristic"
-    evaluation: Optional[Dict[str, Any]] = None
+    evaluation: dict[str, Any] | None = None
 
 
 @router.post("/classify")
@@ -120,11 +120,11 @@ async def list_model_versions(
 async def ml_stats(
     current_user: Annotated[User, Depends(require_permission(Permission.VIEW_ML))],
     db: AsyncSession = Depends(get_db),
-    project_id: Optional[uuid.UUID] = Query(None),
+    project_id: uuid.UUID | None = Query(None),
 ):
     """Aggregated ML statistics: model info, prediction counts, attack distribution."""
     scope_ids = await resolve_project_scope(db, current_user, project_id)
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(UTC).date()
 
     def _pf(q):
         return _apply_project_scope(q, scope_ids)
@@ -137,14 +137,14 @@ async def ml_stats(
     predictions_today: int = today_result.scalar_one() or 0
 
     avg_result = await db.execute(
-        _pf(select(func.avg(Incident.confidence_score)))
-        .where(Incident.confidence_score.isnot(None))
+        _pf(select(func.avg(Incident.confidence_score))).where(
+            Incident.confidence_score.isnot(None)
+        )
     )
     avg_confidence: float = float(avg_result.scalar_one() or 0.0)
 
     low_conf_result = await db.execute(
-        _pf(select(func.count()))
-        .where(Incident.needs_analyst_review == True)  # noqa: E712
+        _pf(select(func.count())).where(Incident.needs_analyst_review == True)  # noqa: E712
     )
     low_confidence_count: int = low_conf_result.scalar_one() or 0
 
@@ -154,7 +154,7 @@ async def ml_stats(
         .group_by(Incident.attack_category)
         .order_by(func.count().desc())
     )
-    attack_distribution: Dict[str, int] = {row.attack_category: row.cnt for row in dist_result}
+    attack_distribution: dict[str, int] = {row.attack_category: row.cnt for row in dist_result}
 
     # Model info — evaluation metrics only when artifact + registry metrics verified
     active_info = await asyncio.to_thread(get_active_model_info)
@@ -172,10 +172,17 @@ async def ml_stats(
         return ModelInfo(
             model_id=m.get("model_id", m.get("version", "heuristic")),
             version=m.get("version", "0.0.0"),
-            trained_at=m.get("registered_at") or m.get("trained_at") or datetime.now(timezone.utc).isoformat(),
-            accuracy=float(metrics["accuracy"]) if include_eval and metrics.get("accuracy") is not None else None,
-            f1_score=float(metrics.get("macro_f1") or metrics.get("f1") or metrics.get("f1_macro") or 0)
-            if include_eval and (metrics.get("macro_f1") or metrics.get("f1") or metrics.get("f1_macro"))
+            trained_at=m.get("registered_at")
+            or m.get("trained_at")
+            or datetime.now(UTC).isoformat(),
+            accuracy=float(metrics["accuracy"])
+            if include_eval and metrics.get("accuracy") is not None
+            else None,
+            f1_score=float(
+                metrics.get("macro_f1") or metrics.get("f1") or metrics.get("f1_macro") or 0
+            )
+            if include_eval
+            and (metrics.get("macro_f1") or metrics.get("f1") or metrics.get("f1_macro"))
             else None,
             is_active=is_active,
             feature_count=m.get("feature_count", 78),
@@ -184,17 +191,25 @@ async def ml_stats(
         )
 
     active_version = active_info.get("version") if active_info else None
-    active_model = to_model_info(active_info, is_active=True) if active_info and active_info.get("version") else None
-    registry = [to_model_info(m, is_active=(m.get("version") == active_version)) for m in (all_models if isinstance(all_models, list) else [])]
+    active_model = (
+        to_model_info(active_info, is_active=True)
+        if active_info and active_info.get("version")
+        else None
+    )
+    registry = [
+        to_model_info(m, is_active=(m.get("version") == active_version))
+        for m in (all_models if isinstance(all_models, list) else [])
+    ]
 
     # Top features from classifier (if model loaded)
-    top_features: List[Dict[str, Any]] = []
+    top_features: list[dict[str, Any]] = []
     if classifier.bundle is not None:
         try:
             est = classifier.bundle.model
             if hasattr(est, "feature_importances_"):
                 importances = est.feature_importances_
                 from app.ml.features import CICIDS2017_FEATURES as FEATURE_NAMES
+
                 pairs = sorted(
                     zip(FEATURE_NAMES, importances),
                     key=lambda x: x[1],
@@ -220,20 +235,20 @@ async def ml_stats(
 
 # MITRE ATT&CK mapping for known attack categories
 _MITRE_MAP: dict[str, str] = {
-    "DoS Hulk":               "T1499",
-    "DDoS":                   "T1498",
-    "PortScan":                "T1046",
-    "FTP-Patator":             "T1110",
-    "SSH-Patator":             "T1110",
-    "DoS slowloris":           "T1499",
-    "DoS Slowhttptest":        "T1499",
-    "DoS GoldenEye":           "T1499",
-    "Bot":                     "T1587",
-    "Web Attack - Brute Force":"T1110",
-    "Web Attack - XSS":        "T1059",
+    "DoS Hulk": "T1499",
+    "DDoS": "T1498",
+    "PortScan": "T1046",
+    "FTP-Patator": "T1110",
+    "SSH-Patator": "T1110",
+    "DoS slowloris": "T1499",
+    "DoS Slowhttptest": "T1499",
+    "DoS GoldenEye": "T1499",
+    "Bot": "T1587",
+    "Web Attack - Brute Force": "T1110",
+    "Web Attack - XSS": "T1059",
     "Web Attack - Sql Injection": "T1190",
-    "Infiltration":            "T1566",
-    "Heartbleed":              "T1212",
+    "Infiltration": "T1566",
+    "Heartbleed": "T1212",
 }
 
 
@@ -242,7 +257,7 @@ async def ml_flows(
     current_user: Annotated[User, Depends(require_permission(Permission.VIEW_ML))],
     db: AsyncSession = Depends(get_db),
     limit: int = 50,
-    project_id: Optional[uuid.UUID] = Query(None),
+    project_id: uuid.UUID | None = Query(None),
 ):
     """
     Live ML flow classifications derived from recent incidents that have ML predictions.
@@ -273,38 +288,40 @@ async def ml_flows(
         total_bwd = int(nf.get("total_bwd_packets", 0) or 0)
         fwd_bytes = int(nf.get("total_fwd_bytes", 0) or 0)
         bwd_bytes = int(nf.get("total_bwd_bytes", 0) or 0)
-        duration  = float(nf.get("flow_duration", 0) or 0)
-        bps       = float(nf.get("flow_bytes_per_sec", 0) or 0)
-        pps       = float(nf.get("flow_packets_per_sec", 0) or 0)
-        fwd_iat   = float(nf.get("fwd_iat_mean", 0) or 0)
-        bwd_iat   = float(nf.get("bwd_iat_mean", 0) or 0)
+        duration = float(nf.get("flow_duration", 0) or 0)
+        bps = float(nf.get("flow_bytes_per_sec", 0) or 0)
+        pps = float(nf.get("flow_packets_per_sec", 0) or 0)
+        fwd_iat = float(nf.get("fwd_iat_mean", 0) or 0)
+        bwd_iat = float(nf.get("bwd_iat_mean", 0) or 0)
 
         attack_type = inc.attack_category or "BENIGN"
         mitre = _MITRE_MAP.get(attack_type)
 
-        flows.append({
-            "flow_id":              flow_id,
-            "timestamp":            inc.detected_at.isoformat(),
-            "src_ip":               inc.source_ip or "0.0.0.0",
-            "dst_ip":               inc.destination_ip or "0.0.0.0",
-            "src_port":             inc.source_port or 0,
-            "dst_port":             inc.destination_port or 0,
-            "protocol":             (inc.protocol or "TCP").upper(),
-            "attack_type":          attack_type,
-            "flow_duration":        duration,
-            "total_fwd_packets":    total_fwd,
-            "total_bwd_packets":    total_bwd,
-            "total_fwd_bytes":      fwd_bytes,
-            "total_bwd_bytes":      bwd_bytes,
-            "flow_bytes_per_sec":   bps,
-            "flow_packets_per_sec": pps,
-            "fwd_iat_mean":         fwd_iat,
-            "bwd_iat_mean":         bwd_iat,
-            "confidence_score":     float(inc.confidence_score or 0.0),
-            "is_false_positive":    False,
-            "mitre_technique":      mitre,
-            "label":                attack_type,
-        })
+        flows.append(
+            {
+                "flow_id": flow_id,
+                "timestamp": inc.detected_at.isoformat(),
+                "src_ip": inc.source_ip or "0.0.0.0",
+                "dst_ip": inc.destination_ip or "0.0.0.0",
+                "src_port": inc.source_port or 0,
+                "dst_port": inc.destination_port or 0,
+                "protocol": (inc.protocol or "TCP").upper(),
+                "attack_type": attack_type,
+                "flow_duration": duration,
+                "total_fwd_packets": total_fwd,
+                "total_bwd_packets": total_bwd,
+                "total_fwd_bytes": fwd_bytes,
+                "total_bwd_bytes": bwd_bytes,
+                "flow_bytes_per_sec": bps,
+                "flow_packets_per_sec": pps,
+                "fwd_iat_mean": fwd_iat,
+                "bwd_iat_mean": bwd_iat,
+                "confidence_score": float(inc.confidence_score or 0.0),
+                "is_false_positive": False,
+                "mitre_technique": mitre,
+                "label": attack_type,
+            }
+        )
     return flows
 
 
@@ -312,7 +329,7 @@ async def ml_flows(
 async def ml_metrics(
     current_user: Annotated[User, Depends(require_permission(Permission.VIEW_ML))],
     db: AsyncSession = Depends(get_db),
-    project_id: Optional[uuid.UUID] = Query(None),
+    project_id: uuid.UUID | None = Query(None),
 ):
     """
     ML performance metrics for ThreatIntelPage.
@@ -331,10 +348,13 @@ async def ml_metrics(
     if model_loaded and classifier.bundle is not None:
         try:
             from app.ml.features import CICIDS2017_FEATURES as FEATURE_NAMES
+
             est = classifier.bundle.model
             if hasattr(est, "feature_importances_"):
                 importances = est.feature_importances_
-                pairs = sorted(zip(FEATURE_NAMES, importances), key=lambda x: x[1], reverse=True)[:10]
+                pairs = sorted(zip(FEATURE_NAMES, importances), key=lambda x: x[1], reverse=True)[
+                    :10
+                ]
                 feature_importance = [{"feature": n, "importance": float(v)} for n, v in pairs]
         except Exception:
             pass
@@ -386,10 +406,14 @@ async def ml_metrics(
                 fp_analysis.append({"attack": label, "tp": tp, "fp": fp, "fn": fn})
 
     tactic_map = {
-        "DoS Hulk": "Impact", "DDoS": "Impact", "DoS slowloris": "Impact",
-        "DoS GoldenEye": "Impact", "DoS Slowhttptest": "Impact",
+        "DoS Hulk": "Impact",
+        "DDoS": "Impact",
+        "DoS slowloris": "Impact",
+        "DoS GoldenEye": "Impact",
+        "DoS Slowhttptest": "Impact",
         "PortScan": "Discovery",
-        "FTP-Patator": "Credential Access", "SSH-Patator": "Credential Access",
+        "FTP-Patator": "Credential Access",
+        "SSH-Patator": "Credential Access",
         "Bot": "Command & Control",
         "Web Attack - Brute Force": "Initial Access",
         "Web Attack - XSS": "Execution",
@@ -398,9 +422,14 @@ async def ml_metrics(
         "Heartbleed": "Credential Access",
     }
     tactic_colors = {
-        "Impact": "#e54e1b", "Discovery": "#3a7a50", "Credential Access": "#d97706",
-        "Command & Control": "#7c3aed", "Initial Access": "#e54e1b",
-        "Execution": "#d97706", "Lateral Movement": "#e54e1b", "Other": "#6b6560",
+        "Impact": "#e54e1b",
+        "Discovery": "#3a7a50",
+        "Credential Access": "#d97706",
+        "Command & Control": "#7c3aed",
+        "Initial Access": "#e54e1b",
+        "Execution": "#d97706",
+        "Lateral Movement": "#e54e1b",
+        "Other": "#6b6560",
     }
     tactic_counts: dict[str, int] = {}
     for attack, cnt in attack_dist.items():

@@ -1,4 +1,5 @@
 """Notification worker — sends approved regulatory notifications with retry logic."""
+
 from __future__ import annotations
 
 import logging
@@ -37,14 +38,16 @@ async def send_notification(notification_id: uuid.UUID) -> None:
             if notification.status not in ("approved", "failed"):
                 logger.info(
                     "Notification %s in status '%s', skipping send",
-                    notification_id, notification.status
+                    notification_id,
+                    notification.status,
                 )
                 return
 
             if notification.retry_count >= MAX_RETRIES:
                 logger.error(
                     "Notification %s exceeded max retries (%d), giving up",
-                    notification_id, MAX_RETRIES
+                    notification_id,
+                    MAX_RETRIES,
                 )
                 return
 
@@ -57,7 +60,9 @@ async def send_notification(notification_id: uuid.UUID) -> None:
             else:
                 logger.warning(
                     "Notification %s failed (attempt %d): %s",
-                    notification_id, notification.retry_count, notification.last_error
+                    notification_id,
+                    notification.retry_count,
+                    notification.last_error,
                 )
         except Exception as exc:
             await db.rollback()

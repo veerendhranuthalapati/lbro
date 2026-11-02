@@ -1,4 +1,5 @@
 """Incident worker — ML classification, audit trail, and containment recommendations."""
+
 from __future__ import annotations
 
 import logging
@@ -61,8 +62,13 @@ async def classify_incident(incident_id: uuid.UUID, dedupe_key: str | None = Non
                 )
                 .limit(1)
             )
-            if existing.scalar_one_or_none() is not None and incident.ml_classification_status != "pending":
-                logger.info("Incident %s has ml_classification action — idempotent skip", incident_id)
+            if (
+                existing.scalar_one_or_none() is not None
+                and incident.ml_classification_status != "pending"
+            ):
+                logger.info(
+                    "Incident %s has ml_classification action — idempotent skip", incident_id
+                )
                 return
 
             if not incident.network_features:
@@ -180,7 +186,10 @@ async def _handle_containment_policy(db, incident, prediction) -> None:
         resource_type="incident",
         resource_id=str(incident.id),
         project_id=incident.project_id,
-        details={"prediction": prediction.to_dict(), "auto_contain_enabled": settings.ML_AUTO_CONTAIN_ENABLED},
+        details={
+            "prediction": prediction.to_dict(),
+            "auto_contain_enabled": settings.ML_AUTO_CONTAIN_ENABLED,
+        },
     )
 
 

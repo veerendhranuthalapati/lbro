@@ -1,4 +1,5 @@
 """Worker entry point — polls SQS queues and dispatches jobs."""
+
 from __future__ import annotations
 
 import asyncio
@@ -12,8 +13,10 @@ from app.workers.incident_worker import process_incident_message
 from app.workers.notification_worker import process_notification_message
 
 logger = logging.getLogger(__name__)
-logging.basicConfig(level=getattr(logging, settings.LOG_LEVEL, logging.INFO),
-                    format="%(asctime)s %(levelname)s %(name)s %(message)s")
+logging.basicConfig(
+    level=getattr(logging, settings.LOG_LEVEL, logging.INFO),
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
 
 _shutdown = False
 HEARTBEAT_PATH = Path("/tmp/lbro-worker-heartbeat")
@@ -54,6 +57,7 @@ def _handle_signal(sig, frame):
 async def poll_queue(queue_url: str, handler) -> None:
     """Long-poll a SQS queue and dispatch messages to handler."""
     from app.services.sqs_service import sqs_service
+
     logger.info("Starting poll loop for %s", queue_url)
     while not _shutdown:
         try:

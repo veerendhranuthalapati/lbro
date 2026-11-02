@@ -1,4 +1,5 @@
 """ML signing key policy — shared by Settings validation and startup checks."""
+
 from __future__ import annotations
 
 import os
@@ -41,6 +42,4 @@ def validate_signing_key_for_environment(key: str | None, environment: str) -> N
         )
 
     if key in KNOWN_TEST_SIGNING_KEYS:
-        raise ValueError(
-            "ML_MODEL_SIGNING_KEY must not be a documented test/dev key in production"
-        )
+        raise ValueError("ML_MODEL_SIGNING_KEY must not be a documented test/dev key in production")

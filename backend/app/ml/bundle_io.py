@@ -1,4 +1,5 @@
 """Signed model bundle verification and safe deserialization."""
+
 from __future__ import annotations
 
 import hashlib
@@ -111,7 +112,9 @@ def verify_bundle_directory(bundle_dir: Path) -> dict[str, Any]:
     if sig_path.is_file():
         key = settings.ML_MODEL_SIGNING_KEY
         if not key:
-            raise BundleLoadError("signing_key_missing", "ML_MODEL_SIGNING_KEY required to verify signature")
+            raise BundleLoadError(
+                "signing_key_missing", "ML_MODEL_SIGNING_KEY required to verify signature"
+            )
         if not verify_manifest_signature(manifest_path, sig_path, key):
             raise BundleLoadError("signature_invalid", "manifest.sig HMAC verification failed")
         manifest["_signature_verified"] = True
@@ -123,7 +126,9 @@ def verify_bundle_directory(bundle_dir: Path) -> dict[str, Any]:
             "Unsigned bundle rejected (set ML_ALLOW_UNSIGNED_MODEL in dev/test only)",
         )
     else:
-        logger.warning("Loading UNSIGNED ML bundle from %s — never do this in production", bundle_dir)
+        logger.warning(
+            "Loading UNSIGNED ML bundle from %s — never do this in production", bundle_dir
+        )
         manifest["_signature_verified"] = False
 
     _check_library_compatibility(manifest)

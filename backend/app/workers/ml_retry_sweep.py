@@ -1,4 +1,5 @@
 """Retry SQS enqueue for incidents stuck in ml_classification_status=pending."""
+
 from __future__ import annotations
 
 import logging
@@ -43,7 +44,7 @@ async def sweep_pending_ml_classifications() -> int:
                     seconds=min(
                         3600,
                         settings.ML_PENDING_RETRY_BASE_SECONDS
-                        * (2 ** incident.ml_classification_attempts),
+                        * (2**incident.ml_classification_attempts),
                     )
                 )
                 incident.ml_classification_attempts += 1
@@ -57,7 +58,7 @@ async def sweep_pending_ml_classifications() -> int:
                 incident.ml_classification_attempts += 1
                 incident.ml_classification_next_retry_at = now + timedelta(
                     seconds=settings.ML_PENDING_RETRY_BASE_SECONDS
-                    * (2 ** incident.ml_classification_attempts)
+                    * (2**incident.ml_classification_attempts)
                 )
                 logger.error(
                     "ML retry enqueue failed incident=%s: %s",

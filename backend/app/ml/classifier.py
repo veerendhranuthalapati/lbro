@@ -1,4 +1,5 @@
 """CICIDS2017 attack classifier — signed bundle + honest confidence contract."""
+
 from __future__ import annotations
 
 import logging
@@ -99,9 +100,7 @@ class AttackClassifier:
             "load_error_reason": self._load_error_reason,
             "load_error_code": self._load_error_code,
             "heuristic_fallback_active": b is None,
-            "metrics_summary": sanitize_metrics_summary_for_public(b.manifest)
-            if b
-            else {},
+            "metrics_summary": sanitize_metrics_summary_for_public(b.manifest) if b else {},
             "thresholds": {
                 "ML_CONFIDENCE_THRESHOLD": settings.ML_CONFIDENCE_THRESHOLD,
                 "ML_REVIEW_THRESHOLD": settings.ML_REVIEW_THRESHOLD,
@@ -126,7 +125,9 @@ class AttackClassifier:
 
         if coverage < settings.ML_MIN_FEATURE_COVERAGE:
             reasons = sanitize_reasons + [f"low_feature_coverage:{coverage:.2f}"]
-            result = heuristic_classify(cleaned or features or {}, feature_coverage=coverage, reasons=reasons)
+            result = heuristic_classify(
+                cleaned or features or {}, feature_coverage=coverage, reasons=reasons
+            )
             result.source = "insufficient_features"
             return result
 
@@ -146,7 +147,9 @@ class AttackClassifier:
         assert bundle is not None
 
         reasons = list(sanitize_reasons)
-        ood_fraction, ood_flag = compute_ood_fraction(cleaned, bundle.low_bounds, bundle.high_bounds)
+        ood_fraction, ood_flag = compute_ood_fraction(
+            cleaned, bundle.low_bounds, bundle.high_bounds
+        )
         if ood_fraction > settings.ML_OOD_MAX_OUTLIER_FRACTION:
             ood_flag = True
 

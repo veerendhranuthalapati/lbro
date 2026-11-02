@@ -302,7 +302,7 @@ jobs:
       - name: Bandit SAST scan
         run: |
           pip install bandit
-          bandit -r backend/app/ -ll -x backend/app/tests/ || true
+          bandit -r backend/app/ -ll -x backend/app/tests/
 
   # ── Integration Gate ──────────────────────────────────────────────────────────
   ci-pass:

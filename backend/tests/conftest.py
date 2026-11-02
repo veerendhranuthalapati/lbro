@@ -36,8 +36,33 @@ os.environ.setdefault("ENVIRONMENT", "test")
 os.environ.setdefault("ML_MODEL_SIGNING_KEY", "test-ml-signing-key-minimum-32-characters-long")
 os.environ.setdefault("ML_ALLOW_UNSIGNED_MODEL", "false")
 
-# Import app AFTER env vars are set
 from app.ml.bundle_io import MANIFEST_NAME, SIGNATURE_NAME, compute_manifest_hmac  # noqa: E402
+
+
+def _isolate_ml_bundle_for_tests() -> None:
+    """Copy the tracked ML bundle to scratch and sign the copy — never mutate repo files."""
+    import shutil
+
+    repo_root = Path(__file__).resolve().parents[1]
+    src = repo_root / "app" / "ml" / "models" / "bundle"
+    scratch = repo_root.parent / "lbro-run-scratch" / "ml-bundle-copy"
+    if not src.is_dir():
+        return
+    scratch.parent.mkdir(parents=True, exist_ok=True)
+    if scratch.exists():
+        shutil.rmtree(scratch)
+    shutil.copytree(src, scratch)
+    key = os.environ.get("ML_MODEL_SIGNING_KEY", "")
+    manifest_path = scratch / MANIFEST_NAME
+    if manifest_path.is_file() and key:
+        sig = compute_manifest_hmac(manifest_path.read_bytes(), key)
+        (scratch / SIGNATURE_NAME).write_text(sig, encoding="utf-8")
+    os.environ["ML_MODEL_BUNDLE_DIR"] = str(scratch)
+
+
+_isolate_ml_bundle_for_tests()
+
+# Import app AFTER env vars and bundle path are set
 from app.config import settings as _settings  # noqa: E402
 from app.database import Base, get_db  # noqa: E402
 from app.main import app as fastapi_app  # noqa: E402
@@ -65,21 +90,6 @@ TestSessionLocal = async_sessionmaker(
 def _run(coro):
     """Run a coroutine synchronously; safe to call from session-scope fixtures."""
     return asyncio.get_event_loop().run_until_complete(coro)
-
-
-@pytest.fixture(scope="session", autouse=True)
-def sign_test_ml_bundle():
-    """Ensure committed bundle has manifest.sig matching the test signing key."""
-    bundle = Path(_settings.ML_MODEL_BUNDLE_DIR)
-    manifest_path = bundle / MANIFEST_NAME
-    if not manifest_path.is_file():
-        yield
-        return
-    key = os.environ.get("ML_MODEL_SIGNING_KEY", "")
-    manifest_bytes = manifest_path.read_bytes()
-    sig = compute_manifest_hmac(manifest_bytes, key)
-    (bundle / SIGNATURE_NAME).write_text(sig, encoding="utf-8")
-    yield
 
 
 @pytest.fixture(scope="session", autouse=True)

@@ -11,8 +11,10 @@
 | AUD-004 | Med | Docker | API healthcheck probed `/health` not readiness (`docker-compose.yml:105`) | **Fixed** |
 | AUD-005 | Med | UX/API | Attack guides required by spec as versioned JSON; only inline `incident_explainer.py` existed | **Fixed** — `attack_guides.json` + `/knowledge/attacks` + `/incidents/{id}/explanation` |
 | AUD-006 | Info | Secrets | Test signing keys in `conftest.py` / README examples only; `.env.prod.example` uses AWS doc example AKIA… | **Accepted** — no real secrets in tree (FACT: regex scan) |
-| AUD-007 | Info | Tests | `integration/test_incidents.py` excluded on SQLite (`conftest collect_ignore`) | **Open** — Postgres cycle NOT RUN this session |
+| AUD-007 | Info | Tests | Postgres migration cycle on PG16 | **Fixed** — `alembic_cycle.txt`; `5903f33` |
 | AUD-008 | Low | Rate limit | Auth login 10/min/IP (`rate_limit.py:24`) blocks unpaced benchmark bursts | **Mitigated** — paced scripts; document in RUNBOOK |
-| AUD-009 | Info | Deps | `bandit` not installed in local `.venv` | **NOT RUN** locally; CI installs via pip |
+| AUD-009 | Info | Deps | Bandit local `-ll` | **Run** — 1 High, 5 Medium (`bandit.txt`) |
+| AUD-010 | High | ML router | Bandit B324 `ml.py:270` MD5 flow_id | **Open** |
+| AUD-011 | High | Frontend deps | npm audit axios/zod | **Open** |
 
 Evidence commands logged in `AUDIT_LOG.md`.

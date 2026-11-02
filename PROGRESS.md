@@ -1,12 +1,16 @@
 # Production run progress
 
 **Branch:** `release/production-ready`  
-**Last session continued:** 2026-11-02 ~19:30 +05:30  
+**Updated:** 2026-11-02 ~20:35 +05:30  
 
-| Phase | Status | Notes |
-|-------|--------|-------|
-| 0–5 (initial) | done | See prior commits through `2f3c0fd` |
-| Resume | done | PG16 migration cycle PASS; compose smoke partial; PyJWT 2.15.0; UI wired to `/explanation` |
+| Phase | Status | Evidence |
+|-------|--------|----------|
+| G9/G10/G11 gates | **done** | `pytest_gates.log` (11 passed); full suite `pytest_full_after_gates.log` (756 passed) |
+| Attack UX + library | **done** | Explainer tabs, AttackLibraryPage, Vitest +6 |
+| FINAL_REPORT reconcile | **done** | Gates strict PASS/FAIL/NOT RUN |
+| Security scans | **partial** | Bandit + npm audit logged; gitleaks **NOT RUN** |
+| Compose full smoke | **NOT RUN** | Partial curl 200 only |
+| Playwright Integrations | **NOT RUN** | |
+| Zip rebuild | **pending** | `lbro_production_run.zip` after commits |
 
-**HEAD after resume commits:** (see `git log -1`)  
-**Next:** Owner review attack guides; optional `npm audit fix` for zod; redeploy API in prod for `/health/ready`.
+**Next (owner):** triage AUD-010/011; place STIX in scratch for MITRE pin; full compose smoke when time allows.

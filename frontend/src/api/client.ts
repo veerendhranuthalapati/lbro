@@ -294,6 +294,15 @@ export const incidentsApi = {
 
   explain: (id: string): Promise<IncidentExplanation> =>
     apiClient.get<IncidentExplanation>(`/api/v1/incidents/${id}/explain`).then(r => r.data),
+
+  /** Structured attack guide composed with incident ML facts (decision-support disclaimer included). */
+  attackExplanation: (
+    id: string,
+    audience: 'executive' | 'analyst' = 'analyst',
+  ): Promise<Record<string, unknown>> =>
+    apiClient
+      .get(`/api/v1/incidents/${id}/explanation`, { params: { audience } })
+      .then(r => r.data),
 }
 
 // ---- Evidence ---------------------------------------------------------------

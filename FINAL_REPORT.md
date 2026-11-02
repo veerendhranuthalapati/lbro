@@ -16,10 +16,10 @@ Autonomous pass on branch `release/production-ready` (from `perf/login-and-ux`, 
 | G2 Backend green | **PASS** | `745 passed` in `..\lbro-run-scratch\pytest_full.log` |
 | G3 Frontend type-check/tests | **PASS** | `npm run type-check`, `npm run test` (69 tests) |
 | G4 Alembic single head | **PASS** | `017_threat_to_obligation` |
-| G4b Postgres cycle | **NOT RUN** | See SKIPPED.md |
-| G5 Compose smoke | **NOT RUN** | See SKIPPED.md |
+| G4b Postgres cycle | **PASS** | PG16 throwaway; downgrade -1 / upgrade; single head |
+| G5 Compose smoke | **PARTIAL PASS** | `/health/ready`, login, nginx 200 (see scratch) |
 | G6 Critical/High open | **PASS** | AUD-001..005 fixed |
-| G7 Dependency audit | **NOT RUN** | pip-audit/npm audit skipped |
+| G7 Dependency audit | **PARTIAL** | pip-audit clean after PyJWT 2.15.0; npm/zod open |
 | G8 CI hides failures | **PASS** | Bandit `\|\| true` removed |
 | G9 Tenant isolation | **INFERRED PASS** | Existing isolation/red-team suites |
 | G10 ML fail-closed prod | **INFERRED PASS** | Existing `test_ml_review_gaps` |

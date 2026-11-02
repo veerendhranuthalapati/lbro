@@ -40,11 +40,22 @@ declare module 'axios' {
 }
 
 // ---- LoginResponse ----------------------------------------------------------
+export interface LoginUserBootstrap {
+  readonly id: string
+  readonly email: string
+  readonly username: string
+  readonly full_name: string
+  readonly role: string
+  readonly permissions: string[]
+  readonly last_login: string | null
+}
+
 export interface LoginResponse {
   readonly access_token: string
   readonly refresh_token: string
   readonly token_type: string
   readonly expires_in: number
+  readonly user?: LoginUserBootstrap | null
 }
 
 // ---- Analytics types -------------------------------------------------------

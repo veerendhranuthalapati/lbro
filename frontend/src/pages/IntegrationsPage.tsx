@@ -7,12 +7,14 @@ import { useState, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
-  Copy, Check, Terminal, ChevronRight,
+  Copy, Terminal, ChevronRight,
   Search, ExternalLink, Key, RefreshCw,
   Plug2, AlertTriangle, Loader2, FolderOpen, Download,
 } from 'lucide-react'
 import { projectsApi } from '@/api/client'
 import { getProjectApiKey } from '@/lib/projectApiKeys'
+import { getPublicApiOrigin } from '@/lib/apiBase'
+import { IntegrationCodeBlock, CopyCodeButton } from '@/components/integrations/IntegrationCodeBlock'
 import { useProjectStore } from '@/store/projectStore'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { LoadingState } from '@/components/ui/LoadingState'
@@ -72,7 +74,7 @@ const CATEGORIES: Array<Integration['category'] | 'All'> = [
 // ── Snippets (same as Wizard — inlined for standalone page) ───────────────
 function buildSnippet(id: string, apiKey: string): { install: string; code: string } {
   const k    = apiKey || 'proj_your_api_key_here'
-  const BASE = typeof window !== 'undefined' ? window.location.origin : 'https://your-lbro-instance.com'
+  const BASE = getPublicApiOrigin()
 
   const MAP: Record<string, { install: string; code: string }> = {
     curl: {
@@ -575,36 +577,7 @@ const CURL_EVENTS = [
   { label:'Suspicious Login', type:'auth_failure',    sev:'high',     msg:'Login from new country: NG (usual: US)',ip:'197.210.84.195' },
 ]
 
-// ── CopyButton ─────────────────────────────────────────────────────────────
-function CopyBtn({ text }: { text: string }) {
-  const [ok, setOk] = useState(false)
-  return (
-    <button
-      onClick={() => { navigator.clipboard.writeText(text).then(() => { setOk(true); setTimeout(() => setOk(false), 1800) }) }}
-      className="flex items-center gap-1 transition-colors text-xs"
-      style={{ color: ok ? '#22c55e' : '#555' }}
-    >
-      {ok ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
-      {ok ? 'Copied' : 'Copy'}
-    </button>
-  )
-}
-
-function CodeBlock({ code, lang }: { code: string; lang?: string }) {
-  return (
-    <div className="rounded-lg overflow-hidden" style={{ border: '1px solid #1e1e1e' }}>
-      <div className="flex items-center justify-between px-3 py-1.5" style={{ background: '#0f0f0f', borderBottom: '1px solid #1e1e1e' }}>
-        <span className="text-xs text-zinc-600">{lang ?? 'bash'}</span>
-        <CopyBtn text={code} />
-      </div>
-      <pre className="p-4 text-xs leading-relaxed overflow-x-auto" style={{ background: '#0a0a0a', color: '#d4d4d4', fontFamily: 'monospace', margin: 0 }}>
-        {code}
-      </pre>
-    </div>
-  )
-}
-
-// ── Main ───────────────────────────────────────────────────────────────────
+// ── curl examples ──────────────────────────────────────────────────────────
 
 function maskKey(key: string): string {
   if (!key) return '••••••••••••••••••••••••••••••••'
@@ -634,7 +607,9 @@ export default function IntegrationsPage() {
   const [keyVisible,   setKeyVisible]   = useState(false)
   const [regenConfirm, setRegenConfirm] = useState(false)
 
-  const { data: project, isLoading } = useQuery({
+  const [codeWrap, setCodeWrap]   = useState(false)
+
+  const { data: project, isLoading, isError, refetch } = useQuery({
     queryKey: ['project', projectId],
     queryFn:  () => projectsApi.get(projectId!),
     enabled:  !!projectId,
@@ -663,13 +638,15 @@ export default function IntegrationsPage() {
     },
   })
 
+  const apiOrigin = getPublicApiOrigin()
   const sessionKey = projectId ? getProjectApiKey(projectId) : null
+  const canRegenerateKey = project?.my_role === 'admin'
   const apiKey     = sessionKey ?? ''
   const keyDisplay = sessionKey ?? (project?.api_key_prefix ? `${project.api_key_prefix}…` : '')
   const sel     = CATALOG.find(c => c.id === selected) ?? CATALOG[0]
   const snip    = buildSnippet(selected, apiKey)
   const curl    = CURL_EVENTS[curlIdx]
-  const curlCmd = `curl -X POST ${typeof window !== 'undefined' ? window.location.origin : ''}/api/v1/events \\
+  const curlCmd = `curl -X POST ${apiOrigin}/api/v1/events \\
   -H "Authorization: Bearer ${apiKey || 'proj_your_key'}" \\
   -H "Content-Type: application/json" \\
   -d '{"event_type":"${curl.type}","severity":"${curl.sev}","message":"${curl.msg}","source_ip":"${curl.ip}"}'`
@@ -707,6 +684,34 @@ export default function IntegrationsPage() {
     return <LoadingState label="Loading integrations…" />
   }
 
+  if (isError) {
+    return (
+      <EmptyState
+        title="Could not load project"
+        description="The integrations page could not fetch project details. Check your connection and try again."
+        action={
+          <button
+            type="button"
+            onClick={() => void refetch()}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded text-sm font-medium text-white"
+            style={{ background: ORANGE }}
+          >
+            <RefreshCw className="w-4 h-4" aria-hidden /> Retry
+          </button>
+        }
+      />
+    )
+  }
+
+  if (!project) {
+    return (
+      <EmptyState
+        title="Project not found"
+        description="This project may have been deleted or you no longer have access."
+      />
+    )
+  }
+
   return (
     <div>
       <div className="max-w-6xl mx-auto">
@@ -740,44 +745,50 @@ export default function IntegrationsPage() {
               {keyVisible ? (sessionKey || 'Regenerate key to reveal full value') : (sessionKey ? maskKey(sessionKey) : keyDisplay || '••••••••••••••••••••••••••••••••')}
             </code>
             <button
+              type="button"
               onClick={() => setKeyVisible(v => !v)}
               disabled={!sessionKey}
-              className="text-xs px-3 py-2.5 rounded transition-all shrink-0 disabled:opacity-40"
-              style={{ background: '#1a1a1a', color: '#888', border: '1px solid #2a2a2a' }}
-              title={sessionKey ? (keyVisible ? 'Hide key' : 'Reveal key') : 'Regenerate key to reveal full value'}
+              aria-label={sessionKey ? (keyVisible ? 'Hide API key' : 'Reveal API key') : 'Regenerate key to reveal full value'}
+              className="text-xs px-3 py-2.5 rounded transition-all shrink-0 disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1"
+              style={{ background: '#1a1a1a', color: '#888', border: '1px solid #2a2a2a', ['--tw-ring-color' as string]: ORANGE }}
             >
               {keyVisible ? 'Hide' : 'Reveal'}
             </button>
-            <CopyBtn text={sessionKey ?? ''} />
-            {!regenConfirm ? (
+            <CopyCodeButton text={sessionKey ?? ''} label="Copy API key" />
+            {canRegenerateKey && (
+            !regenConfirm ? (
               <button
+                type="button"
                 onClick={() => setRegenConfirm(true)}
-                className="flex items-center gap-1.5 text-xs px-3 py-2.5 rounded transition-all shrink-0"
-                style={{ background: '#1a1a1a', color: '#888', border: '1px solid #2a2a2a' }}
-                title="Regenerate API key — existing key will be revoked"
+                className="flex items-center gap-1.5 text-xs px-3 py-2.5 rounded transition-all shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1"
+                style={{ background: '#1a1a1a', color: '#888', border: '1px solid #2a2a2a', ['--tw-ring-color' as string]: ORANGE }}
+                aria-label="Regenerate API key"
               >
-                <RefreshCw className="w-3.5 h-3.5" /> Regenerate
+                <RefreshCw className="w-3.5 h-3.5" aria-hidden /> Regenerate
               </button>
             ) : (
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              <div className="flex items-center gap-2 flex-wrap">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" aria-hidden />
                 <span className="text-xs text-amber-500">Old key stops working.</span>
                 <button
+                  type="button"
                   onClick={() => regenMutation.mutate()}
                   disabled={regenMutation.isPending}
-                  className="text-xs px-3 py-2 rounded transition-all"
+                  className="text-xs px-3 py-2 rounded transition-all focus:outline-none focus-visible:ring-2"
                   style={{ background: '#7f1d1d', color: '#fca5a5', border: '1px solid #991b1b' }}
                 >
                   {regenMutation.isPending ? 'Rotating…' : 'Confirm'}
                 </button>
                 <button
+                  type="button"
                   onClick={() => setRegenConfirm(false)}
-                  className="text-xs px-3 py-2 rounded transition-all"
+                  className="text-xs px-3 py-2 rounded transition-all focus:outline-none focus-visible:ring-2"
                   style={{ background: '#1a1a1a', color: '#888', border: '1px solid #2a2a2a' }}
                 >
                   Cancel
                 </button>
               </div>
+            )
             )}
           </div>
           {regenMutation.isError && (
@@ -896,13 +907,13 @@ export default function IntegrationsPage() {
             {snip.install && (
               <div>
                 <p className="text-xs text-zinc-500 mb-2 font-medium uppercase tracking-wide">Install</p>
-                <CodeBlock code={snip.install} lang="bash" />
+                <IntegrationCodeBlock code={snip.install} lang="bash" wrap={codeWrap} onToggleWrap={() => setCodeWrap(w => !w)} />
               </div>
             )}
 
             <div>
               <p className="text-xs text-zinc-500 mb-2 font-medium uppercase tracking-wide">Code</p>
-              <CodeBlock code={snip.code} lang={langFor(selected)} />
+              <IntegrationCodeBlock code={snip.code} lang={langFor(selected)} wrap={codeWrap} onToggleWrap={() => setCodeWrap(w => !w)} />
             </div>
 
             {/* cURL quick-test section (skip for the REST API entry itself) */}
@@ -924,7 +935,7 @@ export default function IntegrationsPage() {
                     >{ev.label}</button>
                   ))}
                 </div>
-                <CodeBlock code={curlCmd} lang="bash" />
+                <IntegrationCodeBlock code={curlCmd} lang="bash" wrap={codeWrap} onToggleWrap={() => setCodeWrap(w => !w)} />
               </div>
             )}
 

@@ -10,10 +10,12 @@ import { useNavigate, Link, useLocation } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Eye, EyeOff, ShieldCheck, AlertCircle, Loader2, Lock } from 'lucide-react'
 import { useAuthStore } from '@/store/authStore'
-import { authApi } from '@/api/client'
+import { authApi, dashboardApi } from '@/api/client'
+import { qk } from '@/hooks/useApi'
 import { logger, auditAction } from '@/lib/logger'
 import { LOGIN_MAX_ATTEMPTS, ROLES } from '@/constants'
-import type { AuthUser } from '@/types'
+import type { AuthUser, UUID } from '@/types'
+import { asISO } from '@/types'
 import type { UserRole } from '@/constants'
 import { ROLE_PERMISSIONS } from '@/types/rbac'
 import type { Role, PermissionValue } from '@/types/rbac'
@@ -125,22 +127,41 @@ export default function LoginPage() {
         const base64Url = access_token.split('.')[1]
         const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
         jwtPayload = JSON.parse(atob(base64))
-      } catch { /* fall back to /me */ }
+      } catch { /* fall back to /me or bootstrap */ }
 
-      const userRecord = await authApi.me(access_token)
+      const bootstrap = tokenResponse.user
+      let userRecord: { id: string; email: string; full_name: string; role: string; last_login?: string | null }
+      if (bootstrap) {
+        userRecord = {
+          id: bootstrap.id,
+          email: bootstrap.email,
+          full_name: bootstrap.full_name,
+          role: bootstrap.role,
+          last_login: bootstrap.last_login,
+        }
+      } else {
+        userRecord = await authApi.me(access_token)
+      }
+
       const role = ((jwtPayload.role as UserRole) ?? (userRecord.role as UserRole) ?? ROLES.VIEWER) as Role
       const jwtPerms = Array.isArray(jwtPayload.permissions) ? jwtPayload.permissions as PermissionValue[] : null
+      const bootstrapPerms = bootstrap?.permissions as PermissionValue[] | undefined
       const authUser: AuthUser = {
-        id:          userRecord.id,
+        id:          userRecord.id as UUID,
         name:        userRecord.full_name,
         email:       userRecord.email,
         role,
-        permissions: jwtPerms ?? (ROLE_PERMISSIONS[role] ?? []) as PermissionValue[],
-        last_login:  userRecord.last_login,
+        permissions: jwtPerms ?? bootstrapPerms ?? (ROLE_PERMISSIONS[role] ?? []) as PermissionValue[],
+        last_login:  userRecord.last_login ? asISO(userRecord.last_login) : null,
       }
       resetLoginAttempts()
       login(access_token, tokenResponse.refresh_token ?? null, authUser)
       queryClient.clear()
+      // Warm dashboard cache while navigating — independent requests run in parallel inside the hook.
+      void queryClient.prefetchQuery({
+        queryKey: qk.dashboard(),
+        queryFn: () => dashboardApi.summary(),
+      })
       auditAction('auth:login', 'session', 'current', { source: 'login-page' })
       logger.info('User authenticated successfully', { userId: authUser.id, role: authUser.role })
 
@@ -219,7 +240,7 @@ export default function LoginPage() {
               id="email" label="Email" type="email"
               value={email} onChange={setEmail}
               placeholder="you@your-org.com"
-              autoComplete="email"
+              autoComplete="username"
               disabled={loading || locked}
               hasError={!!error}
             />

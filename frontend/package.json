@@ -12,7 +12,8 @@
     "type-check": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "check:budget": "node scripts/check-entry-bundle-budget.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

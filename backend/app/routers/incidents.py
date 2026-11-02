@@ -238,6 +238,24 @@ async def explain_incident(
     }
 
 
+@router.get("/{incident_id}/explanation")
+async def incident_attack_explanation(
+    incident_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    current_user: Annotated[User, Depends(require_permission(Permission.READ_INCIDENT))],
+    project_id: Optional[uuid.UUID] = Query(None),
+    audience: str = Query("analyst", pattern="^(executive|analyst)$"),
+):
+    """User-facing attack guide composed with this incident's ML/classification facts."""
+    from app.knowledge.explanation import compose_incident_explanation
+
+    svc = IncidentService(db)
+    incident = await svc.get(incident_id, project_id=project_id, owner_id=_owner_id_for(current_user))
+    if incident is None:
+        raise HTTPException(status_code=404, detail="Incident not found")
+    return compose_incident_explanation(incident, audience=audience)
+
+
 # ---------------------------------------------------------------------------
 # Investigation Timeline
 # ---------------------------------------------------------------------------

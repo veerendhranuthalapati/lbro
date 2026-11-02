@@ -709,6 +709,8 @@ async def generate_incident_report(
     from app.models.evidence import Evidence
     from app.models.notification import Notification
     from app.services.incident_explainer import explain_incident as _explain
+    from app.knowledge.loader import DECISION_SUPPORT_DISCLAIMER, get_guide
+    from xml.sax.saxutils import escape as xml_escape
 
     svc = IncidentService(db)
     incident = await svc.get(incident_id, project_id=project_id, owner_id=_owner_id_for(current_user))
@@ -733,8 +735,7 @@ async def generate_incident_report(
         source_ip=incident.source_ip,
         destination_port=incident.destination_port,
     )
-
-    # --- Build PDF ---
+    guide = get_guide(incident.attack_category or "BENIGN")
     from reportlab.lib.pagesizes import letter
     from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
     from reportlab.lib.units import inch
@@ -796,14 +797,14 @@ async def generate_incident_report(
 
     cover_data = [
         ["Incident", str(incident.id)],
-        ["Title", incident.title],
+        ["Title", xml_escape(incident.title)],
         ["Severity", incident.severity.upper()],
         ["Status", incident.status.upper()],
-        ["Attack Type", incident.attack_category or "Unknown"],
+        ["Attack Type", xml_escape(incident.attack_category or "Unknown")],
         ["ML Confidence", f"{round((incident.confidence_score or 0) * 100)}%"],
         ["Detected", incident.detected_at.strftime("%Y-%m-%d %H:%M UTC")],
         ["Generated", now.strftime("%Y-%m-%d %H:%M UTC")],
-        ["Prepared By", current_user.full_name or current_user.email],
+        ["Prepared By", xml_escape(current_user.full_name or current_user.email)],
     ]
     cover_table = Table(cover_data, colWidths=[1.5 * inch, 5.5 * inch])
     cover_table.setStyle(TableStyle([
@@ -825,15 +826,27 @@ async def generate_incident_report(
     # ── Executive Summary ──────────────────────────────────────────────────
     story.append(Paragraph("1. Executive Summary", h1_style))
     story.append(HRFlowable(width="100%", thickness=0.5, color=BORDER, spaceAfter=6))
-    story.append(Paragraph(exp["plain_english"], body_style))
+    story.append(Paragraph(xml_escape(exp["plain_english"]), body_style))
     if exp.get("context"):
-        story.append(Paragraph(exp["context"], ParagraphStyle("Ctx", parent=body_style, textColor=GRAY)))
+        story.append(Paragraph(xml_escape(str(exp["context"])), ParagraphStyle("Ctx", parent=body_style, textColor=GRAY)))
+
+    # Attack summary + recommended actions (decision-support)
+    story.append(Spacer(1, 0.12 * inch))
+    story.append(Paragraph("1a. Attack Summary and Recommended Actions", h2_style))
+    story.append(Paragraph(xml_escape(DECISION_SUPPORT_DISCLAIMER), small_style))
+    if guide:
+        story.append(Paragraph(xml_escape(guide.summary_plain), body_style))
+        for i, step in enumerate(guide.immediate_actions[:5], 1):
+            story.append(Paragraph(xml_escape(f"{i}. {step}"), body_style))
+    else:
+        for i, fix in enumerate(exp.get("recommended_fixes", [])[:5], 1):
+            story.append(Paragraph(xml_escape(f"{i}. {fix}"), body_style))
 
     # Business / Technical impact
     story.append(Spacer(1, 0.1 * inch))
     impact_data = [
         [Paragraph("<b>Business Impact</b>", body_style), Paragraph("<b>Technical Impact</b>", body_style)],
-        [Paragraph(exp["business_impact"], small_style), Paragraph(exp["technical_impact"], small_style)],
+        [Paragraph(xml_escape(exp["business_impact"]), small_style), Paragraph(xml_escape(exp["technical_impact"]), small_style)],
     ]
     impact_table = Table(impact_data, colWidths=[3.5 * inch, 3.5 * inch])
     impact_table.setStyle(TableStyle([
@@ -941,7 +954,7 @@ async def generate_incident_report(
     story.append(Paragraph("5. Recommendations", h1_style))
     story.append(HRFlowable(width="100%", thickness=0.5, color=BORDER, spaceAfter=6))
     for i, fix in enumerate(exp.get("recommended_fixes", []), 1):
-        story.append(Paragraph(f"{i}. {fix}", body_style))
+        story.append(Paragraph(xml_escape(f"{i}. {fix}"), body_style))
 
     # ── Compliance Impact ─────────────────────────────────────────────────
     story.append(Paragraph("6. Compliance Impact", h1_style))

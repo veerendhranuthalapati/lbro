@@ -74,6 +74,7 @@ interface Props {
 export function IncidentExplainer({ incidentId }: Props) {
   const [open, setOpen] = useState(false)
   const [audience, setAudience] = useState<'executive' | 'analyst'>('analyst')
+  const [tab, setTab] = useState<'what' | 'why' | 'now' | 'protect' | 'learn'>('what')
   const enabled = open && !!incidentId
   const { data, isLoading, isError } = useIncidentExplanation(enabled ? incidentId : '')
   const { data: guideData, isLoading: guideLoading } = useIncidentAttackExplanation(
@@ -108,7 +109,7 @@ export function IncidentExplainer({ incidentId }: Props) {
       >
         <Sparkles style={{ width: 15, height: 15, color: ORANGE, flexShrink: 0 }} />
         <span style={{ fontSize: 12, fontWeight: 600, color: BLACK, flex: 1 }}>
-          Explain this incident
+          Understand this attack
         </span>
         <span style={{ fontSize: 10, color: GRAY, marginRight: 6 }}>
           Plain-English attack analysis
@@ -172,6 +173,35 @@ export function IncidentExplainer({ incidentId }: Props) {
             ))}
           </div>
 
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 14 }} role="tablist" aria-label="Explanation sections">
+            {([
+              ['what', 'What happened'],
+              ['why', 'Why we flagged it'],
+              ['now', 'What to do now'],
+              ['protect', 'How to protect'],
+              ['learn', 'Learn more'],
+            ] as const).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                role="tab"
+                aria-selected={tab === id}
+                onClick={() => setTab(id)}
+                style={{
+                  fontSize: 10,
+                  padding: '4px 8px',
+                  borderRadius: 2,
+                  border: `1px solid ${tab === id ? ORANGE : BORDER}`,
+                  background: tab === id ? `${ORANGE}12` : '#fff',
+                  color: tab === id ? ORANGE : GRAY,
+                  cursor: 'pointer',
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
           {/* Loading */}
           {(isLoading || guideLoading) && (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -191,124 +221,80 @@ export function IncidentExplainer({ incidentId }: Props) {
 
           {/* Content */}
           {data && (
-            <div>
-              {/* Plain-English lead */}
-              <div style={{
-                fontSize: 13, color: BLACK, lineHeight: 1.7,
-                marginBottom: 16, fontStyle: 'normal',
-              }}>
-                {data.plain_english}
-              </div>
-
-              {/* Context (IP, port, duration) */}
-              {data.context && (
-                <div style={{
-                  fontSize: 11, color: GRAY, lineHeight: 1.6,
-                  background: PARCH, border: `1px solid ${BORDER}`,
-                  borderRadius: 3, padding: '8px 12px',
-                  marginBottom: 16, fontFamily: 'JetBrains Mono, monospace',
-                }}>
-                  {data.context}
-                </div>
-              )}
-
-              {/* Two-column impact */}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-                <Section icon={<Zap style={{ width: 12, height: 12, color: '#f59e0b' }} />} title="Business Impact">
-                  <p style={{ fontSize: 11, color: BLACK, lineHeight: 1.6, margin: 0 }}>
-                    {data.business_impact}
-                  </p>
-                </Section>
-                <Section icon={<Shield style={{ width: 12, height: 12, color: ORANGE }} />} title="Technical Impact">
-                  <p style={{ fontSize: 11, color: BLACK, lineHeight: 1.6, margin: 0 }}>
-                    {data.technical_impact}
-                  </p>
-                </Section>
-              </div>
-
-              {/* Likelihood */}
-              <Section icon={<AlertTriangle style={{ width: 12, height: 12, color: likelihoodColor }} />} title="Escalation Likelihood">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{
-                    fontFamily: 'JetBrains Mono, monospace',
-                    fontSize: 11, fontWeight: 700,
-                    color: likelihoodColor,
-                    background: `${likelihoodColor}15`,
-                    border: `1px solid ${likelihoodColor}40`,
-                    borderRadius: 2, padding: '3px 10px',
-                  }}>
-                    {data.likelihood}
-                  </span>
-                  <span style={{ fontSize: 11, color: GRAY }}>
-                    likelihood this escalates if left unresolved
-                  </span>
-                </div>
-              </Section>
-
-              {/* Taxonomy */}
-              <Section icon={<BookOpen style={{ width: 12, height: 12, color: GRAY }} />} title="Security Classification">
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 6 }}>
-                  {data.owasp && (
-                    <Pill text={data.owasp} color="#3b82f6" />
-                  )}
-                  {data.mitre_attack.map(m => (
-                    <Pill key={m} text={m} color="#8b5cf6" />
-                  ))}
-                  {!data.owasp && data.mitre_attack.length === 0 && (
-                    <span style={{ fontSize: 11, color: GRAY }}>No classification available for this attack type.</span>
-                  )}
-                </div>
-              </Section>
-
-              {/* Recommended fixes */}
-              <Section icon={<Wrench style={{ width: 12, height: 12, color: '#22c55e' }} />} title="Recommended Fixes">
-                <ol style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {data.recommended_fixes.map((fix, i) => (
-                    <li key={i} style={{ fontSize: 11, color: BLACK, lineHeight: 1.6 }}>
-                      {fix}
-                    </li>
-                  ))}
-                </ol>
-              </Section>
-
-              {/* Learn more */}
-              {data.learn_more_url && (
-                <div style={{ marginTop: 4 }}>
-                  <a
-                    href={data.learn_more_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      display: 'inline-flex', alignItems: 'center', gap: 5,
-                      fontSize: 11, color: ORANGE, textDecoration: 'none',
+            <div role="tabpanel">
+              {tab === 'what' && (
+                <>
+                  <div style={{ fontSize: 13, color: BLACK, lineHeight: 1.7, marginBottom: 16 }}>
+                    {audience === 'executive'
+                      ? (guideData?.guide?.summary_plain ?? data.plain_english)
+                      : data.plain_english}
+                  </div>
+                  {data.context && (
+                    <div style={{
+                      fontSize: 11, color: GRAY, lineHeight: 1.6,
+                      background: PARCH, border: `1px solid ${BORDER}`,
+                      borderRadius: 3, padding: '8px 12px', marginBottom: 16,
                       fontFamily: 'JetBrains Mono, monospace',
-                    }}
-                  >
-                    <Target style={{ width: 11, height: 11 }} />
-                    Learn more about this attack
-                    <ExternalLink style={{ width: 10, height: 10 }} />
-                  </a>
-                </div>
+                    }}>
+                      {data.context}
+                    </div>
+                  )}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <Section icon={<Zap style={{ width: 12, height: 12, color: '#f59e0b' }} />} title="Business Impact">
+                      <p style={{ fontSize: 11, color: BLACK, lineHeight: 1.6, margin: 0 }}>{data.business_impact}</p>
+                    </Section>
+                    <Section icon={<Shield style={{ width: 12, height: 12, color: ORANGE }} />} title="Technical Impact">
+                      <p style={{ fontSize: 11, color: BLACK, lineHeight: 1.6, margin: 0 }}>{data.technical_impact}</p>
+                    </Section>
+                  </div>
+                </>
               )}
-
-              {guideData?.guide?.immediate_actions && (
+              {tab === 'why' && (
+                <Section icon={<BookOpen style={{ width: 12, height: 12, color: GRAY }} />} title="Why we flagged it">
+                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 11, color: BLACK, lineHeight: 1.6 }}>
+                    {(guideData?.why_flagged ?? []).map((line, i) => (
+                      <li key={i}>{line}</li>
+                    ))}
+                  </ul>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
+                    {data.mitre_attack.map(m => (
+                      <Pill key={m} text={m} color="#8b5cf6" />
+                    ))}
+                  </div>
+                </Section>
+              )}
+              {tab === 'now' && (
                 <Section icon={<Wrench style={{ width: 12, height: 12, color: ORANGE }} />} title="What to do now">
                   <ol style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                    {(guideData.guide.immediate_actions ?? []).map((step, i) => (
+                    {(guideData?.guide?.immediate_actions ?? data.recommended_fixes).map((step, i) => (
                       <li key={i} style={{ fontSize: 11, color: BLACK, lineHeight: 1.6 }}>{step}</li>
                     ))}
                   </ol>
                 </Section>
               )}
-
-              {guideData?.why_flagged && (
-                <Section icon={<BookOpen style={{ width: 12, height: 12, color: GRAY }} />} title="Why we flagged it">
-                  <ul style={{ margin: 0, paddingLeft: 18, fontSize: 11, color: BLACK, lineHeight: 1.6 }}>
-                    {(guideData.why_flagged ?? []).map((line, i) => (
-                      <li key={i}>{line}</li>
-                    ))}
-                  </ul>
-                </Section>
+              {tab === 'protect' && guideData?.guide?.prevention && (
+                <div style={{ fontSize: 11, color: BLACK, lineHeight: 1.6 }}>
+                  {(['people', 'process', 'technology'] as const).map(k => (
+                    <div key={k} style={{ marginBottom: 10 }}>
+                      <strong style={{ textTransform: 'capitalize' }}>{k}: </strong>
+                      {(guideData.guide!.prevention![k] ?? []).join(' ')}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {tab === 'learn' && (
+                <>
+                  {data.learn_more_url && (
+                    <a href={data.learn_more_url} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: ORANGE }}>
+                      MITRE / external reference <ExternalLink style={{ width: 10, height: 10, display: 'inline' }} />
+                    </a>
+                  )}
+                  {(guideData?.guide?.references ?? []).map((url, i) => (
+                    <p key={i} style={{ fontSize: 11, margin: '6px 0' }}>
+                      <a href={String(url)} target="_blank" rel="noopener noreferrer" style={{ color: ORANGE }}>{String(url)}</a>
+                    </p>
+                  ))}
+                </>
               )}
             </div>
           )}

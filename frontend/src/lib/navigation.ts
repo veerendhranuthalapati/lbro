@@ -50,6 +50,7 @@ export const NAV_SECTIONS: NavSection[] = [
     label: 'Analysis',
     items: [
       { to: '/ml-insights', label: 'ML Analysis', icon: Brain, permission: Permission.VIEW_ML },
+      { to: '/attack-library', label: 'Attack library', icon: BookOpen, permission: Permission.READ_INCIDENT },
       { to: '/compliance', label: 'Compliance', icon: FileText, permission: Permission.VIEW_COMPLIANCE },
       { to: '/data-map', label: 'Data Map', icon: Database, permission: Permission.VIEW_ASSETS },
       { to: '/security-overview', label: 'Reports', icon: BarChart3 },
@@ -107,6 +108,7 @@ export const PAGE_TITLES: Record<string, string> = {
   '/compliance': 'Compliance',
   '/compliance/audit': 'Compliance Audit',
   '/ml-insights': 'ML Analysis',
+  '/attack-library': 'Attack library',
   '/security-overview': 'Reports',
   '/threat-intel': 'Threat Intel',
   '/infrastructure': 'Infrastructure',

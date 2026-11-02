@@ -42,6 +42,7 @@ const ProjectsPage           = lazy(() => import('@/pages/ProjectsPage'))
 const ProjectOverviewPage    = lazy(() => import('@/pages/ProjectOverviewPage'))
 const ProjectSettingsPage    = lazy(() => import('@/pages/ProjectSettingsPage'))
 const ProjectSetupWizardPage = lazy(() => import('@/pages/ProjectSetupWizardPage'))
+const AttackLibraryPage      = lazy(() => import('@/pages/AttackLibraryPage'))
 const IntegrationsPage       = lazy(() => import('@/pages/IntegrationsPage'))
 const LiveEventsPage         = lazy(() => import('@/pages/LiveEventsPage'))
 const ApiDocsPage            = lazy(() => import('@/pages/ApiDocsPage'))
@@ -142,6 +143,11 @@ export function AppRouter() {
           <Route path="/threat-intel" element={
             <ProtectedRoute requiredPermission={Permission.READ_INCIDENT}>
               <SuspenseRoute><ThreatIntelPage /></SuspenseRoute>
+            </ProtectedRoute>
+          } />
+          <Route path="/attack-library" element={
+            <ProtectedRoute requiredPermission={Permission.READ_INCIDENT}>
+              <SuspenseRoute><AttackLibraryPage /></SuspenseRoute>
             </ProtectedRoute>
           } />
 

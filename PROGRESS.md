@@ -12,7 +12,7 @@
 | G12 STIX + Flesch | **done** | scratch STIX; min Flesch 50.6 |
 | gitleaks | **done** | 0 leaks / 59 commits |
 | Backend suite | **done** | **763 passed** |
-| Compose G5 | **NOT RUN** (build running) | `compose_build.log` — smoke script not executed |
+| Compose G5 | **build done; smoke NOT RUN** | `compose_build.log` exit **0** (~234s); lifecycle smoke + `down -v` still pending |
 | G14/G15 | **NOT RUN** | |
 | FINAL_REPORT + zip | **pending commit** | |
 

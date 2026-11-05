@@ -36,7 +36,17 @@ os.environ.setdefault("ENVIRONMENT", "test")
 os.environ.setdefault("ML_MODEL_SIGNING_KEY", "test-ml-signing-key-minimum-32-characters-long")
 os.environ.setdefault("ML_ALLOW_UNSIGNED_MODEL", "false")
 
-from app.ml.bundle_io import MANIFEST_NAME, SIGNATURE_NAME, compute_manifest_hmac  # noqa: E402
+MANIFEST_NAME = "manifest.json"
+SIGNATURE_NAME = "manifest.sig"
+
+
+def compute_manifest_hmac(manifest_bytes: bytes, signing_key: str) -> str:
+    # Mirrors app.ml.bundle_io.compute_manifest_hmac. Kept local so this module does
+    # not import app.config before ML_MODEL_BUNDLE_DIR is set in _isolate_ml_bundle_for_tests.
+    import hashlib
+    import hmac
+
+    return hmac.new(signing_key.encode("utf-8"), manifest_bytes, hashlib.sha256).hexdigest()
 
 
 def _isolate_ml_bundle_for_tests() -> None:

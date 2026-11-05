@@ -1,7 +1,7 @@
 """
 app/core/logging.py — compatibility shim.
 
-Provides configure_logging() so that app/worker/main.py can import it
+Provides configure_logging() for the API and the workers in app/workers/
 without changes.  Delegates to the standard logging module.
 """
 from __future__ import annotations

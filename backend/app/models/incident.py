@@ -92,6 +92,9 @@ class Incident(Base):
 
     network_features: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
+    # Populated from POST /events payload (geo, user-agent, MITRE hints, etc.)
+    integration_context: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
     containment_actions: Mapped[list | None] = mapped_column(JSON, nullable=True)
     containment_completed_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True

@@ -148,6 +148,8 @@ async def test_sha256_verify_endpoint(client: AsyncClient, auth_headers: dict):
     assert verify_resp.status_code == 200
     result = verify_resp.json()
     assert result["ok"] is True
+    assert result["verified"] is True
+    assert result["hash_matched"] is True
     assert result["hash"] == hashlib.sha256(data_bytes).hexdigest()
 
 

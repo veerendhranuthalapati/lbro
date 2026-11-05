@@ -356,6 +356,14 @@ export default function IncidentDetailPage() {
       </div>
 
       {/* ── Main layout: tabs + sidebar ──────────────────────────────────── */}
+      {incident.attack_category === 'BENIGN' && (incident.severity === 'high' || incident.severity === 'critical') && (
+        <div role="alert" style={{ background: '#f59e0b15', border: '1px solid #f59e0b60', borderLeft: '3px solid #f59e0b', borderRadius: 4, padding: '10px 14px', marginBottom: 16, fontSize: 11, color: BLACK, lineHeight: 1.6 }}>
+          <strong>Severity and model disagree.</strong> The event was reported as {incident.severity.toUpperCase()}, but the ML model classified it as BENIGN
+          {incident.confidence_score != null ? ` (${Math.round(incident.confidence_score * 100)}% confidence)` : ''}.
+          The title and severity come from the sender. Verify the traffic before acting.
+        </div>
+      )}
+
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 16, alignItems: 'start' }}>
 
         {/* Left: tab nav + content */}

@@ -8,7 +8,11 @@ export function incidentMlBadgeProps(incident: Incident): MlClassificationBadgeP
   if (incident.ml_classification_status === 'pending' && !incident.attack_category) {
     return { source: 'insufficient_features', needsReview: true }
   }
-  const source = incident.ml_model_version ? 'model' : 'heuristic'
+  const source = incident.ml_model_version?.startsWith("heuristic")
+    ? "heuristic"
+    : incident.ml_model_version
+      ? "model"
+      : "heuristic"
   return {
     source,
     needsReview: incident.needs_analyst_review,

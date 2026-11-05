@@ -1,27 +1,58 @@
 {
-  "created_at": "2026-11-01T15:10:00.865496+00:00",
+  "created_at": "2026-11-03T17:51:20Z",
   "file_hashes": {
-    "classes.json": "f5ef293a9a6f392b176747fd0fb3d4448930463f76224232e99f5d138b836d5d",
-    "model.joblib": "2fbc791d1d58683a89870703510c0b302abdad903e82ed271d3b630d369a70c0",
-    "preprocessing.json": "c7f6388309ea194b9880dff0c45ad5c7eb269996f972a591b5b3a81d59a5a51c"
+    "classes.json": "08cdf419b809abc1dd32099b1e5c52aa50e48a2a8086498ef56f99a4d0680fe2",
+    "model.joblib": "13f5eb6f718349950645449aef8fbdafc7b4df920c4ae7ead8d38ad695f07602",
+    "preprocessing.json": "1144471adede1c3ee974b7b85ced25ff354712410b87de50122808289d75984a"
   },
-  "git_commit": "bc100d3c1e0e548ce8b5d8361491292beb20cc70",
+  "git_commit": "release/production-ready (uncommitted working tree)",
   "library_versions": {
-    "numpy": "2.5.4",
+    "numpy": "1.26.4",
     "python": "3.12.3",
     "scikit-learn": "1.7.2"
   },
   "metrics_summary": {
-    "algorithm": "HistGradientBoosting",
-    "calibration_method": "isotonic",
-    "headline_evaluation": "n/a - demo-synthetic",
-    "optimistic": "n/a - demo-synthetic",
-    "realistic": "n/a - demo-synthetic",
-    "validation_macro_f1": "n/a - demo-synthetic"
+    "data": "CICIDS2017 MachineLearningCVE, 8 daily files, 2,830,743 flows",
+    "five_fold_cv": {
+      "accuracy_mean": 0.9975,
+      "macro_f1_mean": 0.8485,
+      "macro_f1_std": 0.0211
+    },
+    "held_out_test": {
+      "accuracy": 0.9983,
+      "macro_f1": 0.8773,
+      "per_class_f1": {
+        "BENIGN": 0.999,
+        "Bot": 0.774,
+        "DDoS": 1.0,
+        "DoS GoldenEye": 0.988,
+        "DoS Hulk": 0.997,
+        "DoS Slowhttptest": 0.984,
+        "DoS slowloris": 0.978,
+        "FTP-Patator": 1.0,
+        "Heartbleed": 1.0,
+        "Infiltration": 0.778,
+        "PortScan": 0.997,
+        "SSH-Patator": 0.999,
+        "Web Attack - Brute Force": 0.717,
+        "Web Attack - Sql Injection": 0.444,
+        "Web Attack - XSS": 0.504
+      },
+      "weighted_f1": 0.9983
+    },
+    "model": "HistGradientBoostingClassifier(max_iter=100, class_weight=balanced)",
+    "split": "80/20 stratified, random_state=42"
   },
-  "status": "demo-synthetic",
+  "status": "cicids2017",
   "training_data_hashes": {
-    "synthetic_generator": "scripts/train_models.py"
+    "Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv": "6ff1580f5f81c0ae28a26f7631721018577f5f7c5e0feac28b795fcfe7b411ee",
+    "Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv": "ca1824c51bfbb7b3c72290a11be04366ba8815878c6a1cc5c44cb1cee269e99b",
+    "Friday-WorkingHours-Morning.pcap_ISCX.csv": "53a41c24d570ea83b7ac55b2e94df94e7a8216aeb80a2af0246b6bc8bb543000",
+    "Monday-WorkingHours.pcap_ISCX.csv": "852c4beb34eda186f32561fa79df7a0747e92e1a6535b01270820dd9ffe17f34",
+    "Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv": "6bcda3857c2504676034e3ea57762d38393cc734cb377a726bd5cb153961b1b5",
+    "Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv": "d67066211fb1689c78406f1506f4c44704ecb92088353d5c96d96d6474eb819d",
+    "Tuesday-WorkingHours.pcap_ISCX.csv": "52b8692ae8c7d2ed04671fe2b98335693c0a92c7ab157d8c8b534d6523080851",
+    "Wednesday-workingHours.pcap_ISCX.csv": "893c27dc968bf7a8adef1689f90be55ca4a4dc3088fb63d6ff247ac56856df2a"
   },
-  "version": "lbro-demo-synthetic-1.0.0"
+  "version": "2.0.0-cicids2017-full"
 }

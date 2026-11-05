@@ -17,6 +17,7 @@ from app.core.rbac import Permission
 from app.database import get_db
 from app.dependencies import require_permission
 from app.ml.classifier import classifier
+from app.ml.features import ATTACK_CLASSES, CICIDS2017_FEATURES
 from app.ml.model_registry import (
     get_active_model_info,
     get_evaluation_metrics,
@@ -185,8 +186,8 @@ async def ml_stats(
             and (metrics.get("macro_f1") or metrics.get("f1") or metrics.get("f1_macro"))
             else None,
             is_active=is_active,
-            feature_count=m.get("feature_count", 78),
-            class_count=m.get("class_count", 15),
+            feature_count=m.get("feature_count", len(CICIDS2017_FEATURES)),
+            class_count=m.get("class_count", len(ATTACK_CLASSES)),
             model_loaded=model_loaded and is_active,
         )
 
@@ -301,8 +302,9 @@ async def ml_flows(
             {
                 "flow_id": flow_id,
                 "timestamp": inc.detected_at.isoformat(),
-                "src_ip": inc.source_ip or "0.0.0.0",
-                "dst_ip": inc.destination_ip or "0.0.0.0",
+                # Placeholder for missing addresses; a data value, not a bind address.
+                "src_ip": inc.source_ip or "0.0.0.0",  # nosec B104
+                "dst_ip": inc.destination_ip or "0.0.0.0",  # nosec B104
                 "src_port": inc.source_port or 0,
                 "dst_port": inc.destination_port or 0,
                 "protocol": (inc.protocol or "TCP").upper(),

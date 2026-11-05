@@ -25,6 +25,7 @@ from app.schemas.incident import (
     ReopenRequest,
 )
 from app.services.incident_service import IncidentService
+from app.services.incident_presenter import incident_to_response
 from app.services.compliance_service import ComplianceService
 from app.services.notification_service import NotificationService
 from app.services.project_service import ProjectService
@@ -87,7 +88,7 @@ async def create_incident(
         notif_svc = NotificationService(db)
         await notif_svc.generate_for_incident(incident)
     incident = await svc.get(incident.id)
-    return incident
+    return incident_to_response(incident)
 
 
 @router.get("", response_model=IncidentListResponse)
@@ -117,7 +118,12 @@ async def list_incidents(
         project_id=project_id,
         owner_id=_owner_id_for(current_user),
     )
-    return IncidentListResponse(items=items, total=total, page=page, page_size=page_size)
+    return IncidentListResponse(
+        items=[incident_to_response(i) for i in items],
+        total=total,
+        page=page,
+        page_size=page_size,
+    )
 
 
 @router.get("/stats")
@@ -143,7 +149,8 @@ async def get_incident(
     project_id: Optional[uuid.UUID] = Query(None),
 ):
     svc = IncidentService(db)
-    return await svc.get(incident_id, project_id=project_id, owner_id=_owner_id_for(current_user))
+    incident = await svc.get(incident_id, project_id=project_id, owner_id=_owner_id_for(current_user))
+    return incident_to_response(incident)
 
 
 @router.patch("/{incident_id}", response_model=IncidentResponse)
@@ -156,7 +163,8 @@ async def update_incident(
 ):
     svc = IncidentService(db)
     await svc.get(incident_id, project_id=project_id, owner_id=_owner_id_for(current_user))
-    return await svc.update(incident_id, data, current_user)
+    updated = await svc.update(incident_id, data, current_user)
+    return incident_to_response(updated)
 
 
 @router.post("/{incident_id}/status")

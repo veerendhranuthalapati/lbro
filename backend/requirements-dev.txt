@@ -3,3 +3,9 @@
 ruff==0.8.4
 mypy==1.13.0
 types-passlib
+# Test tooling used by the CI pytest step
+pytest==9.0.3
+pytest-asyncio==1.4.1
+pytest-cov==6.0.0
+# Training pipeline (app/ml/training, tests/test_ml_training.py); not imported at runtime
+pandas==2.2.3

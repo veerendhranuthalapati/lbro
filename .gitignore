@@ -59,3 +59,6 @@ terraform/*_override.tf.json
 *.swo
 .DS_Store
 Thumbs.db
+
+# Vite config bundling timestamps
+vite.config.ts.timestamp-*.mjs

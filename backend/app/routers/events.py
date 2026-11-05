@@ -13,7 +13,8 @@ Ingestion pipeline:
   3. SecurityEvent created -> stored with processing_status=pending
   4. ML classification     -> classify if ML features available
   5. Incident auto-create  -> for high/critical severity events
-  6. Mark processed        -> processing_status=processed
+  6. Network + evidence capture -> incident fields + vault artifacts
+  7. Mark processed        -> processing_status=processed
 """
 from __future__ import annotations
 
@@ -28,6 +29,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
 from app.dependencies import get_project_from_api_key
+from app.integrations.event_context import extract_endpoint_context
+from app.integrations.ingestion_capture import (
+    capture_ingestion_evidence,
+    enrich_incident_from_payload,
+    record_ingestion_ml_action,
+)
 from app.models.project import Project
 from app.models.security_event import SecurityEvent
 
@@ -100,10 +107,23 @@ class SecurityEventResponse(BaseModel):
     event_type: str
     severity: str
     processing_status: str
-    incident_id: str | None
-    ml_attack_category: str | None
-    ml_confidence: float | None
+    incident_id: str | None = None
+    source_ip: str | None = None
+    source_host: str | None = None
+    source_application: str | None = None
+    message: str | None = None
+    destination_ip: str | None = None
+    source_port: int | None = None
+    destination_port: int | None = None
+    protocol: str | None = None
+    ml_attack_category: str | None = None
+    ml_confidence: float | None = None
+    ml_source: str | None = None
+    ml_feature_coverage: float | None = None
+    ml_needs_review: bool | None = None
     created_at: str
+
+    model_config = {"extra": "ignore"}
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
@@ -187,6 +207,25 @@ async def list_project_events(
         "page": page,
         "page_size": page_size,
     }
+
+
+@router.get("/events/{event_id}")
+async def get_project_event(
+    event_id: uuid.UUID,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    project: Annotated[Project, Depends(get_project_from_api_key)],
+):
+    """Full event detail including payload (project-scoped via API key)."""
+    result = await db.execute(
+        select(SecurityEvent).where(
+            SecurityEvent.id == event_id,
+            SecurityEvent.project_id == project.id,
+        )
+    )
+    event = result.scalar_one_or_none()
+    if not event:
+        raise HTTPException(status_code=404, detail="Event not found")
+    return _event_detail_response(event)
 
 
 # ── Ingestion helpers ──────────────────────────────────────────────────────────
@@ -319,15 +358,24 @@ async def _auto_create_incident(
         confidence_score=event.ml_confidence,
         ml_model_version=event.ml_model_version,
         source_ip=data.source_ip,
-        needs_analyst_review=True,
+        needs_analyst_review=bool(event.ml_needs_review),
         ml_classification_status="pending",
     )
     db.add(incident)
     await db.flush()
+
+    await enrich_incident_from_payload(incident, data, event)
+    await record_ingestion_ml_action(db, incident, event)
+    try:
+        await capture_ingestion_evidence(db, incident.id, event, data)
+    except Exception:
+        pass
+
     return incident.id
 
 
 def _event_to_response(e: SecurityEvent) -> dict:
+    ctx = extract_endpoint_context(e.payload or {})
     return {
         "id": str(e.id),
         "project_id": str(e.project_id),
@@ -335,6 +383,14 @@ def _event_to_response(e: SecurityEvent) -> dict:
         "severity": e.severity,
         "processing_status": e.processing_status,
         "incident_id": str(e.incident_id) if e.incident_id else None,
+        "source_ip": e.source_ip,
+        "source_host": e.source_host,
+        "source_application": e.source_application,
+        "message": e.message,
+        "destination_ip": ctx.get("destination_ip"),
+        "source_port": ctx.get("source_port"),
+        "destination_port": ctx.get("destination_port"),
+        "protocol": ctx.get("protocol"),
         "ml_attack_category": e.ml_attack_category,
         "ml_confidence": e.ml_confidence,
         "ml_source": e.ml_source,
@@ -342,6 +398,14 @@ def _event_to_response(e: SecurityEvent) -> dict:
         "ml_needs_review": e.ml_needs_review,
         "created_at": e.created_at.isoformat(),
     }
+
+
+def _event_detail_response(e: SecurityEvent) -> dict:
+    body = _event_to_response(e)
+    body["payload"] = e.payload or {}
+    body["event_timestamp"] = e.event_timestamp.isoformat() if e.event_timestamp else None
+    body["ml_model_version"] = e.ml_model_version
+    return body
 
 
 # ── In-process event bus for SSE ─────────────────────────────────────────────

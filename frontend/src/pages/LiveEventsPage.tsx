@@ -57,9 +57,14 @@ interface LiveEvent {
   ml_confidence:     number | null
   ml_source?:        string | null
   ml_needs_review?:  boolean | null
+  ml_feature_coverage?: number | null
   ml_ood_flag?:      boolean | null
   created_at:        string
   source_ip?:        string
+  source_application?: string
+  destination_ip?:   string
+  destination_port?: number
+  protocol?:         string
   message?:          string
   _ts:               number   // local receipt timestamp
 }
@@ -118,10 +123,14 @@ function EventRow({
           )}
         </div>
         <p className="text-xs text-zinc-500 mt-0.5 truncate">
-          {ev.message ? '[Demo] ' + ev.message.replace('[Demo] ', '') : ev.event_type}
+          {ev.message ?? ev.event_type}
+          {ev.source_ip ? ` · src ${ev.source_ip}` : ''}
+          {ev.destination_port ? ` → :${ev.destination_port}` : ''}
           {ev.ml_source === 'model' && ev.ml_confidence
             ? ` · ${(ev.ml_confidence * 100).toFixed(0)}% confidence`
-            : ''}
+            : ev.ml_feature_coverage != null
+              ? ` · coverage ${(ev.ml_feature_coverage * 100).toFixed(0)}%`
+              : ''}
         </p>
       </div>
       <div className="shrink-0 text-right">

@@ -679,6 +679,10 @@ def explain_incident(
         else:
             context_notes.append(f"The attack lasted approximately {secs/60:.1f} minutes.")
 
+    if canonical == "BENIGN":
+        # Benign traffic: do not describe an attack source, port or duration that did not happen.
+        context_notes = []
+
     return {
         "category": attack_category,
         "plain_english": exp.plain_english,

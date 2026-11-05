@@ -59,7 +59,8 @@ def upgrade() -> None:
     # 2. Convert any remaining unknown roles to viewer (safe fallback)
     placeholders = ", ".join(f"'{r}'" for r in VALID_ROLES)
     conn.execute(
-        sa.text(f"UPDATE users SET role = 'viewer' WHERE role NOT IN ({placeholders})")
+        # nosec B608 - placeholders come from the module constant VALID_ROLES, never user input
+        sa.text(f"UPDATE users SET role = 'viewer' WHERE role NOT IN ({placeholders})")  # nosec B608
     )
 
     # 3. Ensure the CHECK constraint reflects only 3 valid roles

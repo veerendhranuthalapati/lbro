@@ -590,6 +590,7 @@ function langFor(id: string): string {
   if (id === 'go')                        return 'go'
   if (id === 'aspnet')                    return 'csharp'
   if (['php', 'laravel'].includes(id))   return 'php'
+  if (id === 'curl')                      return 'bash'
   return 'python'
 }
 
@@ -872,7 +873,7 @@ export default function IntegrationsPage() {
                 >
                   <span className="text-lg w-6 text-center shrink-0">{int.icon}</span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-white truncate">{int.name}</p>
+                    <p className="text-sm truncate" style={{ color: '#1a1a1a' }}>{int.name}</p>
                     <p className="text-xs" style={{ color: int.color + 'aa' }}>{int.category}</p>
                   </div>
                   {int.comingSoon
@@ -891,7 +892,7 @@ export default function IntegrationsPage() {
             <div className="flex items-center gap-3 pb-4" style={{ borderBottom: '1px solid ' + BORDER }}>
               <span className="text-2xl">{sel.icon}</span>
               <div>
-                <h2 className="font-display text-xl text-white">{sel.name}</h2>
+                <h2 className="font-display text-xl" style={{ color: '#1a1a1a' }}>{sel.name}</h2>
                 <p className="text-xs text-zinc-500">
                   {sel.category === 'SDK'       ? 'Add to your application code' :
                    sel.category === 'Log Agent' ? 'Run alongside your infrastructure' :

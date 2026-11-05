@@ -21,6 +21,23 @@ def _load_manifest_safe() -> dict | None:
         return json.loads(manifest_path.read_text(encoding="utf-8"))
 
 
+def _with_realistic_block(summary: dict) -> dict:
+    """Expose the bundle's held-out CICIDS2017 evaluation as the 'realistic' block the API reads.
+
+    The shipped CICIDS2017 manifest reports its evaluation under 'held_out_test' rather than
+    'realistic'. Without this mapping the API sees no metrics and shows N/A.
+    """
+    if isinstance(summary.get("realistic"), dict):
+        return summary
+    held = summary.get("held_out_test")
+    if not isinstance(held, dict):
+        return summary
+    out = dict(summary)
+    out["realistic"] = {k: held[k] for k in ("accuracy", "macro_f1", "weighted_f1") if k in held}
+    out.setdefault("headline_evaluation", "held_out_test (20% stratified split of CICIDS2017)")
+    return out
+
+
 def get_active_model_info() -> dict:
     manifest = _load_manifest_safe()
     if not manifest:
@@ -34,6 +51,8 @@ def get_active_model_info() -> dict:
     summary = manifest.get("metrics_summary") or {}
     if manifest.get("status") == "demo-synthetic":
         summary = sanitize_metrics_summary_for_public(manifest)
+    else:
+        summary = _with_realistic_block(summary)
     return {
         "version": manifest.get("version"),
         "registered_at": manifest.get("created_at"),

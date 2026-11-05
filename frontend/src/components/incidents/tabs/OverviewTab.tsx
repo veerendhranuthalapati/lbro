@@ -82,9 +82,9 @@ export function OverviewTab({ incident }: Props) {
           <KV label="Source Port"        value={incident.source_port}         mono />
           <KV label="Destination Port"   value={incident.destination_port}    mono />
           <KV label="Protocol"           value={incident.protocol?.toUpperCase()} mono />
-          <KV label="Country"            value={(incident as any).country ?? '—'} />
-          <KV label="User Agent"         value={(incident as any).user_agent ?? '—'} />
-          <KV label="Application"        value={(incident as any).application ?? '—'} />
+          <KV label="Country"            value={incident.country ?? '—'} />
+          <KV label="User Agent"         value={incident.user_agent ?? '—'} />
+          <KV label="Application"        value={incident.application ?? '—'} />
         </Card>
 
         {/* Security Classification */}
@@ -95,8 +95,8 @@ export function OverviewTab({ incident }: Props) {
           <div style={{ marginTop: 8 }}>
             <div style={{ fontSize: 9, color: GRAY, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>MITRE ATT&CK</div>
             <div>
-              {(incident as any).mitre_techniques?.length > 0
-                ? (incident as any).mitre_techniques.map((t: string) => <Tag key={t} text={t} color="#8b5cf6" />)
+              {incident.mitre_techniques?.length
+                ? incident.mitre_techniques.map((t: string) => <Tag key={t} text={t} color="#8b5cf6" />)
                 : <span style={{ fontSize: 10, color: GRAY }}>Resolve via Explain tab</span>
               }
             </div>
@@ -104,8 +104,8 @@ export function OverviewTab({ incident }: Props) {
           <div style={{ marginTop: 8 }}>
             <div style={{ fontSize: 9, color: GRAY, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>OWASP</div>
             <div>
-              {(incident as any).owasp_category
-                ? <Tag text={(incident as any).owasp_category} color={BLUE} />
+              {incident.owasp_category
+                ? <Tag text={incident.owasp_category} color={BLUE} />
                 : <span style={{ fontSize: 10, color: GRAY }}>Resolve via Explain tab</span>
               }
             </div>

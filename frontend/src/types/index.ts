@@ -87,6 +87,13 @@ export interface Incident {
   readonly source_port: number | null
   readonly destination_port: number | null
   readonly protocol: string | null
+  readonly country?: string | null
+  readonly city?: string | null
+  readonly region?: string | null
+  readonly user_agent?: string | null
+  readonly application?: string | null
+  readonly mitre_techniques?: readonly string[] | null
+  readonly owasp_category?: string | null
   readonly flow_duration_ms: number | null
   readonly affected_jurisdictions: readonly string[] | null
   readonly personal_data_involved: boolean

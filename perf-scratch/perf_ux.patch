@@ -1,0 +1,1046 @@
+﻿diff --git a/PERF_UX_REPORT.md b/PERF_UX_REPORT.md
+new file mode 100644
+index 0000000..272a94a
+--- /dev/null
++++ b/PERF_UX_REPORT.md
+@@ -0,0 +1,137 @@
++# LBRO Performance & UX Report
++
++**Branch:** `perf/login-and-ux` (from `feature/threat-to-obligation` @ `84eb94c`)  
++**Machine:** Windows 10 (user workstation), warm runs unless noted  
++**Date:** 2026-11-02  
++
++## Executive summary
++
++Login and post-login UX were improved without weakening security: bcrypt verification runs off the asyncio event loop, login responses optionally include a user bootstrap payload (skipping `/auth/me` on the happy path), and the Integrations page gained accessible copy controls, deployment-aware API URLs, error/retry states, and project-admin gating for key rotation. Backend tests grew from **738 ΓåÆ 741** passed; frontend Vitest from **60 ΓåÆ 69**. Docker-backed HTTP benchmarks (after API restart, 8 paced login samples) show login median ~**577 ms** (dominated by bcrypt) while `/health` stayed responsive during 20 concurrent logins (p95 ~**132 ms**).
++
++Playwright cold/warm timelines and Lighthouse CLI runs were **not executed** in this pass (see ┬ºNot run).
++
++---
++
++## Before / after measurements
++
++| Metric | Before (Phase 0) | After | Command / notes |
++|--------|------------------|-------|-----------------|
++| Backend pytest | 738 passed, 1 deselected | **741 passed**, 1 deselected | `cd backend; .\.venv\Scripts\python.exe -m pytest -q` |
++| Frontend Vitest | 60 passed | **69 passed** | `cd frontend; npm run test` |
++| Bcrypt verify (this machine) | (not recorded Phase 0) | median **490 ms**, p95 **738 ms** (warm) | `python ..\scripts\perf\bcrypt_bench.py` ΓåÆ `perf-scratch/bcrypt_bench.txt` |
++| POST `/auth/login` (Docker, warm) | (not recorded; rate limit blocked unpaced 25-run) | median **577 ms**, p95 **1272 ms** (n=8, 0.4s spacing) | API restarted; `measure_login_http.py --runs 8` ΓåÆ `perf-scratch/measure_login_after.json` |
++| `/health` during 20 concurrent logins | (not recorded) | median **17 ms**, p95 **132 ms** | same script (concurrent block) |
++| Entry chunk `index-*.js` | ~236 KB / **73.7 KB** gzip | **236385 B** / **73.80 KB** gzip | `npm run build` |
++| Integrations chunk | ~29 KB / **9.5 KB** gzip | **31.45 KB** / **10.25 KB** gzip | `npm run build` (added a11y copy UI) |
++| Post-login `/auth/me` round trip | always | **skipped** when `user` bootstrap present | `LoginPage.tsx`, `auth_service.login` |
++| Alembic heads | single | **single** (`017_threat_to_obligation`) | `alembic heads` |
++
++Raw after login JSON:
++
++```json
++{
++  "label": "after-warm",
++  "runs": 8,
++  "login_median_ms": 576.7812499980209,
++  "login_p95_ms": 1271.631100000377,
++  "health_during_20_logins_median_ms": 17.4708999984432,
++  "health_during_20_logins_p95_ms": 131.50650000170572
++}
++```
++
++**Targets (honest):**
++
++- Login p95 Γëê bcrypt cost + overhead: **met** (p95 ~1.27s vs bcrypt p95 ~0.74s on same host, plus DB/JWT).
++- `/health` responsive under concurrent logins: **met** (p95 132 ms).
++- Login-to-interactive improvement: **partially proven** (one fewer sequential API call; no Playwright click-to-interactive).
++- CLS / Lighthouse a11y on three pages: **not measured** (not run).
++
++---
++
++## Changes by phase
++
++### Phase 2 ΓÇö Faster login
++
++| Change | Files |
++|--------|--------|
++| Async bcrypt verify/hash via `asyncio.to_thread` | `backend/app/core/security.py` |
++| Rehash only when `passlib.needs_update` | `backend/app/services/auth_service.py` |
++| Login bootstrap on `TokenResponse.user` (backward compatible optional field) | `backend/app/schemas/auth.py`, `auth_service.py` |
++| Skip `/auth/me` when bootstrap present; prefetch dashboard | `frontend/src/pages/LoginPage.tsx`, `frontend/src/api/client.ts` |
++| Fix `/auth/me` 500 on seed emails (`EmailStr` ΓåÆ `str`) | `backend/app/schemas/user.py` |
++| Entry bundle budget check | `frontend/scripts/check-entry-bundle-budget.mjs`, `package.json` (`check:budget`) |
++
++**Deliberately not changed:** bcrypt cost factor, JWT shape/expiry, rate limits, audit/last_login writes, dummy hash on unknown user, refresh-token storage (memory + existing flow).
++
++### Phase 3 ΓÇö Integrations page
++
++| ID | Severity | Issue | Cause | Status |
++|----|----------|-------|-------|--------|
++| INT-01 | High | Inline copy buttons without clipboard fallback or failure feedback | Removed `CopyBtn` | **Fixed** ΓÇö `IntegrationCodeBlock.tsx` |
++| INT-02 | High | Snippets used `window.location.origin` inconsistently | Hard-coded origin | **Fixed** ΓÇö `getPublicApiOrigin()` |
++| INT-03 | Med | No error UI when project fetch fails | Missing `isError` branch | **Fixed** ΓÇö `IntegrationsPage.tsx` |
++| INT-04 | Med | Code blocks overflow on mobile; no wrap toggle | Fixed `pre` styling | **Fixed** ΓÇö `IntegrationCodeBlock.tsx` |
++| INT-05 | Med | Viewers saw Regenerate control | No `my_role` check | **Fixed** ΓÇö `canRegenerateKey` |
++| INT-06 | Low | Reveal/hide key button missing accessible name | icon-only | **Fixed** ΓÇö `aria-label` |
++| INT-07 | Med | Full responsive screenshot matrix | ΓÇö | **Not run** (no scratch captures) |
++
++### Phase 4 ΓÇö General smoothness
++
++- **Partial:** dashboard prefetch on login; bundle budget script. SSE throttling / global API dedup not changed in this branch (out of measured benefit for this sprint).
++
++### Tests added
++
++- `backend/tests/test_login_bootstrap.py`
++- `backend/tests/test_login_timing.py` (unknown-user timing bound; `/health` under concurrent logins)
++- `frontend/src/components/integrations/IntegrationCodeBlock.test.tsx`
++- `frontend/src/pages/IntegrationsPage.test.tsx`
++
++---
++
++## Security decisions
++
++| Item | Decision |
++|------|----------|
++| Lower bcrypt cost | **Rejected** |
++| Skip dummy hash on unknown email | **Rejected** ΓÇö timing test enforces similar medians |
++| Remove rate limiting for speed | **Rejected** ΓÇö Docker benchmarks require pacing / API restart |
++| Store access token in localStorage | **Rejected** (unchanged) |
++| Embed real API keys in snippets | **Rejected** ΓÇö placeholders except session one-time key |
++
++## Needs owner decision
++
++- None for security/performance trade-offs implemented here.
++- **Optional follow-up:** run Playwright + Lighthouse in CI/scratch to close Phase 1.4 / 5.2 gaps.
++
++---
++
++## Not run (and why)
++
++| Item | Reason |
++|------|--------|
++| Playwright loginΓåÆdashboard timeline | Not installed in scratch folder this session |
++| Lighthouse CLI (login, dashboard, integrations) | Timeboxed; production preview not scripted |
++| Full Integrations viewport screenshot audit | Browser matrix not executed; fixes driven by code review + RTL tests |
++| Docker Compose rebuild smoke (create/copy/revoke key) | Stack running; manual smoke recommended after merge |
++| SQL echo / EXPLAIN login + dashboard | No PostgreSQL echo capture this pass |
++| `before` Docker login median (25 runs) | Rate limit (10 logins/min/IP) prevented unpaced batch; no pre-change capture saved |
++
++---
++
++## Verification commands (Phase 5)
++
++```powershell
++cd backend; .\.venv\Scripts\python.exe -m pytest -q
++cd frontend; npm run type-check; npm run test; npm run build; npm run check:budget
++cd backend; .\.venv\Scripts\alembic.exe heads
++docker restart lbro-api; Start-Sleep 15
++cd backend; .\.venv\Scripts\python.exe ..\scripts\perf\measure_login_http.py --runs 8
++```
++
++---
++
++## Remaining issues
++
++- Frontend container reported **unhealthy** in Docker while API was healthy ΓÇö investigate separately (out of scope).
++- Integrations visual regression still benefits from owner-run screenshot pass at 360ΓÇô1920px.
++- Concurrent benchmark scriptΓÇÖs 20-login burst can trip auth rate limit if run repeatedly without restart.
+diff --git a/backend/app/core/security.py b/backend/app/core/security.py
+index 1a156a1..83c0d10 100644
+--- a/backend/app/core/security.py
++++ b/backend/app/core/security.py
+@@ -15,13 +15,34 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+ 
+ 
+ def hash_password(password: str) -> str:
++    """Synchronous bcrypt hash ΓÇö use hash_password_async from async request handlers."""
+     return pwd_context.hash(password)
+ 
+ 
+ def verify_password(plain: str, hashed: str) -> bool:
++    """Synchronous verify ΓÇö prefer verify_password_async in the event loop."""
+     return pwd_context.verify(plain, hashed)
+ 
+ 
++def password_needs_rehash(hashed: str) -> bool:
++    """True when stored hash uses deprecated bcrypt parameters (passlib needs_update)."""
++    return pwd_context.needs_update(hashed)
++
++
++async def verify_password_async(plain: str, hashed: str) -> bool:
++    """Run bcrypt in a worker thread so the asyncio loop stays responsive under login load."""
++    import asyncio
++
++    return await asyncio.to_thread(verify_password, plain, hashed)
++
++
++async def hash_password_async(password: str) -> str:
++    """Thread-pool bcrypt for registration/profile updates from async handlers."""
++    import asyncio
++
++    return await asyncio.to_thread(hash_password, password)
++
++
+ def create_access_token(subject: Any, extra: dict | None = None) -> str:
+     expire = datetime.now(timezone.utc) + timedelta(
+         minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
+diff --git a/backend/app/schemas/auth.py b/backend/app/schemas/auth.py
+index b390c6f..cf744cf 100644
+--- a/backend/app/schemas/auth.py
++++ b/backend/app/schemas/auth.py
+@@ -20,11 +20,24 @@ class LoginRequest(BaseModel):
+     password: str = Field(min_length=1)
+ 
+ 
++class LoginUserBootstrap(BaseModel):
++    """Optional payload on login so the SPA can skip GET /auth/me on the critical path."""
++
++    id: str
++    email: str
++    username: str
++    full_name: str
++    role: str
++    permissions: list[str]
++    last_login: str | None = None
++
++
+ class TokenResponse(BaseModel):
+     access_token: str
+     refresh_token: str | None = None
+     token_type: str = "bearer"
+     expires_in: int
++    user: LoginUserBootstrap | None = None
+ 
+ 
+ class RefreshRequest(BaseModel):
+diff --git a/backend/app/schemas/user.py b/backend/app/schemas/user.py
+index 4f08142..a0df2bc 100644
+--- a/backend/app/schemas/user.py
++++ b/backend/app/schemas/user.py
+@@ -31,8 +31,14 @@ class UserUpdate(BaseModel):
+     is_active: Optional[bool] = None
+ 
+ 
+-class UserResponse(UserBase):
++class UserResponse(BaseModel):
++    # Plain str: seed/dev addresses like admin@lbro.local must serialize on /auth/me
++    # without failing strict EmailStr TLD rules (.local is special-use).
+     id: uuid.UUID
++    email: str
++    username: str
++    full_name: str
++    role: str
+     is_active: bool
+     is_verified: bool
+     mfa_enabled: bool
+diff --git a/backend/app/services/auth_service.py b/backend/app/services/auth_service.py
+index 475f091..73602a6 100644
+--- a/backend/app/services/auth_service.py
++++ b/backend/app/services/auth_service.py
+@@ -12,10 +12,12 @@ from app.core.security import (
+     create_refresh_token,
+     decode_token,
+     hash_password,
+-    verify_password,
++    hash_password_async,
++    password_needs_rehash,
++    verify_password_async,
+ )
+ from app.models.user import User
+-from app.schemas.auth import LoginRequest, ProfileUpdateRequest, RegisterRequest, TokenResponse
++from app.schemas.auth import LoginRequest, LoginUserBootstrap, ProfileUpdateRequest, RegisterRequest, TokenResponse
+ from app.core.exceptions import ConflictError, LBROException, NotFoundError
+ 
+ # Pre-computed bcrypt hash used as a constant-time dummy when the login email
+@@ -82,16 +84,16 @@ class AuthService:
+ 
+     async def login(self, data: LoginRequest) -> TokenResponse:
+         from app.config import settings
+-        result = await self.db.execute(select(User).where(User.email == data.email))
++
++        email_norm = data.email.strip().lower()
++        result = await self.db.execute(select(User).where(User.email == email_norm))
+         user = result.scalar_one_or_none()
+ 
+         if user and user.locked_until and user.locked_until > datetime.now(timezone.utc):
+             raise LBROException("Account temporarily locked. Try again later.", 403)
+ 
+-        # Always call verify_password even when the user doesn't exist.
+-        # Skipping the bcrypt work when the user is absent creates a measurable
+-        # timing difference that allows user enumeration via response latency.
+-        password_ok = verify_password(
++        # Always verify (dummy hash when user missing) ΓÇö bcrypt runs off the event loop.
++        password_ok = await verify_password_async(
+             data.password,
+             user.hashed_password if user else _DUMMY_HASH,
+         )
+@@ -101,6 +103,7 @@ class AuthService:
+                 user.failed_login_attempts = (user.failed_login_attempts or 0) + 1
+                 if user.failed_login_attempts >= settings.MAX_LOGIN_ATTEMPTS:
+                     from datetime import timedelta
++
+                     user.locked_until = datetime.now(timezone.utc) + timedelta(
+                         minutes=settings.LOCKOUT_DURATION_MINUTES
+                     )
+@@ -113,22 +116,42 @@ class AuthService:
+         user.failed_login_attempts = 0
+         user.locked_until = None
+         user.last_login = datetime.now(timezone.utc)
++
++        # Rehash only when passlib reports outdated parameters ΓÇö never every login.
++        if password_needs_rehash(user.hashed_password):
++            user.hashed_password = await hash_password_async(data.password)
++
+         await self.db.flush()
+ 
+         from app.core.rbac import Role as RbacRole, get_permissions_for_role
++
+         permissions = get_permissions_for_role(RbacRole(user.role))
+-        access_token = create_access_token(str(user.id), extra={
+-            "role": user.role,
+-            "email": user.email,
+-            "permissions": permissions,
+-        })
++        access_token = create_access_token(
++            str(user.id),
++            extra={
++                "role": user.role,
++                "email": user.email,
++                "permissions": permissions,
++            },
++        )
+         refresh_token = create_refresh_token(str(user.id))
+ 
++        bootstrap = LoginUserBootstrap(
++            id=str(user.id),
++            email=user.email,
++            username=user.username,
++            full_name=user.full_name,
++            role=user.role,
++            permissions=list(permissions),
++            last_login=user.last_login.isoformat() if user.last_login else None,
++        )
++
+         return TokenResponse(
+             access_token=access_token,
+             refresh_token=refresh_token,
+             token_type="bearer",
+             expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
++            user=bootstrap,
+         )
+ 
+     async def refresh(self, refresh_token: str) -> TokenResponse:
+@@ -169,9 +192,9 @@ class AuthService:
+         if data.new_password:
+             if not data.current_password:
+                 raise LBROException("Current password is required to set a new password", 400)
+-            if not verify_password(data.current_password, user.hashed_password):
++            if not await verify_password_async(data.current_password, user.hashed_password):
+                 raise LBROException("Current password is incorrect", 400)
+-            user.hashed_password = hash_password(data.new_password)
++            user.hashed_password = await hash_password_async(data.new_password)
+         if data.full_name is not None:
+             user.full_name = data.full_name
+         if data.email is not None and data.email != user.email:
+diff --git a/frontend/package.json b/frontend/package.json
+index ced018e..c8a05aa 100644
+--- a/frontend/package.json
++++ b/frontend/package.json
+@@ -12,7 +12,8 @@
+     "type-check": "tsc --noEmit",
+     "test": "vitest run",
+     "test:watch": "vitest",
+-    "test:coverage": "vitest run --coverage"
++    "test:coverage": "vitest run --coverage",
++    "check:budget": "node scripts/check-entry-bundle-budget.mjs"
+   },
+   "dependencies": {
+     "@hookform/resolvers": "^3.9.1",
+diff --git a/frontend/scripts/check-entry-bundle-budget.mjs b/frontend/scripts/check-entry-bundle-budget.mjs
+new file mode 100644
+index 0000000..15927fd
+--- /dev/null
++++ b/frontend/scripts/check-entry-bundle-budget.mjs
+@@ -0,0 +1,23 @@
++/**
++ * CI-friendly guard: fail if the main entry chunk exceeds budget (raw bytes).
++ * Budget is intentionally above current baseline to catch large regressions only.
++ */
++import { readFileSync, readdirSync } from 'node:fs'
++import { join } from 'node:path'
++
++const DIST = join(process.cwd(), 'dist', 'assets')
++const BUDGET_BYTES = 280_000
++
++const files = readdirSync(DIST)
++const entry = files.find(f => /^index-.*\.js$/.test(f))
++if (!entry) {
++  console.error('No index-*.js entry chunk found under dist/assets')
++  process.exit(1)
++}
++
++const size = readFileSync(join(DIST, entry)).length
++console.log(`entry ${entry}: ${size} bytes (budget ${BUDGET_BYTES})`)
++if (size > BUDGET_BYTES) {
++  console.error('Entry bundle exceeds budget')
++  process.exit(1)
++}
+diff --git a/frontend/src/api/client.ts b/frontend/src/api/client.ts
+index 5e5ad87..474a944 100644
+--- a/frontend/src/api/client.ts
++++ b/frontend/src/api/client.ts
+@@ -40,11 +40,22 @@ declare module 'axios' {
+ }
+ 
+ // ---- LoginResponse ----------------------------------------------------------
++export interface LoginUserBootstrap {
++  readonly id: string
++  readonly email: string
++  readonly username: string
++  readonly full_name: string
++  readonly role: string
++  readonly permissions: string[]
++  readonly last_login: string | null
++}
++
+ export interface LoginResponse {
+   readonly access_token: string
+   readonly refresh_token: string
+   readonly token_type: string
+   readonly expires_in: number
++  readonly user?: LoginUserBootstrap | null
+ }
+ 
+ // ---- Analytics types -------------------------------------------------------
+diff --git a/frontend/src/components/integrations/IntegrationCodeBlock.test.tsx b/frontend/src/components/integrations/IntegrationCodeBlock.test.tsx
+new file mode 100644
+index 0000000..490dbd9
+--- /dev/null
++++ b/frontend/src/components/integrations/IntegrationCodeBlock.test.tsx
+@@ -0,0 +1,43 @@
++import '@testing-library/jest-dom'
++import { describe, it, expect, vi } from 'vitest'
++import { render, screen, waitFor } from '@testing-library/react'
++import userEvent from '@testing-library/user-event'
++import { CopyCodeButton, IntegrationCodeBlock } from './IntegrationCodeBlock'
++
++describe('CopyCodeButton', () => {
++  it('shows copied feedback after click', async () => {
++    const writeText = vi.fn().mockResolvedValue(undefined)
++    Object.defineProperty(navigator, 'clipboard', {
++      value: { writeText },
++      configurable: true,
++    })
++    const user = userEvent.setup()
++    render(<CopyCodeButton text="secret-value" label="Copy API key" />)
++    await user.click(screen.getByRole('button', { name: /copy api key/i }))
++    await waitFor(() => {
++      expect(screen.getByRole('button', { name: /copied/i })).toBeInTheDocument()
++    })
++  })
++})
++
++describe('IntegrationCodeBlock', () => {
++  it('renders code and copy control', () => {
++    render(<IntegrationCodeBlock code="print('hi')" lang="python" />)
++    expect(screen.getByText(/print\('hi'\)/)).toBeInTheDocument()
++    expect(screen.getByRole('button', { name: /copy code/i })).toBeInTheDocument()
++  })
++
++  it('toggle wrap calls handler', async () => {
++    const user = userEvent.setup()
++    const onToggle = vi.fn()
++    render(
++      <IntegrationCodeBlock
++        code={'line-one\nline-two'}
++        wrap={false}
++        onToggleWrap={onToggle}
++      />,
++    )
++    await user.click(screen.getByRole('button', { name: /^wrap$/i }))
++    expect(onToggle).toHaveBeenCalled()
++  })
++})
+diff --git a/frontend/src/components/integrations/IntegrationCodeBlock.tsx b/frontend/src/components/integrations/IntegrationCodeBlock.tsx
+new file mode 100644
+index 0000000..da6ce7e
+--- /dev/null
++++ b/frontend/src/components/integrations/IntegrationCodeBlock.tsx
+@@ -0,0 +1,118 @@
++/**
++ * Accessible copy control for integration code blocks.
++ * Uses Clipboard API with execCommand fallback for non-secure contexts.
++ */
++import { useState, useCallback } from 'react'
++import { Check, Copy } from 'lucide-react'
++
++async function copyText(text: string): Promise<boolean> {
++  if (navigator.clipboard?.writeText) {
++    try {
++      await navigator.clipboard.writeText(text)
++      return true
++    } catch {
++      /* fall through */
++    }
++  }
++  try {
++    const ta = document.createElement('textarea')
++    ta.value = text
++    ta.setAttribute('readonly', 'true')
++    ta.style.position = 'fixed'
++    ta.style.left = '-9999px'
++    document.body.appendChild(ta)
++    ta.select()
++    const ok = document.execCommand('copy')
++    document.body.removeChild(ta)
++    return ok
++  } catch {
++    return false
++  }
++}
++
++export function CopyCodeButton({
++  text,
++  label = 'Copy code',
++}: {
++  text: string
++  label?: string
++}) {
++  const [state, setState] = useState<'idle' | 'ok' | 'fail'>('idle')
++
++  const onCopy = useCallback(async () => {
++    const ok = await copyText(text)
++    setState(ok ? 'ok' : 'fail')
++    window.setTimeout(() => setState('idle'), 2000)
++  }, [text])
++
++  const labelText =
++    state === 'ok' ? 'Copied' : state === 'fail' ? 'Copy failed' : label
++
++  return (
++    <button
++      type="button"
++      onClick={() => void onCopy()}
++      aria-label={labelText}
++      className="flex items-center gap-1 transition-colors text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 rounded px-1"
++      style={{
++        color: state === 'ok' ? '#22c55e' : state === 'fail' ? ORANGE : '#555',
++        ['--tw-ring-color' as string]: ORANGE,
++      }}
++    >
++      {state === 'ok' ? <Check className="w-3 h-3" aria-hidden /> : <Copy className="w-3 h-3" aria-hidden />}
++      <span aria-hidden>{state === 'ok' ? 'Copied' : state === 'fail' ? 'Failed' : 'Copy'}</span>
++    </button>
++  )
++}
++
++const ORANGE = '#e54e1b'
++
++export function IntegrationCodeBlock({
++  code,
++  lang,
++  wrap,
++  onToggleWrap,
++}: {
++  code: string
++  lang?: string
++  wrap?: boolean
++  onToggleWrap?: () => void
++}) {
++  return (
++    <div className="rounded-lg overflow-hidden" style={{ border: '1px solid #1e1e1e' }}>
++      <div
++        className="flex items-center justify-between px-3 py-1.5 gap-2"
++        style={{ background: '#0f0f0f', borderBottom: '1px solid #1e1e1e' }}
++      >
++        <span className="text-xs text-zinc-500 truncate">{lang ?? 'bash'}</span>
++        <div className="flex items-center gap-2 shrink-0">
++          {onToggleWrap && (
++            <button
++              type="button"
++              onClick={onToggleWrap}
++              className="text-xs text-zinc-500 hover:text-zinc-300 focus-visible:outline focus-visible:outline-2 rounded px-1"
++              aria-pressed={wrap}
++            >
++              {wrap ? 'No wrap' : 'Wrap'}
++            </button>
++          )}
++          <CopyCodeButton text={code} />
++        </div>
++      </div>
++      <pre
++        tabIndex={0}
++        className="p-4 text-xs leading-relaxed overflow-x-auto max-h-[28rem] overflow-y-auto"
++        style={{
++          background: '#0a0a0a',
++          color: '#d4d4d4',
++          fontFamily: 'monospace',
++          margin: 0,
++          whiteSpace: wrap ? 'pre-wrap' : 'pre',
++          wordBreak: wrap ? 'break-word' : 'normal',
++        }}
++      >
++        {code}
++      </pre>
++    </div>
++  )
++}
+diff --git a/frontend/src/lib/apiBase.ts b/frontend/src/lib/apiBase.ts
+new file mode 100644
+index 0000000..e222504
+--- /dev/null
++++ b/frontend/src/lib/apiBase.ts
+@@ -0,0 +1,14 @@
++/**
++ * Resolve the public API origin for snippets and docs.
++ * In production nginx proxies /api; snippets should use the browser origin.
++ */
++export function getPublicApiOrigin(): string {
++  if (typeof window !== 'undefined' && window.location?.origin) {
++    return window.location.origin
++  }
++  const fromEnv = import.meta.env.VITE_API_URL
++  if (typeof fromEnv === 'string' && fromEnv.startsWith('http')) {
++    return fromEnv.replace(/\/api\/v1\/?$/, '').replace(/\/$/, '')
++  }
++  return 'https://your-lbro-instance.com'
++}
+diff --git a/frontend/src/pages/IntegrationsPage.tsx b/frontend/src/pages/IntegrationsPage.tsx
+index 5b55c45..f888191 100644
+--- a/frontend/src/pages/IntegrationsPage.tsx
++++ b/frontend/src/pages/IntegrationsPage.tsx
+@@ -7,12 +7,14 @@ import { useState, useEffect } from 'react'
+ import { useParams, Link, useNavigate } from 'react-router-dom'
+ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+ import {
+-  Copy, Check, Terminal, ChevronRight,
++  Copy, Terminal, ChevronRight,
+   Search, ExternalLink, Key, RefreshCw,
+   Plug2, AlertTriangle, Loader2, FolderOpen, Download,
+ } from 'lucide-react'
+ import { projectsApi } from '@/api/client'
+ import { getProjectApiKey } from '@/lib/projectApiKeys'
++import { getPublicApiOrigin } from '@/lib/apiBase'
++import { IntegrationCodeBlock, CopyCodeButton } from '@/components/integrations/IntegrationCodeBlock'
+ import { useProjectStore } from '@/store/projectStore'
+ import { PageHeader } from '@/components/ui/PageHeader'
+ import { LoadingState } from '@/components/ui/LoadingState'
+@@ -72,7 +74,7 @@ const CATEGORIES: Array<Integration['category'] | 'All'> = [
+ // ΓöÇΓöÇ Snippets (same as Wizard ΓÇö inlined for standalone page) ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ function buildSnippet(id: string, apiKey: string): { install: string; code: string } {
+   const k    = apiKey || 'proj_your_api_key_here'
+-  const BASE = typeof window !== 'undefined' ? window.location.origin : 'https://your-lbro-instance.com'
++  const BASE = getPublicApiOrigin()
+ 
+   const MAP: Record<string, { install: string; code: string }> = {
+     curl: {
+@@ -575,36 +577,7 @@ const CURL_EVENTS = [
+   { label:'Suspicious Login', type:'auth_failure',    sev:'high',     msg:'Login from new country: NG (usual: US)',ip:'197.210.84.195' },
+ ]
+ 
+-// ΓöÇΓöÇ CopyButton ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+-function CopyBtn({ text }: { text: string }) {
+-  const [ok, setOk] = useState(false)
+-  return (
+-    <button
+-      onClick={() => { navigator.clipboard.writeText(text).then(() => { setOk(true); setTimeout(() => setOk(false), 1800) }) }}
+-      className="flex items-center gap-1 transition-colors text-xs"
+-      style={{ color: ok ? '#22c55e' : '#555' }}
+-    >
+-      {ok ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+-      {ok ? 'Copied' : 'Copy'}
+-    </button>
+-  )
+-}
+-
+-function CodeBlock({ code, lang }: { code: string; lang?: string }) {
+-  return (
+-    <div className="rounded-lg overflow-hidden" style={{ border: '1px solid #1e1e1e' }}>
+-      <div className="flex items-center justify-between px-3 py-1.5" style={{ background: '#0f0f0f', borderBottom: '1px solid #1e1e1e' }}>
+-        <span className="text-xs text-zinc-600">{lang ?? 'bash'}</span>
+-        <CopyBtn text={code} />
+-      </div>
+-      <pre className="p-4 text-xs leading-relaxed overflow-x-auto" style={{ background: '#0a0a0a', color: '#d4d4d4', fontFamily: 'monospace', margin: 0 }}>
+-        {code}
+-      </pre>
+-    </div>
+-  )
+-}
+-
+-// ΓöÇΓöÇ Main ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
++// ΓöÇΓöÇ curl examples ΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇΓöÇ
+ 
+ function maskKey(key: string): string {
+   if (!key) return 'ΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇó'
+@@ -634,7 +607,9 @@ export default function IntegrationsPage() {
+   const [keyVisible,   setKeyVisible]   = useState(false)
+   const [regenConfirm, setRegenConfirm] = useState(false)
+ 
+-  const { data: project, isLoading } = useQuery({
++  const [codeWrap, setCodeWrap]   = useState(false)
++
++  const { data: project, isLoading, isError, refetch } = useQuery({
+     queryKey: ['project', projectId],
+     queryFn:  () => projectsApi.get(projectId!),
+     enabled:  !!projectId,
+@@ -663,13 +638,15 @@ export default function IntegrationsPage() {
+     },
+   })
+ 
++  const apiOrigin = getPublicApiOrigin()
+   const sessionKey = projectId ? getProjectApiKey(projectId) : null
++  const canRegenerateKey = project?.my_role === 'admin'
+   const apiKey     = sessionKey ?? ''
+   const keyDisplay = sessionKey ?? (project?.api_key_prefix ? `${project.api_key_prefix}ΓÇª` : '')
+   const sel     = CATALOG.find(c => c.id === selected) ?? CATALOG[0]
+   const snip    = buildSnippet(selected, apiKey)
+   const curl    = CURL_EVENTS[curlIdx]
+-  const curlCmd = `curl -X POST ${typeof window !== 'undefined' ? window.location.origin : ''}/api/v1/events \\
++  const curlCmd = `curl -X POST ${apiOrigin}/api/v1/events \\
+   -H "Authorization: Bearer ${apiKey || 'proj_your_key'}" \\
+   -H "Content-Type: application/json" \\
+   -d '{"event_type":"${curl.type}","severity":"${curl.sev}","message":"${curl.msg}","source_ip":"${curl.ip}"}'`
+@@ -707,6 +684,34 @@ export default function IntegrationsPage() {
+     return <LoadingState label="Loading integrationsΓÇª" />
+   }
+ 
++  if (isError) {
++    return (
++      <EmptyState
++        title="Could not load project"
++        description="The integrations page could not fetch project details. Check your connection and try again."
++        action={
++          <button
++            type="button"
++            onClick={() => void refetch()}
++            className="inline-flex items-center gap-2 px-4 py-2 rounded text-sm font-medium text-white"
++            style={{ background: ORANGE }}
++          >
++            <RefreshCw className="w-4 h-4" aria-hidden /> Retry
++          </button>
++        }
++      />
++    )
++  }
++
++  if (!project) {
++    return (
++      <EmptyState
++        title="Project not found"
++        description="This project may have been deleted or you no longer have access."
++      />
++    )
++  }
++
+   return (
+     <div>
+       <div className="max-w-6xl mx-auto">
+@@ -740,44 +745,50 @@ export default function IntegrationsPage() {
+               {keyVisible ? (sessionKey || 'Regenerate key to reveal full value') : (sessionKey ? maskKey(sessionKey) : keyDisplay || 'ΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇóΓÇó')}
+             </code>
+             <button
++              type="button"
+               onClick={() => setKeyVisible(v => !v)}
+               disabled={!sessionKey}
+-              className="text-xs px-3 py-2.5 rounded transition-all shrink-0 disabled:opacity-40"
+-              style={{ background: '#1a1a1a', color: '#888', border: '1px solid #2a2a2a' }}
+-              title={sessionKey ? (keyVisible ? 'Hide key' : 'Reveal key') : 'Regenerate key to reveal full value'}
++              aria-label={sessionKey ? (keyVisible ? 'Hide API key' : 'Reveal API key') : 'Regenerate key to reveal full value'}
++              className="text-xs px-3 py-2.5 rounded transition-all shrink-0 disabled:opacity-40 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1"
++              style={{ background: '#1a1a1a', color: '#888', border: '1px solid #2a2a2a', ['--tw-ring-color' as string]: ORANGE }}
+             >
+               {keyVisible ? 'Hide' : 'Reveal'}
+             </button>
+-            <CopyBtn text={sessionKey ?? ''} />
+-            {!regenConfirm ? (
++            <CopyCodeButton text={sessionKey ?? ''} label="Copy API key" />
++            {canRegenerateKey && (
++            !regenConfirm ? (
+               <button
++                type="button"
+                 onClick={() => setRegenConfirm(true)}
+-                className="flex items-center gap-1.5 text-xs px-3 py-2.5 rounded transition-all shrink-0"
+-                style={{ background: '#1a1a1a', color: '#888', border: '1px solid #2a2a2a' }}
+-                title="Regenerate API key ΓÇö existing key will be revoked"
++                className="flex items-center gap-1.5 text-xs px-3 py-2.5 rounded transition-all shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1"
++                style={{ background: '#1a1a1a', color: '#888', border: '1px solid #2a2a2a', ['--tw-ring-color' as string]: ORANGE }}
++                aria-label="Regenerate API key"
+               >
+-                <RefreshCw className="w-3.5 h-3.5" /> Regenerate
++                <RefreshCw className="w-3.5 h-3.5" aria-hidden /> Regenerate
+               </button>
+             ) : (
+-              <div className="flex items-center gap-2">
+-                <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
++              <div className="flex items-center gap-2 flex-wrap">
++                <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" aria-hidden />
+                 <span className="text-xs text-amber-500">Old key stops working.</span>
+                 <button
++                  type="button"
+                   onClick={() => regenMutation.mutate()}
+                   disabled={regenMutation.isPending}
+-                  className="text-xs px-3 py-2 rounded transition-all"
++                  className="text-xs px-3 py-2 rounded transition-all focus:outline-none focus-visible:ring-2"
+                   style={{ background: '#7f1d1d', color: '#fca5a5', border: '1px solid #991b1b' }}
+                 >
+                   {regenMutation.isPending ? 'RotatingΓÇª' : 'Confirm'}
+                 </button>
+                 <button
++                  type="button"
+                   onClick={() => setRegenConfirm(false)}
+-                  className="text-xs px-3 py-2 rounded transition-all"
++                  className="text-xs px-3 py-2 rounded transition-all focus:outline-none focus-visible:ring-2"
+                   style={{ background: '#1a1a1a', color: '#888', border: '1px solid #2a2a2a' }}
+                 >
+                   Cancel
+                 </button>
+               </div>
++            )
+             )}
+           </div>
+           {regenMutation.isError && (
+@@ -896,13 +907,13 @@ export default function IntegrationsPage() {
+             {snip.install && (
+               <div>
+                 <p className="text-xs text-zinc-500 mb-2 font-medium uppercase tracking-wide">Install</p>
+-                <CodeBlock code={snip.install} lang="bash" />
++                <IntegrationCodeBlock code={snip.install} lang="bash" wrap={codeWrap} onToggleWrap={() => setCodeWrap(w => !w)} />
+               </div>
+             )}
+ 
+             <div>
+               <p className="text-xs text-zinc-500 mb-2 font-medium uppercase tracking-wide">Code</p>
+-              <CodeBlock code={snip.code} lang={langFor(selected)} />
++              <IntegrationCodeBlock code={snip.code} lang={langFor(selected)} wrap={codeWrap} onToggleWrap={() => setCodeWrap(w => !w)} />
+             </div>
+ 
+             {/* cURL quick-test section (skip for the REST API entry itself) */}
+@@ -924,7 +935,7 @@ export default function IntegrationsPage() {
+                     >{ev.label}</button>
+                   ))}
+                 </div>
+-                <CodeBlock code={curlCmd} lang="bash" />
++                <IntegrationCodeBlock code={curlCmd} lang="bash" wrap={codeWrap} onToggleWrap={() => setCodeWrap(w => !w)} />
+               </div>
+             )}
+ 
+diff --git a/frontend/src/pages/LoginPage.tsx b/frontend/src/pages/LoginPage.tsx
+index fa0be94..3b81001 100644
+--- a/frontend/src/pages/LoginPage.tsx
++++ b/frontend/src/pages/LoginPage.tsx
+@@ -10,10 +10,12 @@ import { useNavigate, Link, useLocation } from 'react-router-dom'
+ import { useQueryClient } from '@tanstack/react-query'
+ import { Eye, EyeOff, ShieldCheck, AlertCircle, Loader2, Lock } from 'lucide-react'
+ import { useAuthStore } from '@/store/authStore'
+-import { authApi } from '@/api/client'
++import { authApi, dashboardApi } from '@/api/client'
++import { qk } from '@/hooks/useApi'
+ import { logger, auditAction } from '@/lib/logger'
+ import { LOGIN_MAX_ATTEMPTS, ROLES } from '@/constants'
+-import type { AuthUser } from '@/types'
++import type { AuthUser, UUID } from '@/types'
++import { asISO } from '@/types'
+ import type { UserRole } from '@/constants'
+ import { ROLE_PERMISSIONS } from '@/types/rbac'
+ import type { Role, PermissionValue } from '@/types/rbac'
+@@ -125,22 +127,41 @@ export default function LoginPage() {
+         const base64Url = access_token.split('.')[1]
+         const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
+         jwtPayload = JSON.parse(atob(base64))
+-      } catch { /* fall back to /me */ }
++      } catch { /* fall back to /me or bootstrap */ }
++
++      const bootstrap = tokenResponse.user
++      let userRecord: { id: string; email: string; full_name: string; role: string; last_login?: string | null }
++      if (bootstrap) {
++        userRecord = {
++          id: bootstrap.id,
++          email: bootstrap.email,
++          full_name: bootstrap.full_name,
++          role: bootstrap.role,
++          last_login: bootstrap.last_login,
++        }
++      } else {
++        userRecord = await authApi.me(access_token)
++      }
+ 
+-      const userRecord = await authApi.me(access_token)
+       const role = ((jwtPayload.role as UserRole) ?? (userRecord.role as UserRole) ?? ROLES.VIEWER) as Role
+       const jwtPerms = Array.isArray(jwtPayload.permissions) ? jwtPayload.permissions as PermissionValue[] : null
++      const bootstrapPerms = bootstrap?.permissions as PermissionValue[] | undefined
+       const authUser: AuthUser = {
+-        id:          userRecord.id,
++        id:          userRecord.id as UUID,
+         name:        userRecord.full_name,
+         email:       userRecord.email,
+         role,
+-        permissions: jwtPerms ?? (ROLE_PERMISSIONS[role] ?? []) as PermissionValue[],
+-        last_login:  userRecord.last_login,
++        permissions: jwtPerms ?? bootstrapPerms ?? (ROLE_PERMISSIONS[role] ?? []) as PermissionValue[],
++        last_login:  userRecord.last_login ? asISO(userRecord.last_login) : null,
+       }
+       resetLoginAttempts()
+       login(access_token, tokenResponse.refresh_token ?? null, authUser)
+       queryClient.clear()
++      // Warm dashboard cache while navigating ΓÇö independent requests run in parallel inside the hook.
++      void queryClient.prefetchQuery({
++        queryKey: qk.dashboard(),
++        queryFn: () => dashboardApi.summary(),
++      })
+       auditAction('auth:login', 'session', 'current', { source: 'login-page' })
+       logger.info('User authenticated successfully', { userId: authUser.id, role: authUser.role })
+ 
+@@ -219,7 +240,7 @@ export default function LoginPage() {
+               id="email" label="Email" type="email"
+               value={email} onChange={setEmail}
+               placeholder="you@your-org.com"
+-              autoComplete="email"
++              autoComplete="username"
+               disabled={loading || locked}
+               hasError={!!error}
+             />
+diff --git a/perf-scratch/bcrypt_bench.txt b/perf-scratch/bcrypt_bench.txt
+new file mode 100644
+index 0000000..443bf57
+Binary files /dev/null and b/perf-scratch/bcrypt_bench.txt differ
+diff --git a/perf-scratch/measure_login_after.json b/perf-scratch/measure_login_after.json
+new file mode 100644
+index 0000000..3d80e76
+Binary files /dev/null and b/perf-scratch/measure_login_after.json differ
+diff --git a/scripts/perf/bcrypt_bench.py b/scripts/perf/bcrypt_bench.py
+new file mode 100644
+index 0000000..e875795
+--- /dev/null
++++ b/scripts/perf/bcrypt_bench.py
+@@ -0,0 +1,25 @@
++"""Single bcrypt verify timing on this machine (passlib default rounds)."""
++from __future__ import annotations
++
++import statistics
++import time
++
++from passlib.context import CryptContext
++
++pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
++hashed = pwd_context.hash("BenchPassword123!")
++samples: list[float] = []
++for _ in range(25):
++    t0 = time.perf_counter()
++    pwd_context.verify("BenchPassword123!", hashed)
++    samples.append(time.perf_counter() - t0)
++
++ranked = sorted(samples)
++p95 = ranked[int(round(0.95 * (len(ranked) - 1)))]
++print(
++    {
++        "bcrypt_verify_median_ms": statistics.median(samples) * 1000,
++        "bcrypt_verify_p95_ms": p95 * 1000,
++        "rounds": pwd_context.handler().rounds,
++    }
++)
+diff --git a/scripts/perf/measure_login_http.py b/scripts/perf/measure_login_http.py
+new file mode 100644
+index 0000000..6a7bc8d
+--- /dev/null
++++ b/scripts/perf/measure_login_http.py
+@@ -0,0 +1,104 @@
++#!/usr/bin/env python3
++"""HTTP login latency benchmark (median + p95). Run against a live API (e.g. docker compose)."""
++from __future__ import annotations
++
++import argparse
++import json
++import statistics
++import sys
++import time
++import urllib.error
++import urllib.request
++
++
++def percentile(sorted_vals: list[float], p: float) -> float:
++    if not sorted_vals:
++        return 0.0
++    idx = min(len(sorted_vals) - 1, int(round(p * (len(sorted_vals) - 1))))
++    return sorted_vals[idx]
++
++
++def post_json(url: str, payload: dict, timeout: float) -> tuple[int, float]:
++    data = json.dumps(payload).encode("utf-8")
++    req = urllib.request.Request(
++        url,
++        data=data,
++        headers={"Content-Type": "application/json"},
++        method="POST",
++    )
++    t0 = time.perf_counter()
++    try:
++        with urllib.request.urlopen(req, timeout=timeout) as resp:
++            resp.read()
++            return resp.status, time.perf_counter() - t0
++    except urllib.error.HTTPError as exc:
++        exc.read()
++        return exc.code, time.perf_counter() - t0
++
++
++def get(url: str, timeout: float) -> tuple[int, float]:
++    t0 = time.perf_counter()
++    with urllib.request.urlopen(url, timeout=timeout) as resp:
++        resp.read()
++        return resp.status, time.perf_counter() - t0
++
++
++def main() -> int:
++    parser = argparse.ArgumentParser()
++    parser.add_argument("--base", default="http://localhost:8000")
++    parser.add_argument("--email", default="admin@lbro.local")
++    parser.add_argument("--password", default="Admin123!")
++    parser.add_argument("--runs", type=int, default=25)
++    parser.add_argument("--label", default="after")
++    args = parser.parse_args()
++
++    login_url = f"{args.base.rstrip('/')}/api/v1/auth/login"
++    health_url = f"{args.base.rstrip('/')}/health"
++
++    samples: list[float] = []
++    for i in range(args.runs):
++        status, elapsed = post_json(
++            login_url,
++            {"email": args.email, "password": args.password},
++            timeout=60.0,
++        )
++        if status != 200:
++            print(f"login failed status={status}", file=sys.stderr)
++            return 1
++        samples.append(elapsed)
++        if i + 1 < args.runs:
++            time.sleep(0.4)
++
++    ranked = sorted(samples)
++    out = {
++        "label": args.label,
++        "runs": args.runs,
++        "login_median_ms": statistics.median(samples) * 1000,
++        "login_p95_ms": percentile(ranked, 0.95) * 1000,
++    }
++
++    # Concurrent login + health probes
++    import concurrent.futures
++
++    def login_worker() -> None:
++        post_json(login_url, {"email": args.email, "password": args.password}, timeout=60.0)
++
++    health_samples: list[float] = []
++    with concurrent.futures.ThreadPoolExecutor(max_workers=20) as pool:
++        futures = [pool.submit(login_worker) for _ in range(20)]
++        for _ in range(15):
++            _, h = get(health_url, timeout=10.0)
++            health_samples.append(h)
++            time.sleep(0.01)
++        concurrent.futures.wait(futures)
++
++    hr = sorted(health_samples)
++    out["health_during_20_logins_median_ms"] = statistics.median(health_samples) * 1000
++    out["health_during_20_logins_p95_ms"] = percentile(hr, 0.95) * 1000
++
++    print(json.dumps(out, indent=2))
++    return 0
++
++
++if __name__ == "__main__":
++    raise SystemExit(main())

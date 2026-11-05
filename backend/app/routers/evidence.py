@@ -265,7 +265,8 @@ async def verify_integrity(
         return {"ok": False, "hash": ev.sha256_hash, "error": "file_data not stored in database"}
     actual_hash = compute_sha256(file_data)
     ok = actual_hash == ev.sha256_hash
-    return {"ok": ok, "hash": actual_hash}
+    # "verified"/"hash_matched" match the frontend client type; "ok" kept for existing callers.
+    return {"ok": ok, "verified": ok, "hash_matched": ok, "hash": actual_hash}
 
 
 @router.get("/evidence/{evidence_id}", response_model=EvidenceResponse)

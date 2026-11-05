@@ -15,7 +15,11 @@ from app.ml.bundle_io import BundleLoadError, load_verified_bundle, verify_bundl
 from app.ml.classifier import AttackClassifier
 from app.ml.event_mapper import extract_network_features
 from app.ml.features import CICIDS2017_FEATURES
-from app.ml.model_registry import has_verified_evaluation, model_artifact_exists
+from app.ml.model_registry import (
+    get_active_model_info,
+    has_verified_evaluation,
+    model_artifact_exists,
+)
 from app.ml.preprocessing import feature_count
 
 BUNDLE_DIR = Path(settings.ML_MODEL_BUNDLE_DIR)
@@ -54,7 +58,7 @@ def test_bundle_loads_in_tests():
     assert model_artifact_exists()
     bundle = load_verified_bundle(BUNDLE_DIR)
     assert bundle.version
-    assert bundle.status == "demo-synthetic"
+    assert bundle.status == "cicids2017"
 
 
 def test_tampered_model_rejected(tmp_path):
@@ -72,7 +76,9 @@ def test_tampered_model_rejected(tmp_path):
 
 
 def test_registry_has_verified_metrics():
-    assert has_verified_evaluation() is False
+    # The shipped CICIDS2017 bundle has a real held-out evaluation, so it is verified.
+    assert has_verified_evaluation() is True
+    assert get_active_model_info()["metrics"]["macro_f1"] == 0.8773
 
 
 @pytest.mark.asyncio
@@ -88,7 +94,7 @@ async def test_ml_status_endpoint(client: AsyncClient, auth_headers: dict):
     resp = await client.get("/api/v1/ml/status", headers=auth_headers)
     assert resp.status_code == 200
     body = resp.json()
-    assert body["status"] == "demo-synthetic"
+    assert body["status"] == "cicids2017"
     assert body["signature_verified"] is True
     assert "thresholds" in body
 

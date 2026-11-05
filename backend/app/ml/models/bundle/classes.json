@@ -1,19 +1,19 @@
 {
   "classes": [
     "BENIGN",
-    "DoS Hulk",
-    "PortScan",
+    "Bot",
     "DDoS",
     "DoS GoldenEye",
-    "FTP-Patator",
-    "SSH-Patator",
-    "DoS slowloris",
+    "DoS Hulk",
     "DoS Slowhttptest",
-    "Bot",
-    "Web Attack - Brute Force",
-    "Web Attack - XSS",
+    "DoS slowloris",
+    "FTP-Patator",
+    "Heartbleed",
     "Infiltration",
+    "PortScan",
+    "SSH-Patator",
+    "Web Attack - Brute Force",
     "Web Attack - Sql Injection",
-    "Heartbleed"
+    "Web Attack - XSS"
   ]
 }

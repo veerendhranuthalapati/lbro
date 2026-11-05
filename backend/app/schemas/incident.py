@@ -230,6 +230,13 @@ class IncidentResponse(BaseModel):
     source_port: Optional[int] = None
     destination_port: Optional[int] = None
     protocol: Optional[str] = None
+    country: Optional[str] = None
+    city: Optional[str] = None
+    region: Optional[str] = None
+    user_agent: Optional[str] = None
+    application: Optional[str] = None
+    mitre_techniques: Optional[List[str]] = None
+    owasp_category: Optional[str] = None
     affected_jurisdictions: Optional[List[str]] = None
     personal_data_involved: bool
     health_data_involved: bool

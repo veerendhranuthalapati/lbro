@@ -19,7 +19,8 @@ logging.basicConfig(
 )
 
 _shutdown = False
-HEARTBEAT_PATH = Path("/tmp/lbro-worker-heartbeat")
+# Container-local liveness file; not a shared temp file.
+HEARTBEAT_PATH = Path("/tmp/lbro-worker-heartbeat")  # nosec B108
 HEARTBEAT_INTERVAL_SECONDS = 15
 
 

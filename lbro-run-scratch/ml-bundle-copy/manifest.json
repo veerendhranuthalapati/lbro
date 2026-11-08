@@ -1,0 +1,22 @@
+{
+  "created_at": "2026-11-02T19:56:56.890293+00:00",
+  "file_hashes": {
+    "classes.json": "08cdf419b809abc1dd32099b1e5c52aa50e48a2a8086498ef56f99a4d0680fe2",
+    "model.joblib": "db211462f2fdc3fbf4f2904251350863bcec2eb75b4bcaaea834e04ad652bc78",
+    "preprocessing.json": "4320e68d4c7f315892e5e23ddee3eafd946644cde118f755e4edb95340e80aa8"
+  },
+  "git_commit": "docker-bootstrap",
+  "library_versions": {
+    "numpy": "2.5.4",
+    "python": "3.12.13",
+    "scikit-learn": "1.7.2"
+  },
+  "metrics_summary": {
+    "note": "container-bootstrap for red-team eval"
+  },
+  "status": "demo-synthetic",
+  "training_data_hashes": {
+    "synthetic": "n/a"
+  },
+  "version": "1.0.0-docker-bootstrap"
+}

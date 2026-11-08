@@ -1,0 +1,422 @@
+LBRO FastAPI route audit (read-only)
+Backend path: c:\Users\veere\Desktop\lbro\backend
+ENVIRONMENT=test
+
+OpenAPI securitySchemes: ['HTTPBearer', 'APIKeyHeader']
+OpenAPI root security: None
+
+=== APP.ROUTES (all registered routes) ===
+   1. type=Route path='/openapi.json' methods=['GET', 'HEAD'] name='openapi'
+   2. type=Route path='/docs' methods=['GET', 'HEAD'] name='swagger_ui_html'
+   3. type=Route path='/docs/oauth2-redirect' methods=['GET', 'HEAD'] name='swagger_ui_redirect'
+   4. type=Route path='/redoc' methods=['GET', 'HEAD'] name='redoc_html'
+   5. type=APIRoute path='/api/v1/auth/register' methods=['POST'] name='register'
+      dependant_calls: get_db
+   6. type=APIRoute path='/api/v1/auth/login' methods=['POST'] name='login'
+      dependant_calls: get_db
+   7. type=APIRoute path='/api/v1/auth/refresh' methods=['POST'] name='refresh'
+      dependant_calls: get_db
+   8. type=APIRoute path='/api/v1/auth/me' methods=['GET'] name='me'
+      dependant_calls: get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+   9. type=APIRoute path='/api/v1/auth/profile' methods=['PATCH'] name='update_profile'
+      dependant_calls: get_db, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>
+  10. type=APIRoute path='/api/v1/auth/api-key/rotate' methods=['POST'] name='rotate_api_key'
+      dependant_calls: get_db, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>
+  11. type=APIRoute path='/api/v1/auth/logout' methods=['POST'] name='logout'
+      dependant_calls: get_db, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>
+  12. type=APIRoute path='/api/v1/incidents' methods=['POST'] name='create_incident'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  13. type=APIRoute path='/api/v1/incidents' methods=['GET'] name='list_incidents'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  14. type=APIRoute path='/api/v1/incidents/stats' methods=['GET'] name='incident_stats'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  15. type=APIRoute path='/api/v1/incidents/{incident_id}' methods=['GET'] name='get_incident'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  16. type=APIRoute path='/api/v1/incidents/{incident_id}' methods=['PATCH'] name='update_incident'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  17. type=APIRoute path='/api/v1/incidents/{incident_id}/status' methods=['POST'] name='change_status'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  18. type=APIRoute path='/api/v1/incidents/{incident_id}/reopen' methods=['POST'] name='reopen_incident'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  19. type=APIRoute path='/api/v1/incidents/{incident_id}' methods=['DELETE'] name='delete_incident'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  20. type=APIRoute path='/api/v1/incidents/{incident_id}/explain' methods=['GET'] name='explain_incident'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  21. type=APIRoute path='/api/v1/incidents/{incident_id}/explanation' methods=['GET'] name='incident_attack_explanation'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  22. type=APIRoute path='/api/v1/incidents/{incident_id}/timeline' methods=['GET'] name='get_investigation_timeline'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  23. type=APIRoute path='/api/v1/incidents/{incident_id}/related' methods=['GET'] name='get_related_incidents'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  24. type=APIRoute path='/api/v1/incidents/{incident_id}/ioc' methods=['GET'] name='get_incident_ioc'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  25. type=APIRoute path='/api/v1/incidents/{incident_id}/notes' methods=['GET'] name='list_investigation_notes'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  26. type=APIRoute path='/api/v1/incidents/{incident_id}/notes' methods=['POST'] name='add_investigation_note'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  27. type=APIRoute path='/api/v1/incidents/{incident_id}/notes/{note_id}' methods=['PATCH'] name='update_investigation_note'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  28. type=APIRoute path='/api/v1/incidents/{incident_id}/notes/{note_id}' methods=['DELETE'] name='delete_investigation_note'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  29. type=APIRoute path='/api/v1/incidents/{incident_id}/report' methods=['GET'] name='generate_incident_report'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  30. type=APIRoute path='/api/v1/incidents/{incident_id}/evidence' methods=['POST'] name='upload_evidence'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  31. type=APIRoute path='/api/v1/incidents/{incident_id}/evidence' methods=['GET'] name='list_evidence'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  32. type=APIRoute path='/api/v1/evidence' methods=['GET'] name='list_all_evidence'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  33. type=APIRoute path='/api/v1/evidence/{evidence_id}/download-url' methods=['GET'] name='get_download_url'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  34. type=APIRoute path='/api/v1/evidence/{evidence_id}/download' methods=['GET'] name='download_evidence'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  35. type=APIRoute path='/api/v1/evidence/{evidence_id}/verify' methods=['POST'] name='verify_integrity'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  36. type=APIRoute path='/api/v1/evidence/{evidence_id}' methods=['GET'] name='get_evidence_by_id'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  37. type=APIRoute path='/api/v1/evidence/{evidence_id}' methods=['DELETE'] name='delete_evidence'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  38. type=APIRoute path='/api/v1/notifications' methods=['GET'] name='list_notifications'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  39. type=APIRoute path='/api/v1/notifications/{notification_id}' methods=['GET'] name='get_notification'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  40. type=APIRoute path='/api/v1/notifications/{notification_id}/approve' methods=['POST'] name='approve_notification'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  41. type=APIRoute path='/api/v1/notifications/{notification_id}/dispatch' methods=['POST'] name='dispatch_notification'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  42. type=APIRoute path='/api/v1/notifications/{notification_id}/send' methods=['POST'] name='send_notification'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  43. type=APIRoute path='/api/v1/compliance/dashboard' methods=['GET'] name='compliance_dashboard'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  44. type=APIRoute path='/api/v1/compliance/records/{record_id}/mark-met' methods=['POST'] name='mark_met'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  45. type=APIRoute path='/api/v1/compliance/obligations' methods=['GET'] name='list_obligations'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  46. type=APIRoute path='/api/v1/compliance/obligations' methods=['POST'] name='upsert_obligation'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  47. type=APIRoute path='/api/v1/compliance/obligations/{obligation_id}' methods=['PATCH'] name='update_obligation'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  48. type=APIRoute path='/api/v1/compliance/score' methods=['GET'] name='get_compliance_score'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  49. type=APIRoute path='/api/v1/compliance/assess' methods=['POST'] name='create_assessment'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  50. type=APIRoute path='/api/v1/compliance/assessments' methods=['GET'] name='list_assessments'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  51. type=APIRoute path='/api/v1/assets' methods=['GET'] name='list_assets'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  52. type=APIRoute path='/api/v1/assets' methods=['POST'] name='create_asset'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  53. type=APIRoute path='/api/v1/assets/{asset_id}' methods=['GET'] name='get_asset'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  54. type=APIRoute path='/api/v1/assets/{asset_id}' methods=['PATCH'] name='update_asset'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  55. type=APIRoute path='/api/v1/assets/{asset_id}' methods=['DELETE'] name='delete_asset'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  56. type=APIRoute path='/api/v1/assets/import' methods=['POST'] name='import_assets'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  57. type=APIRoute path='/api/v1/assets/export/csv' methods=['GET'] name='export_assets_csv'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  58. type=APIRoute path='/api/v1/assets/{asset_id}/exposure-simulation' methods=['POST'] name='exposure_simulation'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  59. type=APIRoute path='/api/v1/knowledge/versions' methods=['GET'] name='knowledge_versions'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  60. type=APIRoute path='/api/v1/knowledge/attack-mapping' methods=['GET'] name='attack_mapping'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  61. type=APIRoute path='/api/v1/knowledge/attacks' methods=['GET'] name='list_attack_guides'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  62. type=APIRoute path='/api/v1/knowledge/attacks/{class_id}' methods=['GET'] name='get_attack_guide'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  63. type=APIRoute path='/api/v1/incidents/{incident_id}/assets' methods=['GET'] name='list_incident_assets'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  64. type=APIRoute path='/api/v1/incidents/{incident_id}/assets' methods=['POST'] name='link_incident_asset'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  65. type=APIRoute path='/api/v1/incidents/{incident_id}/assets/{link_id}' methods=['PATCH'] name='update_incident_asset'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  66. type=APIRoute path='/api/v1/incidents/{incident_id}/assets/{link_id}' methods=['DELETE'] name='unlink_incident_asset'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  67. type=APIRoute path='/api/v1/incidents/{incident_id}/exposure' methods=['GET'] name='get_exposure'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  68. type=APIRoute path='/api/v1/incidents/{incident_id}/exposure' methods=['POST'] name='recompute_exposure'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  69. type=APIRoute path='/api/v1/incidents/{incident_id}/obligations' methods=['GET'] name='list_obligations'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  70. type=APIRoute path='/api/v1/incidents/{incident_id}/obligations/{record_id}/accept' methods=['POST'] name='accept_obligation'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  71. type=APIRoute path='/api/v1/incidents/{incident_id}/obligations/{record_id}/dismiss' methods=['POST'] name='dismiss_obligation'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  72. type=APIRoute path='/api/v1/users' methods=['GET'] name='list_users'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  73. type=APIRoute path='/api/v1/users' methods=['POST'] name='create_user'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  74. type=APIRoute path='/api/v1/users/{user_id}' methods=['GET'] name='get_user'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  75. type=APIRoute path='/api/v1/users/{user_id}' methods=['PATCH'] name='update_user'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  76. type=APIRoute path='/api/v1/users/{user_id}' methods=['DELETE'] name='delete_user'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  77. type=APIRoute path='/api/v1/ml/classify' methods=['POST'] name='classify_flow'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  78. type=APIRoute path='/api/v1/ml/model-info' methods=['GET'] name='model_info'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  79. type=APIRoute path='/api/v1/ml/status' methods=['GET'] name='ml_status'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  80. type=APIRoute path='/api/v1/ml/models' methods=['GET'] name='list_model_versions'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  81. type=APIRoute path='/api/v1/ml/stats' methods=['GET'] name='ml_stats'
+      dependant_calls: get_db, _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>
+  82. type=APIRoute path='/api/v1/ml/flows' methods=['GET'] name='ml_flows'
+      dependant_calls: get_db, _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>
+  83. type=APIRoute path='/api/v1/ml/metrics' methods=['GET'] name='ml_metrics'
+      dependant_calls: get_db, _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>
+  84. type=APIRoute path='/api/v1/dashboard/summary' methods=['GET'] name='dashboard_summary'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  85. type=APIRoute path='/api/v1/audit/logs' methods=['GET'] name='get_audit_logs'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  86. type=APIRoute path='/api/v1/infrastructure' methods=['GET'] name='infrastructure_status'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  87. type=APIRoute path='/api/v1/infrastructure/sqs-history' methods=['GET'] name='sqs_queue_history'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  88. type=APIRoute path='/api/v1/security-score' methods=['GET'] name='get_security_score'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  89. type=APIRoute path='/api/v1/reports/weekly' methods=['GET'] name='weekly_report_json'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  90. type=APIRoute path='/api/v1/reports/weekly/pdf' methods=['GET'] name='weekly_report_pdf'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  91. type=APIRoute path='/api/v1/reports/compliance/pdf' methods=['GET'] name='compliance_report_pdf'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  92. type=APIRoute path='/api/v1/projects' methods=['GET'] name='list_projects'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  93. type=APIRoute path='/api/v1/projects' methods=['POST'] name='create_project'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  94. type=APIRoute path='/api/v1/projects/{project_id}' methods=['GET'] name='get_project'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  95. type=APIRoute path='/api/v1/projects/{project_id}' methods=['PATCH'] name='update_project'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  96. type=APIRoute path='/api/v1/projects/{project_id}' methods=['DELETE'] name='delete_project'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  97. type=APIRoute path='/api/v1/projects/{project_id}/ml-policy' methods=['PATCH'] name='update_project_ml_policy'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  98. type=APIRoute path='/api/v1/projects/{project_id}/compliance-inference' methods=['GET'] name='get_compliance_inference'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+  99. type=APIRoute path='/api/v1/projects/{project_id}/compliance-inference' methods=['PATCH'] name='update_compliance_inference'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 100. type=APIRoute path='/api/v1/projects/{project_id}/regenerate-key' methods=['POST'] name='regenerate_api_key'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 101. type=APIRoute path='/api/v1/projects/{project_id}/members' methods=['GET'] name='list_project_members'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 102. type=APIRoute path='/api/v1/projects/{project_id}/members' methods=['POST'] name='add_project_member'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 103. type=APIRoute path='/api/v1/projects/{project_id}/members/{member_id}' methods=['PATCH'] name='update_project_member'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 104. type=APIRoute path='/api/v1/projects/{project_id}/members/{member_id}' methods=['DELETE'] name='remove_project_member'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 105. type=APIRoute path='/api/v1/projects/{project_id}/invitations' methods=['GET'] name='list_project_invitations'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 106. type=APIRoute path='/api/v1/projects/{project_id}/invitations' methods=['POST'] name='create_project_invitation'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 107. type=APIRoute path='/api/v1/projects/{project_id}/invitations/{invitation_id}' methods=['DELETE'] name='cancel_project_invitation'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 108. type=APIRoute path='/api/v1/projects/{project_id}/sdk/python' methods=['GET'] name='download_python_sdk'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 109. type=APIRoute path='/api/v1/projects/{project_id}/dashboard' methods=['GET'] name='project_dashboard'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 110. type=APIRoute path='/api/v1/invitations/pending' methods=['GET'] name='list_pending_invitations'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 111. type=APIRoute path='/api/v1/invitations/{invitation_id}/accept' methods=['POST'] name='accept_invitation'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 112. type=APIRoute path='/api/v1/invitations/{invitation_id}/decline' methods=['POST'] name='decline_invitation'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 113. type=APIRoute path='/api/v1/invitations/accept-token' methods=['POST'] name='accept_invitation_by_token'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 114. type=APIRoute path='/api/v1/platform/dashboard' methods=['GET'] name='platform_dashboard'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 115. type=APIRoute path='/api/v1/platform/projects' methods=['GET'] name='platform_list_projects'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 116. type=APIRoute path='/api/v1/platform/projects/{project_id}/archive' methods=['PATCH'] name='platform_archive_project'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 117. type=APIRoute path='/api/v1/platform/projects/{project_id}' methods=['DELETE'] name='platform_delete_project'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 118. type=APIRoute path='/api/v1/platform/projects/{project_id}/assign-admin' methods=['POST'] name='platform_assign_project_admin'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 119. type=APIRoute path='/api/v1/platform/projects/{project_id}/regenerate-key' methods=['POST'] name='platform_regenerate_project_key'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 120. type=APIRoute path='/api/v1/platform/users' methods=['GET'] name='platform_list_users'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 121. type=APIRoute path='/api/v1/platform/users' methods=['POST'] name='platform_create_user'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 122. type=APIRoute path='/api/v1/platform/users/{user_id}/disable' methods=['PATCH'] name='platform_disable_user'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 123. type=APIRoute path='/api/v1/platform/users/{user_id}' methods=['DELETE'] name='platform_delete_user'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 124. type=APIRoute path='/api/v1/platform/users/{user_id}/role' methods=['PATCH'] name='platform_change_user_role'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 125. type=APIRoute path='/api/v1/platform/users/{user_id}/reset-password' methods=['POST'] name='platform_reset_password'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 126. type=APIRoute path='/api/v1/platform/audit' methods=['GET'] name='platform_audit_logs'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 127. type=APIRoute path='/api/v1/platform/health' methods=['GET'] name='platform_system_health'
+      dependant_calls: _dep, get_current_active_user, get_current_user, <fastapi.security.api_key.APIKeyHeader object at 0x000001AAC4B0ABA0>, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 128. type=APIRoute path='/api/v1/events' methods=['POST'] name='ingest_event'
+      dependant_calls: get_project_from_api_key, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 129. type=APIRoute path='/api/v1/events/batch' methods=['POST'] name='ingest_event_batch'
+      dependant_calls: get_project_from_api_key, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 130. type=APIRoute path='/api/v1/events' methods=['GET'] name='list_project_events'
+      dependant_calls: get_project_from_api_key, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 131. type=APIRoute path='/api/v1/events/{event_id}' methods=['GET'] name='get_project_event'
+      dependant_calls: get_project_from_api_key, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 132. type=APIRoute path='/api/v1/events/stream' methods=['GET'] name='stream_events'
+      dependant_calls: get_project_from_api_key, <fastapi.security.http.HTTPBearer object at 0x000001AAC4B0ACF0>, get_db
+ 133. type=APIRoute path='/health' methods=['GET'] name='health_check'
+ 134. type=APIRoute path='/health/ready' methods=['GET'] name='readiness_check'
+
+=== OPENAPI OPERATIONS (path x method) ===
+DELETE  /api/v1/assets/{asset_id}  operationId='delete_asset_api_v1_assets__asset_id__delete'  tags=['assets']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Delete Asset'
+DELETE  /api/v1/evidence/{evidence_id}  operationId='delete_evidence_api_v1_evidence__evidence_id__delete'  tags=['evidence']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Delete Evidence'
+DELETE  /api/v1/incidents/{incident_id}  operationId='delete_incident_api_v1_incidents__incident_id__delete'  tags=['incidents']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Delete Incident'
+DELETE  /api/v1/incidents/{incident_id}/assets/{link_id}  operationId='unlink_incident_asset_api_v1_incidents__incident_id__assets__link_id__delete'  tags=['exposure']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Unlink Incident Asset'
+DELETE  /api/v1/incidents/{incident_id}/notes/{note_id}  operationId='delete_investigation_note_api_v1_incidents__incident_id__notes__note_id__delete'  tags=['incidents']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Delete Investigation Note'
+DELETE  /api/v1/platform/projects/{project_id}  operationId='platform_delete_project_api_v1_platform_projects__project_id__delete'  tags=['platform']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Platform Delete Project'
+DELETE  /api/v1/platform/users/{user_id}  operationId='platform_delete_user_api_v1_platform_users__user_id__delete'  tags=['platform']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Platform Delete User'
+DELETE  /api/v1/projects/{project_id}  operationId='delete_project_api_v1_projects__project_id__delete'  tags=['projects']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Delete Project'
+DELETE  /api/v1/projects/{project_id}/invitations/{invitation_id}  operationId='cancel_project_invitation_api_v1_projects__project_id__invitations__invitation_id__delete'  tags=['projects']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Cancel Project Invitation'
+DELETE  /api/v1/projects/{project_id}/members/{member_id}  operationId='remove_project_member_api_v1_projects__project_id__members__member_id__delete'  tags=['projects']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Remove Project Member'
+DELETE  /api/v1/users/{user_id}  operationId='delete_user_api_v1_users__user_id__delete'  tags=['users']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Delete User'
+GET     /api/v1/assets  operationId='list_assets_api_v1_assets_get'  tags=['assets']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='List Assets'
+GET     /api/v1/assets/export/csv  operationId='export_assets_csv_api_v1_assets_export_csv_get'  tags=['assets']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Export Assets Csv'
+GET     /api/v1/assets/{asset_id}  operationId='get_asset_api_v1_assets__asset_id__get'  tags=['assets']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Get Asset'
+GET     /api/v1/audit/logs  operationId='get_audit_logs_api_v1_audit_logs_get'  tags=['audit']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Get Audit Logs'
+GET     /api/v1/auth/me  operationId='me_api_v1_auth_me_get'  tags=['auth']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Me'
+GET     /api/v1/compliance/assessments  operationId='list_assessments_api_v1_compliance_assessments_get'  tags=['compliance']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='List Assessments'
+GET     /api/v1/compliance/dashboard  operationId='compliance_dashboard_api_v1_compliance_dashboard_get'  tags=['compliance']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Compliance Dashboard'
+GET     /api/v1/compliance/obligations  operationId='list_obligations_api_v1_compliance_obligations_get'  tags=['compliance']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='List Obligations'
+GET     /api/v1/compliance/score  operationId='get_compliance_score_api_v1_compliance_score_get'  tags=['compliance']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Get Compliance Score'
+GET     /api/v1/dashboard/summary  operationId='dashboard_summary_api_v1_dashboard_summary_get'  tags=['dashboard']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Dashboard Summary'
+GET     /api/v1/events  operationId='list_project_events_api_v1_events_get'  tags=['events']  security=[{'HTTPBearer': []}]  summary='List Project Events'
+GET     /api/v1/events/stream  operationId='stream_events_api_v1_events_stream_get'  tags=['events']  security=[{'HTTPBearer': []}]  summary='Stream Events'
+GET     /api/v1/events/{event_id}  operationId='get_project_event_api_v1_events__event_id__get'  tags=['events']  security=[{'HTTPBearer': []}]  summary='Get Project Event'
+GET     /api/v1/evidence  operationId='list_all_evidence_api_v1_evidence_get'  tags=['evidence', 'evidence']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='List All Evidence'
+GET     /api/v1/evidence/{evidence_id}  operationId='get_evidence_by_id_api_v1_evidence__evidence_id__get'  tags=['evidence']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Get Evidence By Id'
+GET     /api/v1/evidence/{evidence_id}/download  operationId='download_evidence_api_v1_evidence__evidence_id__download_get'  tags=['evidence']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Download Evidence'
+GET     /api/v1/evidence/{evidence_id}/download-url  operationId='get_download_url_api_v1_evidence__evidence_id__download_url_get'  tags=['evidence']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Get Download Url'
+GET     /api/v1/incidents  operationId='list_incidents_api_v1_incidents_get'  tags=['incidents']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='List Incidents'
+GET     /api/v1/incidents/stats  operationId='incident_stats_api_v1_incidents_stats_get'  tags=['incidents']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Incident Stats'
+GET     /api/v1/incidents/{incident_id}  operationId='get_incident_api_v1_incidents__incident_id__get'  tags=['incidents']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Get Incident'
+GET     /api/v1/incidents/{incident_id}/assets  operationId='list_incident_assets_api_v1_incidents__incident_id__assets_get'  tags=['exposure']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='List Incident Assets'
+GET     /api/v1/incidents/{incident_id}/evidence  operationId='list_evidence_api_v1_incidents__incident_id__evidence_get'  tags=['evidence']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='List Evidence'
+GET     /api/v1/incidents/{incident_id}/explain  operationId='explain_incident_api_v1_incidents__incident_id__explain_get'  tags=['incidents']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Explain Incident'
+GET     /api/v1/incidents/{incident_id}/explanation  operationId='incident_attack_explanation_api_v1_incidents__incident_id__explanation_get'  tags=['incidents']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Incident Attack Explanation'
+GET     /api/v1/incidents/{incident_id}/exposure  operationId='get_exposure_api_v1_incidents__incident_id__exposure_get'  tags=['exposure']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Get Exposure'
+GET     /api/v1/incidents/{incident_id}/ioc  operationId='get_incident_ioc_api_v1_incidents__incident_id__ioc_get'  tags=['incidents']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Get Incident Ioc'
+GET     /api/v1/incidents/{incident_id}/notes  operationId='list_investigation_notes_api_v1_incidents__incident_id__notes_get'  tags=['incidents']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='List Investigation Notes'
+GET     /api/v1/incidents/{incident_id}/obligations  operationId='list_obligations_api_v1_incidents__incident_id__obligations_get'  tags=['exposure']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='List Obligations'
+GET     /api/v1/incidents/{incident_id}/related  operationId='get_related_incidents_api_v1_incidents__incident_id__related_get'  tags=['incidents']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Get Related Incidents'
+GET     /api/v1/incidents/{incident_id}/report  operationId='generate_incident_report_api_v1_incidents__incident_id__report_get'  tags=['incidents']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Generate Incident Report'
+GET     /api/v1/incidents/{incident_id}/timeline  operationId='get_investigation_timeline_api_v1_incidents__incident_id__timeline_get'  tags=['incidents']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Get Investigation Timeline'
+GET     /api/v1/infrastructure  operationId='infrastructure_status_api_v1_infrastructure_get'  tags=['infrastructure']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Infrastructure Status'
+GET     /api/v1/infrastructure/sqs-history  operationId='sqs_queue_history_api_v1_infrastructure_sqs_history_get'  tags=['infrastructure']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Sqs Queue History'
+GET     /api/v1/invitations/pending  operationId='list_pending_invitations_api_v1_invitations_pending_get'  tags=['invitations']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='List Pending Invitations'
+GET     /api/v1/knowledge/attack-mapping  operationId='attack_mapping_api_v1_knowledge_attack_mapping_get'  tags=['knowledge']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Attack Mapping'
+GET     /api/v1/knowledge/attacks  operationId='list_attack_guides_api_v1_knowledge_attacks_get'  tags=['knowledge']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='List Attack Guides'
+GET     /api/v1/knowledge/attacks/{class_id}  operationId='get_attack_guide_api_v1_knowledge_attacks__class_id__get'  tags=['knowledge']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Get Attack Guide'
+GET     /api/v1/knowledge/versions  operationId='knowledge_versions_api_v1_knowledge_versions_get'  tags=['knowledge']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Knowledge Versions'
+GET     /api/v1/ml/flows  operationId='ml_flows_api_v1_ml_flows_get'  tags=['ml']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Ml Flows'
+GET     /api/v1/ml/metrics  operationId='ml_metrics_api_v1_ml_metrics_get'  tags=['ml']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Ml Metrics'
+GET     /api/v1/ml/model-info  operationId='model_info_api_v1_ml_model_info_get'  tags=['ml']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Model Info'
+GET     /api/v1/ml/models  operationId='list_model_versions_api_v1_ml_models_get'  tags=['ml']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='List Model Versions'
+GET     /api/v1/ml/stats  operationId='ml_stats_api_v1_ml_stats_get'  tags=['ml']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Ml Stats'
+GET     /api/v1/ml/status  operationId='ml_status_api_v1_ml_status_get'  tags=['ml']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Ml Status'
+GET     /api/v1/notifications  operationId='list_notifications_api_v1_notifications_get'  tags=['notifications']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='List Notifications'
+GET     /api/v1/notifications/{notification_id}  operationId='get_notification_api_v1_notifications__notification_id__get'  tags=['notifications']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Get Notification'
+GET     /api/v1/platform/audit  operationId='platform_audit_logs_api_v1_platform_audit_get'  tags=['platform']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Platform Audit Logs'
+GET     /api/v1/platform/dashboard  operationId='platform_dashboard_api_v1_platform_dashboard_get'  tags=['platform']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Platform Dashboard'
+GET     /api/v1/platform/health  operationId='platform_system_health_api_v1_platform_health_get'  tags=['platform']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Platform System Health'
+GET     /api/v1/platform/projects  operationId='platform_list_projects_api_v1_platform_projects_get'  tags=['platform']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Platform List Projects'
+GET     /api/v1/platform/users  operationId='platform_list_users_api_v1_platform_users_get'  tags=['platform']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Platform List Users'
+GET     /api/v1/projects  operationId='list_projects_api_v1_projects_get'  tags=['projects']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='List Projects'
+GET     /api/v1/projects/{project_id}  operationId='get_project_api_v1_projects__project_id__get'  tags=['projects']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Get Project'
+GET     /api/v1/projects/{project_id}/compliance-inference  operationId='get_compliance_inference_api_v1_projects__project_id__compliance_inference_get'  tags=['projects']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Get Compliance Inference'
+GET     /api/v1/projects/{project_id}/dashboard  operationId='project_dashboard_api_v1_projects__project_id__dashboard_get'  tags=['projects']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Project Dashboard'
+GET     /api/v1/projects/{project_id}/invitations  operationId='list_project_invitations_api_v1_projects__project_id__invitations_get'  tags=['projects']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='List Project Invitations'
+GET     /api/v1/projects/{project_id}/members  operationId='list_project_members_api_v1_projects__project_id__members_get'  tags=['projects']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='List Project Members'
+GET     /api/v1/projects/{project_id}/sdk/python  operationId='download_python_sdk_api_v1_projects__project_id__sdk_python_get'  tags=['projects']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Download Python Sdk'
+GET     /api/v1/reports/compliance/pdf  operationId='compliance_report_pdf_api_v1_reports_compliance_pdf_get'  tags=['reports']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Compliance Report Pdf'
+GET     /api/v1/reports/weekly  operationId='weekly_report_json_api_v1_reports_weekly_get'  tags=['reports']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Weekly Report Json'
+GET     /api/v1/reports/weekly/pdf  operationId='weekly_report_pdf_api_v1_reports_weekly_pdf_get'  tags=['reports']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Weekly Report Pdf'
+GET     /api/v1/security-score  operationId='get_security_score_api_v1_security_score_get'  tags=['security-score']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Get Security Score'
+GET     /api/v1/users  operationId='list_users_api_v1_users_get'  tags=['users']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='List Users'
+GET     /api/v1/users/{user_id}  operationId='get_user_api_v1_users__user_id__get'  tags=['users']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Get User'
+GET     /health  operationId='health_check_health_get'  tags=['health']  security=none_declared (no op security, no global)  summary='Health Check'
+GET     /health/ready  operationId='readiness_check_health_ready_get'  tags=['health']  security=none_declared (no op security, no global)  summary='Readiness Check'
+PATCH   /api/v1/assets/{asset_id}  operationId='update_asset_api_v1_assets__asset_id__patch'  tags=['assets']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Update Asset'
+PATCH   /api/v1/auth/profile  operationId='update_profile_api_v1_auth_profile_patch'  tags=['auth']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Update Profile'
+PATCH   /api/v1/compliance/obligations/{obligation_id}  operationId='update_obligation_api_v1_compliance_obligations__obligation_id__patch'  tags=['compliance']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Update Obligation'
+PATCH   /api/v1/incidents/{incident_id}  operationId='update_incident_api_v1_incidents__incident_id__patch'  tags=['incidents']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Update Incident'
+PATCH   /api/v1/incidents/{incident_id}/assets/{link_id}  operationId='update_incident_asset_api_v1_incidents__incident_id__assets__link_id__patch'  tags=['exposure']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Update Incident Asset'
+PATCH   /api/v1/incidents/{incident_id}/notes/{note_id}  operationId='update_investigation_note_api_v1_incidents__incident_id__notes__note_id__patch'  tags=['incidents']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Update Investigation Note'
+PATCH   /api/v1/platform/projects/{project_id}/archive  operationId='platform_archive_project_api_v1_platform_projects__project_id__archive_patch'  tags=['platform']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Platform Archive Project'
+PATCH   /api/v1/platform/users/{user_id}/disable  operationId='platform_disable_user_api_v1_platform_users__user_id__disable_patch'  tags=['platform']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Platform Disable User'
+PATCH   /api/v1/platform/users/{user_id}/role  operationId='platform_change_user_role_api_v1_platform_users__user_id__role_patch'  tags=['platform']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Platform Change User Role'
+PATCH   /api/v1/projects/{project_id}  operationId='update_project_api_v1_projects__project_id__patch'  tags=['projects']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Update Project'
+PATCH   /api/v1/projects/{project_id}/compliance-inference  operationId='update_compliance_inference_api_v1_projects__project_id__compliance_inference_patch'  tags=['projects']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Update Compliance Inference'
+PATCH   /api/v1/projects/{project_id}/members/{member_id}  operationId='update_project_member_api_v1_projects__project_id__members__member_id__patch'  tags=['projects']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Update Project Member'
+PATCH   /api/v1/projects/{project_id}/ml-policy  operationId='update_project_ml_policy_api_v1_projects__project_id__ml_policy_patch'  tags=['projects']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Update Project Ml Policy'
+PATCH   /api/v1/users/{user_id}  operationId='update_user_api_v1_users__user_id__patch'  tags=['users']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Update User'
+POST    /api/v1/assets  operationId='create_asset_api_v1_assets_post'  tags=['assets']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Create Asset'
+POST    /api/v1/assets/import  operationId='import_assets_api_v1_assets_import_post'  tags=['assets']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Import Assets'
+POST    /api/v1/assets/{asset_id}/exposure-simulation  operationId='exposure_simulation_api_v1_assets__asset_id__exposure_simulation_post'  tags=['assets']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Exposure Simulation'
+POST    /api/v1/auth/api-key/rotate  operationId='rotate_api_key_api_v1_auth_api_key_rotate_post'  tags=['auth']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Rotate Api Key'
+POST    /api/v1/auth/login  operationId='login_api_v1_auth_login_post'  tags=['auth']  security=none_declared (no op security, no global)  summary='Login'
+POST    /api/v1/auth/logout  operationId='logout_api_v1_auth_logout_post'  tags=['auth']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Logout'
+POST    /api/v1/auth/refresh  operationId='refresh_api_v1_auth_refresh_post'  tags=['auth']  security=none_declared (no op security, no global)  summary='Refresh'
+POST    /api/v1/auth/register  operationId='register_api_v1_auth_register_post'  tags=['auth']  security=none_declared (no op security, no global)  summary='Register'
+POST    /api/v1/compliance/assess  operationId='create_assessment_api_v1_compliance_assess_post'  tags=['compliance']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Create Assessment'
+POST    /api/v1/compliance/obligations  operationId='upsert_obligation_api_v1_compliance_obligations_post'  tags=['compliance']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Upsert Obligation'
+POST    /api/v1/compliance/records/{record_id}/mark-met  operationId='mark_met_api_v1_compliance_records__record_id__mark_met_post'  tags=['compliance']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Mark Met'
+POST    /api/v1/events  operationId='ingest_event_api_v1_events_post'  tags=['events']  security=[{'HTTPBearer': []}]  summary='Ingest Event'
+POST    /api/v1/events/batch  operationId='ingest_event_batch_api_v1_events_batch_post'  tags=['events']  security=[{'HTTPBearer': []}]  summary='Ingest Event Batch'
+POST    /api/v1/evidence/{evidence_id}/verify  operationId='verify_integrity_api_v1_evidence__evidence_id__verify_post'  tags=['evidence']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Verify Integrity'
+POST    /api/v1/incidents  operationId='create_incident_api_v1_incidents_post'  tags=['incidents']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Create Incident'
+POST    /api/v1/incidents/{incident_id}/assets  operationId='link_incident_asset_api_v1_incidents__incident_id__assets_post'  tags=['exposure']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Link Incident Asset'
+POST    /api/v1/incidents/{incident_id}/evidence  operationId='upload_evidence_api_v1_incidents__incident_id__evidence_post'  tags=['evidence']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Upload Evidence'
+POST    /api/v1/incidents/{incident_id}/exposure  operationId='recompute_exposure_api_v1_incidents__incident_id__exposure_post'  tags=['exposure']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Recompute Exposure'
+POST    /api/v1/incidents/{incident_id}/notes  operationId='add_investigation_note_api_v1_incidents__incident_id__notes_post'  tags=['incidents']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Add Investigation Note'
+POST    /api/v1/incidents/{incident_id}/obligations/{record_id}/accept  operationId='accept_obligation_api_v1_incidents__incident_id__obligations__record_id__accept_post'  tags=['exposure']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Accept Obligation'
+POST    /api/v1/incidents/{incident_id}/obligations/{record_id}/dismiss  operationId='dismiss_obligation_api_v1_incidents__incident_id__obligations__record_id__dismiss_post'  tags=['exposure']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Dismiss Obligation'
+POST    /api/v1/incidents/{incident_id}/reopen  operationId='reopen_incident_api_v1_incidents__incident_id__reopen_post'  tags=['incidents']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Reopen Incident'
+POST    /api/v1/incidents/{incident_id}/status  operationId='change_status_api_v1_incidents__incident_id__status_post'  tags=['incidents']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Change Status'
+POST    /api/v1/invitations/accept-token  operationId='accept_invitation_by_token_api_v1_invitations_accept_token_post'  tags=['invitations']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Accept Invitation By Token'
+POST    /api/v1/invitations/{invitation_id}/accept  operationId='accept_invitation_api_v1_invitations__invitation_id__accept_post'  tags=['invitations']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Accept Invitation'
+POST    /api/v1/invitations/{invitation_id}/decline  operationId='decline_invitation_api_v1_invitations__invitation_id__decline_post'  tags=['invitations']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Decline Invitation'
+POST    /api/v1/ml/classify  operationId='classify_flow_api_v1_ml_classify_post'  tags=['ml']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Classify Flow'
+POST    /api/v1/notifications/{notification_id}/approve  operationId='approve_notification_api_v1_notifications__notification_id__approve_post'  tags=['notifications']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Approve Notification'
+POST    /api/v1/notifications/{notification_id}/dispatch  operationId='dispatch_notification_api_v1_notifications__notification_id__dispatch_post'  tags=['notifications']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Dispatch Notification'
+POST    /api/v1/notifications/{notification_id}/send  operationId='send_notification_api_v1_notifications__notification_id__send_post'  tags=['notifications']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Send Notification'
+POST    /api/v1/platform/projects/{project_id}/assign-admin  operationId='platform_assign_project_admin_api_v1_platform_projects__project_id__assign_admin_post'  tags=['platform']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Platform Assign Project Admin'
+POST    /api/v1/platform/projects/{project_id}/regenerate-key  operationId='platform_regenerate_project_key_api_v1_platform_projects__project_id__regenerate_key_post'  tags=['platform']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Platform Regenerate Project Key'
+POST    /api/v1/platform/users  operationId='platform_create_user_api_v1_platform_users_post'  tags=['platform']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Platform Create User'
+POST    /api/v1/platform/users/{user_id}/reset-password  operationId='platform_reset_password_api_v1_platform_users__user_id__reset_password_post'  tags=['platform']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Platform Reset Password'
+POST    /api/v1/projects  operationId='create_project_api_v1_projects_post'  tags=['projects']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Create Project'
+POST    /api/v1/projects/{project_id}/invitations  operationId='create_project_invitation_api_v1_projects__project_id__invitations_post'  tags=['projects']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Create Project Invitation'
+POST    /api/v1/projects/{project_id}/members  operationId='add_project_member_api_v1_projects__project_id__members_post'  tags=['projects']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Add Project Member'
+POST    /api/v1/projects/{project_id}/regenerate-key  operationId='regenerate_api_key_api_v1_projects__project_id__regenerate_key_post'  tags=['projects']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Regenerate Api Key'
+POST    /api/v1/users  operationId='create_user_api_v1_users_post'  tags=['users']  security=[{'HTTPBearer': []}, {'APIKeyHeader': []}]  summary='Create User'
+
+=== SUMMARY ===
+Total app.routes entries: 134
+APIRoute entries: 130
+OpenAPI operations (excl options/head): 130
+OpenAPI PUBLIC (security=[]): 0
+OpenAPI appears secured or global: 125
+OpenAPI ambiguous (no security, no global): 5
+
+=== LIKELY UNAUTHENTICATED (OpenAPI security=[]) ===
+  (none with explicit security=[])
+
+=== AMBIGUOUS AUTH (no op security, no global) ===
+  - GET /health  tags=['health']
+  - GET /health/ready  tags=['health']
+  - POST /api/v1/auth/login  tags=['auth']
+  - POST /api/v1/auth/refresh  tags=['auth']
+  - POST /api/v1/auth/register  tags=['auth']
+
+=== HEALTH / AUTH TAG HINTS (public list cross-check) ===
